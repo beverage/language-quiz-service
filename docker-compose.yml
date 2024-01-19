@@ -1,0 +1,25 @@
+services:
+  database:
+    image: "postgres:latest"
+    labels:
+      - openai-language-test
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_DB: language_app
+      POSTGRES_USER: openai_test
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - type: volume
+        source: pg-data
+        target: /var/lib/postgresql/data
+      - ./database:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "postgres"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  pg-data:

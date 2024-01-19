@@ -1,0 +1,63 @@
+--  Database initial ideas.
+CREATE TYPE direct_pronoun   AS ENUM ('la', 'le', 'les');
+CREATE TYPE indirect_pronoun AS ENUM ('lui', 'leur');
+
+--  Some verbs work both with and without a reflexive pronoun.  Verbs that
+--  do not, or can do both, will all stored in their 'se <verb>' form:
+CREATE TYPE reflexive_pronoun AS ENUM ('me', 'te', 'se');
+
+--  Some verbs can support either:
+CREATE TYPE auxiliary AS ENUM ('avoir', 'être');
+
+--  Aucun needs to match gender:
+CREATE TYPE negation AS ENUM ('pas', 'jamais', 'rien', 'personne', 'plus', 'aucun', 'encore'); 
+
+--  Modes and tenses.  There are exact combinations that need to be pre-loaded here:
+CREATE TYPE mode  AS ENUM('indicative', 'subjunctive', 'imperative', 'infinitive', 'parcipitive');
+CREATE TYPE tense AS ENUM('present', 'passé composé', 'imparfait', 'conditionnel présent');
+
+--  This represents a common suffix for groups of verbs:
+CREATE TABLE verb_group (
+    id              serial      primary key,
+    example         varchar     not null,
+    suffix          varchar     not null,
+    classification  smallint    not null check (classification >= 1 and classification <= 3),
+
+    unique(example, suffix)
+);
+
+--  This represents a verb within a group above:
+CREATE TABLE verb (
+    id              serial  primary key,
+    group_id        serial  not null references verb_group (id),
+    infinitive      varchar not null,
+    auxiliary       varchar not null,
+    is_reflexive    boolean not null
+);
+
+--  This represents a conjugation for a valid tense of a verb above:
+CREATE TABLE conjugation (
+    id                          serial   primary key,
+    verb_id                     serial   not null references verb (id),
+    mode                        mode     not null,
+    tense                       tense    not null,
+    first_person_singular       varchar,
+    second_person_singular      varchar,
+    third_person_singular       varchar,
+    first_person_plural         varchar,
+    second_person_formal        varchar,
+    third_person_plural         varchar
+);
+
+--  This represents a sentance formed, either correct or incorrect, using
+--  a selected verb as a question, and it's incorrect answers:
+CREATE TABLE sentence (
+    id                  serial              primary key,    
+    verb_conjugation    serial              not null references conjugation (id),
+    content             varchar             not null,
+    valid               boolean             not null,
+    reflexive_pronoun   reflexive_pronoun,
+    direct_pronoun      direct_pronoun,
+    indirect_pronoun    indirect_pronoun,
+    negation            negation
+);
