@@ -17,7 +17,7 @@ CREATE TYPE mode  AS ENUM('indicative', 'subjunctive', 'imperative', 'infinitive
 CREATE TYPE tense AS ENUM('present', 'passé composé', 'imparfait', 'conditionnel présent');
 
 --  This represents a common suffix for groups of verbs:
-CREATE TABLE verb_group (
+CREATE TABLE verb_groups (
     id              serial      primary key,
     example         varchar     not null,
     suffix          varchar     not null,
@@ -27,18 +27,18 @@ CREATE TABLE verb_group (
 );
 
 --  This represents a verb within a group above:
-CREATE TABLE verb (
+CREATE TABLE verbs (
     id              serial  primary key,
-    group_id        serial  not null references verb_group (id),
+    group_id        serial  not null references verb_groups (id),
     infinitive      varchar not null,
     auxiliary       varchar not null,
     is_reflexive    boolean not null
 );
 
 --  This represents a conjugation for a valid tense of a verb above:
-CREATE TABLE conjugation (
+CREATE TABLE conjugations (
     id                          serial   primary key,
-    verb_id                     serial   not null references verb (id),
+    verb_id                     serial   not null references verbs (id),
     mode                        mode     not null,
     tense                       tense    not null,
     first_person_singular       varchar,
@@ -51,9 +51,9 @@ CREATE TABLE conjugation (
 
 --  This represents a sentance formed, either correct or incorrect, using
 --  a selected verb as a question, and it's incorrect answers:
-CREATE TABLE sentence (
+CREATE TABLE sentences (
     id                  serial              primary key,    
-    verb_conjugation    serial              not null references conjugation (id),
+    verb_conjugation    serial              not null references conjugations (id),
     content             varchar             not null,
     valid               boolean             not null,
     reflexive_pronoun   reflexive_pronoun,
