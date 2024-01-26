@@ -49,13 +49,13 @@ CREATE TABLE conjugations (
     third_person_plural         varchar
 );
 
---  This represents a sentance formed, either correct or incorrect, using
+--  This represents a sentence formed, either correct or incorrect, using
 --  a selected verb as a question, and it's incorrect answers:
 CREATE TABLE sentences (
     id                  serial              primary key,    
     verb_conjugation    serial              not null references conjugations (id),
     content             varchar             not null,
-    valid               boolean             not null,
+    correct             boolean             not null,
     reflexive_pronoun   reflexive_pronoun,
     direct_pronoun      direct_pronoun,
     indirect_pronoun    indirect_pronoun,

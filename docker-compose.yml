@@ -7,7 +7,7 @@ services:
       - 5432:5432
     environment:
       POSTGRES_DB: language_app
-      POSTGRES_USER: openai_test
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
       - type: volume
