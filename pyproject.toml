@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "dbtest"
+version = "0.0.1"
+description = ""
+authors = [ "Alex Beverage" ]
+packages = [{ include = "dbtest", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+argparse = "^1.4.0"
+
+[tool.poetry.scripts]
+dbtest = "dbtest.dbtest:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,2 +1,6 @@
+.DS_Store
 
+dist/**
 postgres/**
+**/__pycache__/**
+**/*.egg-info
