@@ -10,5 +10,8 @@
             "username": "postgres",
             "password": "postgres"
         }
+    ],
+    "python.analysis.extraPaths": [
+        "./src/dbtest"
     ]
 }
