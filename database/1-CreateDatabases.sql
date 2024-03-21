@@ -5,6 +5,7 @@ CREATE TYPE indirect_pronoun AS ENUM ('lui', 'leur');
 --  Some verbs work both with and without a reflexive pronoun.  Verbs that
 --  do not, or can do both, will all stored in their 'se <verb>' form:
 CREATE TYPE reflexive_pronoun AS ENUM ('me', 'te', 'se');
+CREATE TYPE reflexivity AS ENUM ('no', 'conditional', 'mandatory');
 
 --  Some verbs can support either:
 CREATE TYPE auxiliary AS ENUM ('avoir', 'être');
@@ -17,7 +18,7 @@ CREATE TYPE negation AS ENUM ('pas', 'jamais', 'rien', 'personne', 'plus', 'aucu
 --  Modes and tenses.  There are exact combinations that need to be pre-loaded here:
 -- CREATE TYPE mode  AS ENUM('indicative', 'subjunctive', 'imperative', 'infinitive', 'participle');
 -- CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imparfait', 'conditionnel présent');
-CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imparfait', 'future', 'participle');
+CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imparfait', 'future_simple', 'participle');
 
 --  This represents a common suffix for groups of verbs:
 CREATE TABLE verb_groups (
@@ -35,7 +36,7 @@ CREATE TABLE verbs (
     -- group_id        serial  not null references verb_groups (id),
     infinitive      varchar not null,
     auxiliary       varchar not null,
-    is_reflexive    boolean not null
+    reflexivity     reflexivity not null default 'no'
 );
 
 --  This represents a conjugation for a valid tense of a verb above:

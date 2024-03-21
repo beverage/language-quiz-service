@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
+import asyncio
 from os import environ
 
 import click
 import logging
 
-from pprint import pprint
-
+from .database.init import init_auxiliaries
 from .verbs.get import fetch_verb
 
 API_KEY = environ["OPENAI_API_KEY"]
@@ -30,6 +30,8 @@ def clean():
 @database.command()
 def init():
     click.echo("Initializing the database to default settings and content.")
+    click.echo("Fetching auxiliaries.")
+    asyncio.run(init_auxiliaries())
 
 @database.command()
 def reset():
@@ -48,8 +50,8 @@ def verb():
 @click.option('-s', '--save', is_flag=True, default=False)
 def get(verb, save):
     click.echo(f"Fetching verb {verb}.")
-    result = fetch_verb(verb, save)
-    pprint(result)
+    fetch_verb(verb, save)
+    # pprint(result)
     
 @verb.command()
 def decorate():

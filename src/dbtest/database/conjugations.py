@@ -9,12 +9,13 @@ class Tense(enum.Enum):
     present       = auto()
     passe_compose = auto()
     imparfait     = auto()
-    future        = auto()
+    future_simple = auto()
     participle    = auto()
 
 engine   = create_engine("postgresql://postgres:postgres@localhost/language_app")
 metadata = MetaData()
-metadata.reflect(engine, only=['conjugations'], extend_existing=True)
+
+metadata.reflect(engine, only=["conjugations"], extend_existing=True)
 
 conjugation_table = Table("conjugations", metadata,
     Column("id", Integer, primary_key=True),
