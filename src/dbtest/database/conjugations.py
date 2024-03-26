@@ -1,8 +1,9 @@
 import enum
 from enum import Enum, auto
 
-from sqlalchemy import Table, Column, Enum, Integer, String, MetaData, create_engine
+from sqlalchemy import Table, Column, ForeignKey, Enum, Integer, String, MetaData, create_engine
 from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.orm import relationship
 
 #   This highly suggests that temporal-ness should be a property in itself:
 class Tense(enum.Enum):
@@ -19,7 +20,8 @@ metadata.reflect(engine, only=["conjugations"], extend_existing=True)
 
 conjugation_table = Table("conjugations", metadata,
     Column("id", Integer, primary_key=True),
-    # Column("verb_id", ForeignKey('verbs.id')),
+    # relationship("verbs", cascade="all"),
+    Column("verb_id", ForeignKey('verbs.id')),
     # Column('group_id', ForeignKey('verb_groups.id')),
     # Column('mode', Enum(Mode), nullable=False),
     Column('tense', Enum(Tense), nullable=False),

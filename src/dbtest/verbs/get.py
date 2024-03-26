@@ -80,8 +80,6 @@ def fetch_verb(requested_verb: str, save_verb: bool) -> str:
         ]
     )
 
-    # print(completion.choices[0].message.content)
-
     if save_verb:
 
         response: str = repair_json(completion.choices[0].message.content) # JSON can often come back mal-formed by ChatGTP.
@@ -107,6 +105,10 @@ def fetch_verb(requested_verb: str, save_verb: bool) -> str:
             verb.infinitive  = infinitive
             verb.reflexivity = Reflexivity[response_json["reflexivity"]]
 
+            session.add(verb)
+            session.commit()
+            session.refresh(verb)
+
             existing_conjugation: Conjugation = (
                 session.query(Conjugation)
                        .filter(and_(Conjugation.infinitive == infinitive, Conjugation.tense == tense))
@@ -119,6 +121,7 @@ def fetch_verb(requested_verb: str, save_verb: bool) -> str:
             conjugation: Conjugation = Conjugation() if existing_conjugation == None else existing_conjugation
             conjugation.infinitive   = infinitive
             conjugation.tense        = tense
+            conjugation.verb_id      = verb.id
 
             for response_conjugation in response_tense["conjugations"]:
 
@@ -147,10 +150,8 @@ def fetch_verb(requested_verb: str, save_verb: bool) -> str:
             if existing_conjugation == None:
                 log.info(f"Adding {conjugation.infinitive} with tense {conjugation.tense}.")
                 session.add(conjugation)
-                session.add(verb)
             else:
                 log.info(f"Updating {conjugation.infinitive} with tense {conjugation.tense}.")
-                session.merge(conjugation)
                 session.merge(verb)
 
             session.commit()

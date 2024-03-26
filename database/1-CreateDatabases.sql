@@ -42,7 +42,7 @@ CREATE TABLE verbs (
 --  This represents a conjugation for a valid tense of a verb above:
 CREATE TABLE conjugations (
     id                          serial   primary key,
---    verb_id                     serial   not null references verbs (id),
+    verb_id                     serial   not null references verbs (id),
 --    mode                        mode     not null,
     tense                       tense    not null,
     infinitive                  varchar  not null,  --  <- key this.
