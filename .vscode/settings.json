@@ -1,4 +1,5 @@
 {
+    "python.defaultInterpreterPath": "/Users/alexbeverage/Code/LanguageApps/DatabaseTests/.venv/bin/python3 ",
     "sqltools.connections": [
         {
             "previewLimit": 50,

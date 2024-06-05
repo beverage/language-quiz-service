@@ -2,9 +2,11 @@
 import asyncio
 from os import environ
 
-import click
+import asyncclick as click
 import logging
 
+from .database.engine import Base
+from .database.engine import async_engine, reflect_tables
 from .database.init import init_auxiliaries
 from .verbs.get import fetch_verb
 
@@ -12,54 +14,59 @@ API_KEY = environ["OPENAI_API_KEY"]
 
 @click.group()
 @click.option('--debug/--no-debug', default=False)
-def cli(debug):
+async def cli(debug):
     click.echo(f"Debug mode is {'on' if debug else 'off'}")
     if debug == True:
         logging.basicConfig(level = logging.DEBUG)
     else:
         logging.basicConfig(level = logging.INFO)
+        
+    await reflect_tables()
+    print("\n\n\n\n\n------------tables reflected!\n\n\n\n")
+    
 
 @cli.group()
-def database():
+async def database():
     pass
 
 @database.command()
-def clean():
+async def clean():
     click.echo("Cleaning the database of any user data and history.")
 
 @database.command()
-def init():
+async def init():
     click.echo("Initializing the database to default settings and content.")
     click.echo("Fetching auxiliaries.")
-    asyncio.run(init_auxiliaries())
+    await init_auxiliaries()
 
 @database.command()
-def reset():
+async def reset():
     click.echo("Resetting the database container.")
 
 @cli.group()
-def sentence():
+async def sentence():
     pass
 
 @cli.group()
-def verb():
+async def verb():
     pass
 
 @verb.command()
 @click.argument('verb')
 @click.option('-s', '--save', is_flag=True, default=False)
-def get(verb, save):
+async def get(verb, save):
     click.echo(f"Fetching verb {verb}.")
-    fetch_verb(verb, save)
-    # pprint(result)
+    await fetch_verb(verb, save)
     
 @verb.command()
-def decorate():
+async def decorate():
     click.echo("Decorating verb.")
 
-def main():
-    click.echo(f"Loading application with API key {API_KEY}")
-    cli(obj={})
+# async def async_main():
+#     click.echo(f"Loading application with API key {API_KEY}")
+#     logging.basicConfig()
+#     #logging.getLogger('sqlalchemy').setLevel(logging.DEBUG)
+#     cli(_anyio_backend='asyncio', obj={})
 
-if __name__ == "__main__":
-    main()
+def main():
+    cli(_anyio_backend="asyncio")

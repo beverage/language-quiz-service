@@ -1,9 +1,10 @@
 import enum
 from enum import Enum, auto
 
-from sqlalchemy import Table, Column, ForeignKey, Enum, Integer, String, MetaData, create_engine
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.orm import relationship
+from sqlalchemy import Table, Column, ForeignKey, Enum, Integer, String
+
+from .engine import Base
+from .metadata import metadata
 
 #   This highly suggests that temporal-ness should be a property in itself:
 class Tense(enum.Enum):
@@ -12,11 +13,12 @@ class Tense(enum.Enum):
     imparfait     = auto()
     future_simple = auto()
     participle    = auto()
+    # present       = 'present'
+    # passe_compose = 'passe_compose'
+    # imparfait     = 'imparfait'
+    # future_simple = 'future_simple'
+    # participle    = 'participle'
 
-engine   = create_engine("postgresql://postgres:postgres@localhost/language_app")
-metadata = MetaData()
-
-metadata.reflect(engine, only=["conjugations"], extend_existing=True)
 
 conjugation_table = Table("conjugations", metadata,
     Column("id", Integer, primary_key=True),
@@ -32,10 +34,12 @@ conjugation_table = Table("conjugations", metadata,
     Column('first_person_plural', String()),
     Column('second_person_formal', String()),
     Column('third_person_plural', String()),
-    extend_existing=True
+    extend_existing=False
 )
 
-Base = automap_base(metadata=metadata)
-Base.prepare()
+# metadata.reflect(engine, only=["conjugations"], extend_existing=True)
 
-Conjugation = Base.classes.conjugations
+# Base = automap_base(metadata=metadata)
+# Base.prepare(engine)
+
+# Conjugation = Base.classes.conjugations
