@@ -52,10 +52,9 @@ async def verb():
 
 @verb.command()
 @click.argument('verb')
-@click.option('-s', '--save', is_flag=True, default=False)
 async def get(verb, save):
     click.echo(f"Fetching verb {verb}.")
-    await fetch_verb(verb, save)
+    await fetch_verb(verb)
     
 @verb.command()
 async def decorate():
