@@ -5,6 +5,7 @@ from ..verbs.get import fetch_verb
 auxiliaries: list[str] = ["avoir", "être"]
 irregulars: list[str] = ["aller", "faire", "pouvoir", "savoir", "vouloir"]
 
+#   Still under construction:
 async def init_auxiliaries():
     async with aiohttp.ClientSession() as session:
         tasks = []

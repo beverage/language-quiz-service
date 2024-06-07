@@ -1,9 +1,8 @@
-import enum
 from enum import Enum, auto
 
+from enum import enum
 from sqlalchemy import Table, Column, ForeignKey, Enum, Integer, String
 
-from .engine import Base
 from .metadata import metadata
 
 #   This highly suggests that temporal-ness should be a property in itself:
@@ -13,12 +12,6 @@ class Tense(enum.Enum):
     imparfait     = auto()
     future_simple = auto()
     participle    = auto()
-    # present       = 'present'
-    # passe_compose = 'passe_compose'
-    # imparfait     = 'imparfait'
-    # future_simple = 'future_simple'
-    # participle    = 'participle'
-
 
 conjugation_table = Table("conjugations", metadata,
     Column("id", Integer, primary_key=True),
@@ -36,10 +29,5 @@ conjugation_table = Table("conjugations", metadata,
     Column('third_person_plural', String()),
     extend_existing=False
 )
-
-# metadata.reflect(engine, only=["conjugations"], extend_existing=True)
-
-# Base = automap_base(metadata=metadata)
-# Base.prepare(engine)
 
 # Conjugation = Base.classes.conjugations

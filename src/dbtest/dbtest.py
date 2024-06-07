@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-import asyncio
 from os import environ
 
 import asyncclick as click
 import logging
 
-from .database.engine import Base
-from .database.engine import async_engine, reflect_tables
+from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
 from .verbs.get import fetch_verb
 
@@ -22,8 +20,6 @@ async def cli(debug):
         logging.basicConfig(level = logging.INFO)
         
     await reflect_tables()
-    print("\n\n\n\n\n------------tables reflected!\n\n\n\n")
-    
 
 @cli.group()
 async def database():
@@ -61,12 +57,6 @@ async def get(verb, save):
 @verb.command()
 async def decorate():
     click.echo("Decorating verb.")
-
-# async def async_main():
-#     click.echo(f"Loading application with API key {API_KEY}")
-#     logging.basicConfig()
-#     #logging.getLogger('sqlalchemy').setLevel(logging.DEBUG)
-#     cli(_anyio_backend='asyncio', obj={})
 
 def main():
     cli(_anyio_backend="asyncio")

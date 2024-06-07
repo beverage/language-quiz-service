@@ -1,50 +1,20 @@
-from asyncio import get_event_loop
-#from ..database.conjugations import Conjugation
-#from ..database.verbs import Verb, Reflexivity
-
 import json
 import logging
 
 from fix_busted_json import repair_json
 
-from openai import OpenAI, ChatCompletion
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAI, ChatCompletion
 
-from sqlalchemy import and_, select, insert, update
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import and_, select
 
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
-from ..database.engine import Base
-from ..database.engine import async_engine
+from ..database.engine import Base, get_async_session
 from ..database.verbs import Reflexivity
-
 
 log = logging.getLogger(__name__)
 
 client:    OpenAI = AsyncOpenAI()
 openai_model: str = "gpt-3.5-turbo"
 openai_role:  str = "user"
-
-AsyncSessionLocal = async_sessionmaker(
-    bind=async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False
-)
-
-@asynccontextmanager
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
 
 auxiliaries: list[str] = [ "avoir", "être" ]
 
@@ -95,12 +65,9 @@ def generate_verb_prompt(verb_infinitive: str):
             """
 
 async def fetch_verb(requested_verb: str, save_verb: bool) -> str:
-    
+
     Conjugation = Base.classes.conjugations
     Verb = Base.classes.verbs
-    
-    print(Conjugation.__table__.columns)
-    print(Verb.__table__.columns)
     
     log.info(f"Fetching verb {requested_verb}")
 
@@ -112,15 +79,13 @@ async def fetch_verb(requested_verb: str, save_verb: bool) -> str:
     )
 
     if save_verb:
-        async with get_session() as session:
+        async with get_async_session() as session:
 
             print(f"Saving this verb {requested_verb}")
 
-            response: str = repair_json(completion.choices[0].message.content)
+            response:      str = repair_json(completion.choices[0].message.content)
             response_json: str = json.loads(response)
-            
-            print(response_json)
-            
+
             infinitive: str = response_json["infinitive"]
 
             existing_verb: Verb = (
@@ -143,7 +108,6 @@ async def fetch_verb(requested_verb: str, save_verb: bool) -> str:
             for response_tense in response_json["tenses"]:
 
                 tense = response_tense["tense"]
-                print(tense)
                                 
                 existing_conjugation: Conjugation = (
                     await session.scalars(select(Conjugation)

@@ -1,26 +1,47 @@
-from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.ext.automap import automap_base
-from sqlalchemy.ext.declarative import declarative_base
+# from asyncio import Lock, Event
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
-from .metadata import metadata
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from .metadata import Base
 
 async_engine = create_async_engine("postgresql+asyncpg://postgres:postgres@localhost/language_app")
 
-Base = automap_base()
-Base.metadata = metadata
-# Session = sessionmaker(bind=async_engine, class_=AsyncSession)
+# reflection_lock: Lock  = Lock()
+# reflection_done: Event = Event()
 
-# metadata = Base.metadata
-# metadata.bind = async_engine
-# metadata.reflect(bind=async_engine)
+AsyncSessionLocal = async_sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
 
-# Base.metadata.reflect(async_engine)
+@asynccontextmanager
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 async def reflect_tables():
+    #   There could be sublte race conditions depending on table loading.
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.prepare, reflect=True)
-        
-    Conjugations = Base.classes.conjugations
-    Verbs = Base.classes.verbs
-            
+
+    # global reflection_lock
+    # async with reflection_lock:
+    #     if not reflection_done:
+    #         async with async_engine.begin() as conn:
+    #             await conn.run_sync(metadata.reflect)
+    #             await conn.run_sync(Base.prepare)
+    #         reflection_done.set()
+
+# async def get_orm():
+#     reflection_done.wait()
+#     return Base.classes
