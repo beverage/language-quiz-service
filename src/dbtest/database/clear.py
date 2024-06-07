@@ -1,8 +1,11 @@
-from ..verbs.get import fetch_verb
+from sqlalchemy import delete, select
 
-from sqlalchemy import create_engine, and_
-from sqlalchemy.orm import Session, sessionmaker
+from .engine import get_async_session
+from .metadata import Base
 
-engine  = create_engine("postgresql+asyncpg://postgres:postgres@localhost/language_app")
-Session = sessionmaker(bind = engine)
-session = Session()
+async def clear_database():
+
+    Verb = Base.classes.verbs
+
+    async with get_async_session() as session:
+        await session.execute(delete(Verb))

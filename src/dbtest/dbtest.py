@@ -4,8 +4,10 @@ from os import environ
 import asyncclick as click
 import logging
 
+from .database.clear import clear_database
 from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
+
 from .verbs.get import fetch_verb
 
 API_KEY = environ["OPENAI_API_KEY"]
@@ -28,12 +30,13 @@ async def database():
 @database.command()
 async def clean():
     click.echo("Cleaning the database of any user data and history.")
+    await clear_database()
 
 @database.command()
 async def init():
     click.echo("Initializing the database to default settings and content.")
     click.echo("Fetching auxiliaries.")
-    await init_auxiliaries()
+    await init_auxiliaries(with_common_irregulars=True)
 
 @database.command()
 async def reset():
