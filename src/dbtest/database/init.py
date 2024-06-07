@@ -1,18 +1,18 @@
-import aiohttp
 from asyncio import ensure_future, gather
 from ..verbs.get import fetch_verb
 
 auxiliaries: list[str] = ["avoir", "être"]
 irregulars: list[str] = ["aller", "faire", "pouvoir", "savoir", "vouloir"]
 
-#   Still under construction:
-async def init_auxiliaries():
-    async with aiohttp.ClientSession() as session:
-        tasks = []
+async def init_auxiliaries(with_common_irregulars=False):
+
+    tasks = []
+
+    verbs = auxiliaries + irregulars if with_common_irregulars else auxiliaries
+
+    for verb in verbs:
+        task = ensure_future(fetch_verb(requested_verb=verb, save_verb=True))
+        tasks.append(task)
         
-        for auxiliare in auxiliaries:
-            task = ensure_future(fetch_verb(async_session=session, requested_verb=auxiliare, save_verb=True))
-            tasks.append(task)
-            
-        await gather(*tasks, return_exceptions=True)
+    await gather(*tasks, return_exceptions=True)
 
