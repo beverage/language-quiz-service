@@ -16,8 +16,6 @@ client:    OpenAI = AsyncOpenAI()
 openai_model: str = "gpt-3.5-turbo"
 openai_role:  str = "user"
 
-auxiliaries: list[str] = [ "avoir", "être" ]
-
 def generate_tense_list_prompt(verb_infinitive: str) -> str:
     return ""
 
@@ -103,6 +101,7 @@ async def fetch_verb(requested_verb: str) -> str:
         verb.reflexivity = Reflexivity[response_json["reflexivity"]]
 
         session.add(verb)
+        await session.commit()
 
         for response_tense in response_json["tenses"]:
 
