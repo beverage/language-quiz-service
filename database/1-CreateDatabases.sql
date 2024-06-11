@@ -23,6 +23,7 @@ CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imparfait', 'future_simpl
 --  This represents a common suffix for groups of verbs:
 CREATE TABLE verb_groups (
     id              serial      primary key,
+    name            varchar     not null,
     example         varchar     not null,
     suffix          varchar     not null,
     classification  smallint    not null check (classification >= 1 and classification <= 3),

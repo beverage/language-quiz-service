@@ -2,7 +2,7 @@ from asyncio import ensure_future, gather
 from ..verbs.get import fetch_verb
 
 auxiliaries: list[str] = ["avoir", "être"]
-irregulars: list[str] = ["aller", "faire", "pouvoir", "savoir", "vouloir"]
+irregulars: list[str] = ["aller", "devoir", "dire", "faire", "pouvoir", "prendre", "savoir", "venir", "voir", "vouloir"]
 
 async def init_auxiliaries(with_common_irregulars=False):
 
