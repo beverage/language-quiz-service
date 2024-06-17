@@ -1,4 +1,4 @@
-from sqlalchemy import delete, select
+from sqlalchemy import delete
 
 from .engine import get_async_session
 from .metadata import Base

@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
 from os import environ
 
-import asyncclick as click
 import logging
+import asyncclick as click
+
+from .verbs.get import fetch_verb_new_client
 
 from .database.clear import clear_database
 from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
 
-from .verbs.get import fetch_verb
-
 API_KEY = environ["OPENAI_API_KEY"]
 
 @click.group()
 @click.option('--debug/--no-debug', default=False)
-async def cli(debug):
+async def cli(debug=False):
     click.echo(f"Debug mode is {'on' if debug else 'off'}")
-    if debug == True:
+    if debug:
         logging.basicConfig(level = logging.DEBUG)
     else:
         logging.basicConfig(level = logging.INFO)
-        
+
     await reflect_tables()
 
 @cli.group()
@@ -52,10 +52,10 @@ async def verb():
 
 @verb.command()
 @click.argument('verb')
-async def get(verb, save):
-    click.echo(f"Fetching verb {verb}.")
-    await fetch_verb(verb)
-    
+async def get(requested_verb: str):
+    click.echo(f"Fetching verb {requested_verb}.")
+    await fetch_verb_new_client(requested_verb)
+
 @verb.command()
 async def decorate():
     click.echo("Decorating verb.")

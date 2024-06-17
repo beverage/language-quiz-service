@@ -1,4 +1,4 @@
-import dbtest
+from dbtest import main
 
 if __name__ == '__main__':
-    dbtest.main()
+    main()

@@ -20,9 +20,9 @@ class AsyncChatGPTClient:
             if completion.choices and len(completion.choices) > 0:
                 return completion.choices[0].message.content
 
-            raise Exception("No completion choices found.")
+            raise openai.APIStatusError(message="No completion choices found.", response=None, body=None)
         except Exception as e:
-            return f"OpenAI API Error: {traceback.format_exc()}"
+            return f"str({e}): {traceback.format_exc()}"
 
     async def handle_request(self, prompt: str):
         return await self.generate_response(prompt)

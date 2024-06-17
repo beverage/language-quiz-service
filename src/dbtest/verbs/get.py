@@ -3,25 +3,29 @@ import logging
 
 from sqlalchemy import and_, select
 
-from .prompts import generate_verb_prompt
+from dbtest.ai.client import AsyncChatGPTClient
+from dbtest.database.engine import Base, get_async_session
+from dbtest.database.verbs import Reflexivity
+from dbtest.verbs.prompts import generate_verb_prompt
 
-from ..database.engine import Base, get_async_session
-from ..database.verbs import Reflexivity
+async def fetch_verb_new_client(requested_verb: str):
+    openapi_client = AsyncChatGPTClient()
+    fetch_verb(openapi_client=openapi_client, requested_verb=requested_verb)
 
-from ..ai.client import AsyncChatGPTClient
-
-async def fetch_verb(openapi_client: AsyncChatGPTClient, requested_verb: str) -> str:
+async def fetch_verb(openapi_client: AsyncChatGPTClient, requested_verb: str):
 
     Conjugation = Base.classes.conjugations
     Verb = Base.classes.verbs
 
-    logging.info(f"Fetching verb {requested_verb}")
+    logging.info("Fetching verb %s.", requested_verb)
 
     async with get_async_session() as session:
 
-        logging.info(f"Saving this verb {requested_verb}")
+        logging.info("Saving this verb %s", requested_verb)
 
-        response: str = await openapi_client.handle_request(prompt=generate_verb_prompt(verb_infinitive=requested_verb))
+        response: str = await openapi_client.handle_request(
+            prompt=generate_verb_prompt(verb_infinitive=requested_verb))
+
         response_json: str = json.loads(response)
         infinitive: str = response_json["infinitive"]
 
@@ -31,9 +35,9 @@ async def fetch_verb(openapi_client: AsyncChatGPTClient, requested_verb: str) ->
                 .order_by(Verb.id.desc()))).first()
 
         if existing_verb:
-            logging.info(f"The verb {infinitive} already exists and will be updated if needed.")
+            logging.info("The verb %s already exists and will be updated if needed.", infinitive)
         else:
-            logging.info(f"The verb {infinitive} does not yet exist in the database.")
+            logging.info("The verb %s does not yet exist in the database.", infinitive)
 
         verb: Verb = Verb() if existing_verb is  None else existing_verb
         verb.auxiliary   = response_json["auxiliary"]
@@ -53,9 +57,9 @@ async def fetch_verb(openapi_client: AsyncChatGPTClient, requested_verb: str) ->
                     .order_by(Conjugation.id.desc()))).first()
 
             if existing_conjugation:
-                logging.info(f"A verb conjugation for {infinitive}, {tense} already exists and will be updated.")
+                logging.info("A verb conjugation for %s, %s already exists and will be updated.", infinitive, tense)
             else:
-                logging.info(f"Verb conjugations are missing or are incomplete for {infinitive} and will be added/updated.")
+                logging.info("Verb conjugations are missing or are incomplete for %s and will be added/updated.", infinitive)
 
             conjugation: Conjugation = Conjugation() if existing_conjugation is None else existing_conjugation
             conjugation.infinitive   = infinitive
@@ -88,8 +92,8 @@ async def fetch_verb(openapi_client: AsyncChatGPTClient, requested_verb: str) ->
 
             #   Since we are using Postgres we can upsert instead of doing this:
             if existing_conjugation is None:
-                logging.info(f"Adding {conjugation.infinitive} with tense {conjugation.tense}.")
+                logging.info("Adding %s with tense %s.", conjugation.infinitive, conjugation.tense)
                 await session.merge(conjugation)
             else:
-                logging.info(f"Updating {conjugation.infinitive} with tense {conjugation.tense}.")
+                logging.info("Updating %s with tense %s.", conjugation.infinitive, conjugation.tense)
                 await session.merge(conjugation)

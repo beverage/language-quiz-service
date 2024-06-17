@@ -1,6 +1,6 @@
+import enum
 from enum import Enum, auto
 
-from enum import enum
 from sqlalchemy import Table, Column, ForeignKey, Enum, Integer, String
 
 from .metadata import metadata
