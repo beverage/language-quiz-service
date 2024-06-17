@@ -1,7 +1,7 @@
 def generate_tense_list_prompt(verb_infinitive: str) -> str:
     return ""
 
-def generate_reflexivity_prompt(verb_infinitive: str) -> str: 
+def generate_reflexivity_prompt(verb_infinitive: str) -> str:
     return """If the verb can only be used reflexively then return 'mandatory', \
               if the verb can be used both reflexive and non-reflexively return \
               'conditional', otherwise return 'no'."""
@@ -29,6 +29,7 @@ def generate_extra_rules(verb_infinitive: str) -> str:
             The first person pronoun should always be 'je' instead of j' or j. \
             The pronouns should always be "-" for participles. \
             All json property names and values need to be enclosed in double quotes. \
+            The tense 'past_participle' should always be renamed 'participle' \
             """
 
 def generate_verb_prompt(verb_infinitive: str):

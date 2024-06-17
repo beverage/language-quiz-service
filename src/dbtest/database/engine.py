@@ -1,8 +1,10 @@
 # from asyncio import Lock, Event
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+import logging
+import traceback
 
-from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from .metadata import Base
 
@@ -23,9 +25,10 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except Exception:
+        except Exception as e:
             await session.rollback()
-            raise
+            logging.error(traceback.format_exc())
+            raise e
         finally:
             await session.close()
 

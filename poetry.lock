@@ -275,17 +275,6 @@ files = [
 ]
 
 [[package]]
-name = "fix-busted-json"
-version = "0.0.17"
-description = "Fixes broken JSON string objects"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "fix-busted-json-0.0.17.tar.gz", hash = "sha256:64d3f11896b51812238174f55e001311e02eca3d3be3618724c42d72d894d60d"},
-    {file = "fix_busted_json-0.0.17-py3-none-any.whl", hash = "sha256:1011fb26d664fb280b63d0f9a402a9b88bc1bfb82c7d74425b6b30325e32797b"},
-]
-
-[[package]]
 name = "frozenlist"
 version = "1.4.1"
 description = "A list-like structure which implements collections.abc.MutableSequence"
@@ -998,4 +987,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "6ca3ad6c10032dedb67cddeb788d8f5a22cd3bb0d3f801e9c543a9d842620f20"
+content-hash = "6f75124c3718d0e415dd85a48d7202bfbec7b634c16ae1ea55bc312a4e38ef32"

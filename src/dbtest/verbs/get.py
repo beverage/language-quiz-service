@@ -1,10 +1,6 @@
 import json
 import logging
 
-from fix_busted_json import repair_json
-
-from openai import AsyncOpenAI, OpenAI, ChatCompletion
-
 from sqlalchemy import and_, select
 
 from .prompts import generate_verb_prompt
@@ -12,33 +8,21 @@ from .prompts import generate_verb_prompt
 from ..database.engine import Base, get_async_session
 from ..database.verbs import Reflexivity
 
-log = logging.getLogger(__name__)
+from ..ai.client import AsyncChatGPTClient
 
-client:    OpenAI = AsyncOpenAI()
-openai_model: str = "gpt-3.5-turbo"
-openai_role:  str = "user"
-
-async def fetch_verb(requested_verb: str) -> str:
+async def fetch_verb(openapi_client: AsyncChatGPTClient, requested_verb: str) -> str:
 
     Conjugation = Base.classes.conjugations
     Verb = Base.classes.verbs
-    
-    log.info(f"Fetching verb {requested_verb}")
 
-    completion: ChatCompletion = await client.chat.completions.create(
-        model    = openai_model,
-        messages = [
-            { "role": openai_role, "content": generate_verb_prompt(requested_verb) },
-        ]
-    )
+    logging.info(f"Fetching verb {requested_verb}")
 
     async with get_async_session() as session:
 
-        print(f"Saving this verb {requested_verb}")
+        logging.info(f"Saving this verb {requested_verb}")
 
-        response:      str = repair_json(completion.choices[0].message.content)
+        response: str = await openapi_client.handle_request(prompt=generate_verb_prompt(verb_infinitive=requested_verb))
         response_json: str = json.loads(response)
-
         infinitive: str = response_json["infinitive"]
 
         existing_verb: Verb = (
@@ -46,12 +30,12 @@ async def fetch_verb(requested_verb: str) -> str:
                 .filter(Verb.infinitive == requested_verb)
                 .order_by(Verb.id.desc()))).first()
 
-        if existing_verb != None:
-            log.info(f"The verb {infinitive} already exists and will be updated if needed.")
+        if existing_verb:
+            logging.info(f"The verb {infinitive} already exists and will be updated if needed.")
         else:
-            log.info(f"The verb {infinitive} does not yet exist in the database.")
+            logging.info(f"The verb {infinitive} does not yet exist in the database.")
 
-        verb: Verb = Verb() if existing_verb == None else existing_verb
+        verb: Verb = Verb() if existing_verb is  None else existing_verb
         verb.auxiliary   = response_json["auxiliary"]
         verb.infinitive  = infinitive
         verb.reflexivity = Reflexivity[response_json["reflexivity"]]
@@ -68,12 +52,12 @@ async def fetch_verb(requested_verb: str) -> str:
                     .filter(and_(Conjugation.infinitive == infinitive, Conjugation.tense == tense))
                     .order_by(Conjugation.id.desc()))).first()
 
-            if existing_conjugation != None:
-                log.info(f"A verb conjugation for {infinitive}, {tense} already exists and will be updated.")
+            if existing_conjugation:
+                logging.info(f"A verb conjugation for {infinitive}, {tense} already exists and will be updated.")
             else:
-                log.info(f"Verb conjugations are missing or are incomplete for {infinitive} and will be added/updated.")
+                logging.info(f"Verb conjugations are missing or are incomplete for {infinitive} and will be added/updated.")
 
-            conjugation: Conjugation = Conjugation() if existing_conjugation == None else existing_conjugation
+            conjugation: Conjugation = Conjugation() if existing_conjugation is None else existing_conjugation
             conjugation.infinitive   = infinitive
             conjugation.tense        = tense
             conjugation.verb_id      = verb.id
@@ -103,11 +87,9 @@ async def fetch_verb(requested_verb: str) -> str:
                         conjugation.third_person_plural    = response_conjugation["verb"]
 
             #   Since we are using Postgres we can upsert instead of doing this:
-            if existing_conjugation == None:
-                log.info(f"Adding {conjugation.infinitive} with tense {conjugation.tense}.")
-                session.add(conjugation)
-            else:
-                log.info(f"Updating {conjugation.infinitive} with tense {conjugation.tense}.")
+            if existing_conjugation is None:
+                logging.info(f"Adding {conjugation.infinitive} with tense {conjugation.tense}.")
                 await session.merge(conjugation)
-                
-        return completion.choices[0].message.content
+            else:
+                logging.info(f"Updating {conjugation.infinitive} with tense {conjugation.tense}.")
+                await session.merge(conjugation)
