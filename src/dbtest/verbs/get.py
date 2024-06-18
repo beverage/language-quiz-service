@@ -8,11 +8,7 @@ from dbtest.database.engine import Base, get_async_session
 from dbtest.database.verbs import Reflexivity
 from dbtest.verbs.prompts import generate_verb_prompt
 
-async def fetch_verb_new_client(requested_verb: str):
-    openapi_client = AsyncChatGPTClient()
-    fetch_verb(openapi_client=openapi_client, requested_verb=requested_verb)
-
-async def fetch_verb(openapi_client: AsyncChatGPTClient, requested_verb: str):
+async def fetch_verb(requested_verb: str, openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
 
     Conjugation = Base.classes.conjugations
     Verb = Base.classes.verbs

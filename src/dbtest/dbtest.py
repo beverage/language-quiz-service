@@ -4,11 +4,11 @@ from os import environ
 import logging
 import asyncclick as click
 
-from .verbs.get import fetch_verb_new_client
-
 from .database.clear import clear_database
 from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
+
+from .verbs.get import fetch_verb
 
 API_KEY = environ["OPENAI_API_KEY"]
 
@@ -54,7 +54,7 @@ async def verb():
 @click.argument('verb')
 async def get(requested_verb: str):
     click.echo(f"Fetching verb {requested_verb}.")
-    await fetch_verb_new_client(requested_verb)
+    await fetch_verb(requested_verb)
 
 @verb.command()
 async def decorate():
