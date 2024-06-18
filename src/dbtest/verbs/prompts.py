@@ -29,7 +29,7 @@ def generate_extra_rules() -> str:
             The first person pronoun should always be 'je' instead of j' or j. \
             The pronouns should always be "-" for participles. \
             All json property names and values need to be enclosed in double quotes. \
-            The tenses 'past_participle', 'participe_passe', 'passecompose', and 'participe' should always be renamed 'participle' \
+            The tenses 'past_participle', 'participe_passe', 'passecompose', 'past_compose', and 'participe' should always be renamed 'participle' \
             """
 
 def generate_verb_prompt(verb_infinitive: str):
