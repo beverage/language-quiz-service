@@ -36,8 +36,7 @@ CREATE TABLE verbs (
     id              serial  primary key,
     -- group_id        serial  not null references verb_groups (id),
     infinitive      varchar not null,
-    auxiliary       varchar not null,
-    reflexivity     reflexivity not null default 'no'
+    auxiliary       varchar not null
 );
 
 --  This represents a conjugation for a valid tense of a verb above:
