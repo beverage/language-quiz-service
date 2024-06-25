@@ -1,44 +1,59 @@
 import json
 import logging
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, desc, func, select
+from sqlalchemy.ext.asyncio.session import AsyncSession
 
 from dbtest.ai.client import AsyncChatGPTClient
 from dbtest.database.engine import Base, get_async_session
-from dbtest.database.verbs import Reflexivity
+from dbtest.database.verbs import Verb
 from dbtest.verbs.prompts import generate_verb_prompt
 
-async def fetch_verb(requested_verb: str, openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
+async def get_verb(requested_verb: str, database_session: AsyncSession=get_async_session()) -> Verb:
+
+    async with database_session as session:
+
+        verb: Verb = (
+        await session.scalars(select(Verb)
+            .filter(Verb.infinitive == requested_verb)
+            .order_by(Verb.id.desc()))).first()
+
+        return verb
+
+async def get_random_verb(database_session: AsyncSession=get_async_session()) -> Verb:
+
+    async with database_session as session:
+
+        verb: Verb = (
+        await session.scalars(select(Verb)
+            .order_by(func.random()))).first()
+
+        return verb
+
+async def download_verb(requested_verb: str, openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
 
     Conjugation = Base.classes.conjugations
-    Verb = Base.classes.verbs
 
     logging.info("Fetching verb %s.", requested_verb)
 
     async with get_async_session() as session:
 
-        logging.info("Saving this verb %s", requested_verb)
+        logging.info("Saving verb %s", requested_verb)
 
-        response: str = await openapi_client.handle_request(
-            prompt=generate_verb_prompt(verb_infinitive=requested_verb))
-
-        response_json: str = json.loads(response)
+        response: str = await openapi_client.handle_request(prompt=generate_verb_prompt(verb_infinitive=requested_verb))
+        response_json = json.loads(response)
         infinitive: str = response_json["infinitive"]
 
-        existing_verb: Verb = (
-            await session.scalars(select(Verb)
-                .filter(Verb.infinitive == requested_verb)
-                .order_by(Verb.id.desc()))).first()
+        existing_verb: Verb = await get_verb(requested_verb=requested_verb, database_session=session)
 
         if existing_verb:
             logging.info("The verb %s already exists and will be updated if needed.", infinitive)
         else:
             logging.info("The verb %s does not yet exist in the database.", infinitive)
 
-        verb: Verb = Verb() if existing_verb is  None else existing_verb
+        verb: Verb = Verb() if existing_verb is None else existing_verb
         verb.auxiliary   = response_json["auxiliary"]
         verb.infinitive  = infinitive
-        verb.reflexivity = Reflexivity[response_json["reflexivity"]]
 
         session.add(verb)
         await session.commit()

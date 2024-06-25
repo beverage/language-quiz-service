@@ -4,11 +4,14 @@ from os import environ
 import logging
 import asyncclick as click
 
+from pprint import pprint
+
 from .database.clear import clear_database
 from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
+from .database.utils import object_as_dict
 
-from .verbs.get import fetch_verb
+from .verbs.get import download_verb, get_verb, get_random_verb
 
 API_KEY = environ["OPENAI_API_KEY"]
 
@@ -36,7 +39,7 @@ async def clean():
 async def init():
     click.echo("Initializing the database to default settings and content.")
     click.echo("Fetching auxiliaries.")
-    await init_auxiliaries(with_common_irregulars=True)
+    await init_auxiliaries(with_common_verbs=True)
 
 @database.command()
 async def reset():
@@ -52,13 +55,22 @@ async def verb():
 
 @verb.command()
 @click.argument('verb')
-async def get(verb: str):
-    click.echo(f"Fetching verb {verb}.")
-    await fetch_verb(verb)
+async def download(verb: str):
+    click.echo(f"Downloading verb {verb}.")
+    await download_verb(verb)
 
 @verb.command()
-async def decorate():
-    click.echo("Decorating verb.")
+@click.argument('verb')
+async def get(verb: str):
+    click.echo(f"Fetching verb {verb}.")
+    result = await get_verb(verb)    
+    pprint(object_as_dict(result))
+    
+@verb.command()
+async def random():
+    result = await get_random_verb()
+    click.echo(f"Selected verb {result.infinitive}")
+    pprint(object_as_dict(result))
 
 def main():
     cli(_anyio_backend="asyncio")

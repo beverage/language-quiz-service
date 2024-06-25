@@ -2,8 +2,11 @@ import enum
 from enum import Enum, auto
 
 from sqlalchemy import Table, Column, Enum, Integer, String
+from sqlalchemy.orm import registry
 
 from .metadata import metadata
+
+mapper_registry = registry(metadata=metadata)
 
 class Reflexivity(enum.Enum):
     no          = auto()
@@ -19,4 +22,8 @@ verb_table = Table("verbs", metadata,
     extend_existing=False
 )
 
+class Verb:
+    pass
+
+mapper_registry.map_imperatively(Verb, verb_table)
 # Verb = Base.classes.verbs

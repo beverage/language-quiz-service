@@ -1,11 +1,6 @@
 def generate_tense_list_prompt() -> str:
     return ""
 
-def generate_reflexivity_prompt() -> str:
-    return """If the verb can only be used reflexively then return 'mandatory', \
-              if the verb can be used both reflexive and non-reflexively return \
-              'conditional', otherwise return 'no'."""
-
 def generate_verb_tense_format() -> str:
     return """ \
                 {   \
@@ -22,6 +17,7 @@ def generate_verb_tense_format() -> str:
 
 def generate_extra_rules() -> str:
     return """Do not return any newlines in the response. \
+            Do not include reflexive pronouns in the pronoun field. \
             Always use both genders in the 3rd person pronouns.  \
             Always include 'on' for the 3rd person singular form.  \
             Replace spaces with _ in the tense names. \
@@ -38,7 +34,6 @@ def generate_verb_prompt(verb_infinitive: str):
             with english translations, with each verb mode being a json object of the format: \
                 auxiliary: \
                 infinitive: {verb_infinitive} \
-                reflexivity: {generate_reflexivity_prompt()} \
                 verb tense (as 'tenses'): [ \
                     {generate_verb_tense_format()} \
                 ] \
