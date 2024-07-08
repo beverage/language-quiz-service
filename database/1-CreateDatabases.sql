@@ -22,7 +22,7 @@ CREATE TYPE negation AS ENUM ('none', 'pas', 'jamais', 'rien', 'personne', 'plus
 --
 --  Modes and tenses.  There are exact combinations that need to be pre-loaded here:
 -- CREATE TYPE mode  AS ENUM('indicative', 'subjunctive', 'imperative', 'infinitive', 'participle');
--- CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imparfait', 'conditionnel présent');
+-- CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imperfect', 'conditionnel présent');
 CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imparfait', 'future_simple', 'participle');
 
 --  This represents a common suffix for groups of verbs:
@@ -70,10 +70,12 @@ CREATE TABLE sentences (
     infinitive          varchar             not null,
     auxiliary           varchar             not null,
     pronoun             pronoun             not null,
+    tense               tense               not null,
     direct_pronoun      direct_pronoun      not null,
     indirect_pronoun    indirect_pronoun    not null,
     reflexive_pronoun   reflexive_pronoun   not null,
     negation            negation            not null,
     content             varchar             not null,
-    translation         varchar             not null
+    translation         varchar             not null,
+    is_correct          boolean             default true
 );

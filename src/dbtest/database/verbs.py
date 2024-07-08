@@ -1,3 +1,6 @@
+import enum
+from enum import Enum, auto
+
 from sqlalchemy import Table, Column, Integer, String
 from sqlalchemy.orm import registry
 

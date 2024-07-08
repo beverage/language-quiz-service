@@ -11,6 +11,7 @@ from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
 from .database.utils import object_as_dict
 
+from .sentances.create import create_random_sentence
 from .verbs.get import download_verb, get_verb, get_random_verb
 
 API_KEY = environ["OPENAI_API_KEY"]
@@ -49,6 +50,11 @@ async def reset():
 async def sentence():
     pass
 
+@sentence.command()
+async def random():
+    result = await create_random_sentence()
+    print(object_as_dict(result))
+
 @cli.group()
 async def verb():
     pass
@@ -57,7 +63,8 @@ async def verb():
 @click.argument('verb')
 async def download(verb: str):
     click.echo(f"Downloading verb {verb}.")
-    await download_verb(verb)
+    result = await download_verb(verb)
+    print(object_as_dict(result))
 
 @verb.command()
 @click.argument('verb')

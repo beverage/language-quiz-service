@@ -1,7 +1,9 @@
 import enum
 from enum import Enum, auto
 
-from sqlalchemy import Table, Column, Integer, String
+from dbtest.database.conjugations import Tense
+
+from sqlalchemy import Enum, Table, Column, Integer, String, Boolean
 from sqlalchemy.orm import registry
 
 from .metadata import metadata
@@ -49,12 +51,14 @@ sentence_table = Table("sentences", metadata,
     Column('infinitive',        String(),               nullable=False),
     Column('auxiliary',         String(),               nullable=False),
     Column('pronoun',           Enum(Pronoun),          nullable=False, default=Pronoun.first_person),
+    Column('tense',             Enum(Tense),            nullable=False, default=Tense.present),
     Column('direct_pronoun',    Enum(DirectPronoun),    nullable=False, default=DirectPronoun.none),
     Column('indirect_pronoun',  Enum(IndirectPronoun),  nullable=False, default=IndirectPronoun.none),
     Column('reflexive_pronoun', Enum(ReflexivePronoun), nullable=False, default=ReflexivePronoun.none),
     Column('negation',          Enum(Negation),         nullable=False, default=Negation.none),
     Column('content',           String(),               nullable=False),
     Column('translation',       String(),               nullable=False),
+    Column('is_correct',        Boolean(),              nullable=False, default=True),
     extend_existing=False
 )
 
