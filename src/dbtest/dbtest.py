@@ -11,7 +11,7 @@ from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
 from .database.utils import object_as_dict
 
-from .sentances.create import create_random_sentence
+from .sentances.create import create_random_sentence, create_random_problem, problem_formatter
 from .verbs.get import download_verb, get_verb, get_random_verb
 
 API_KEY = environ["OPENAI_API_KEY"]
@@ -19,8 +19,8 @@ API_KEY = environ["OPENAI_API_KEY"]
 @click.group()
 @click.option('--debug/--no-debug', default=False)
 async def cli(debug=False):
-    click.echo(f"Debug mode is {'on' if debug else 'off'}")
     if debug:
+        click.echo(f"Debug mode is on.")
         logging.basicConfig(level = logging.DEBUG)
     else:
         logging.basicConfig(level = logging.INFO)
@@ -47,12 +47,21 @@ async def reset():
     click.echo("Resetting the database container.")
 
 @cli.group()
+async def problem():
+    pass
+
+@problem.command()
+async def random():
+    results = await create_random_problem()
+    print(problem_formatter(results))
+
+@cli.group()
 async def sentence():
     pass
 
 @sentence.command()
-async def random():
-    result = await create_random_sentence()
+async def random(correct: bool=True):
+    result = await create_random_sentence(is_correct=correct)
     print(object_as_dict(result))
 
 @cli.group()
