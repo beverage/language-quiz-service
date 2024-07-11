@@ -18,13 +18,13 @@ class Pronoun(enum.Enum):
     second_person_plural = auto(),
     third_person_plural  = auto()
 
-class DirectPronoun(enum.Enum):
+class DirectObject(enum.Enum):
     none      = auto(),
     masculine = auto(),
     feminine  = auto(),
     plural    = auto()
     
-class IndirectPronoun(enum.Enum):
+class IndirectObject(enum.Enum):
     none     = auto(),
     singular = auto(),
     plural   = auto()
@@ -52,8 +52,8 @@ sentence_table = Table("sentences", metadata,
     Column('auxiliary',         String(),               nullable=False),
     Column('pronoun',           Enum(Pronoun),          nullable=False, default=Pronoun.first_person),
     Column('tense',             Enum(Tense),            nullable=False, default=Tense.present),
-    Column('direct_pronoun',    Enum(DirectPronoun),    nullable=False, default=DirectPronoun.none),
-    Column('indirect_pronoun',  Enum(IndirectPronoun),  nullable=False, default=IndirectPronoun.none),
+    Column('direct_object',     Enum(DirectObject),     nullable=False, default=DirectObject.none),
+    Column('indirect_object',   Enum(IndirectObject),   nullable=False, default=IndirectObject.none),
     Column('reflexive_pronoun', Enum(ReflexivePronoun), nullable=False, default=ReflexivePronoun.none),
     Column('negation',          Enum(Negation),         nullable=False, default=Negation.none),
     Column('content',           String(),               nullable=False),

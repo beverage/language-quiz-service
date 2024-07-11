@@ -4,8 +4,8 @@
 -- CREATE TYPE indirect_pronoun AS ENUM ('lui', 'leur');
 
 CREATE TYPE pronoun          AS ENUM ('first_person', 'second_person', 'third_person', 'first_person_plural', 'second_person_plural', 'third_person_plural');
-CREATE TYPE direct_pronoun   AS ENUM ('none', 'masculine', 'feminine', 'plural');
-CREATE TYPE indirect_pronoun AS ENUM ('none', 'singular', 'plural');
+CREATE TYPE direct_object    AS ENUM ('none', 'masculine', 'feminine', 'plural');
+CREATE TYPE indirect_object  AS ENUM ('none', 'singular', 'plural');
 
 --  Some verbs work both with and without a reflexive pronoun.  Verbs that
 --  do not, or can do both, will all stored in their 'se <verb>' form:
@@ -71,8 +71,8 @@ CREATE TABLE sentences (
     auxiliary           varchar             not null,
     pronoun             pronoun             not null,
     tense               tense               not null,
-    direct_pronoun      direct_pronoun      not null,
-    indirect_pronoun    indirect_pronoun    not null,
+    direct_object       direct_object       not null,
+    indirect_object     indirect_object     not null,
     reflexive_pronoun   reflexive_pronoun   not null,
     negation            negation            not null,
     content             varchar             not null,
