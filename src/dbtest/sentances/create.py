@@ -10,6 +10,8 @@ from dbtest.sentances.features import SentenceFeatures
 from dbtest.sentances.prompts import SentencePromptGenerator
 from dbtest.verbs.get import get_random_verb
 
+from dbtest.utils.console import Answers, Color, Style
+
 import json
 import logging
 import random
@@ -67,7 +69,7 @@ async def create_random_problem(openapi_client: AsyncChatGPTClient=AsyncChatGPTC
     answer: int = random.randrange(0, 4)
     openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()
 
-    print(f"\033[1mAnswer {answer + 1} will be correct:\033[0m\n")
+    print(Style.BOLD + f"Answer will be {answer + 1}:\n" + Style.RESET)
     responses: [Sentence] = []
 
     for i in range(4):
@@ -80,9 +82,10 @@ def problem_formatter(sentences) -> str:
     output: str = ""
 
     for sentence in sentences:
-        output = output + f"""\033[1m[{"\033[38;5;46mX\033[0m" if sentence.is_correct is True else "\033[38;5;196m\033[1m-\033[0m"}] {sentence.content}"""
-        if sentence.is_correct:
-            output = output + f"\033[94m  ({sentence.translation})\033[0m"
-        output = output + "\n"
+        output = output + " ".join(
+            [Answers.CORRECT if sentence.is_correct is True else Answers.INCORRECT, 
+             sentence.content, 
+             f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}" if sentence.is_correct else "", 
+            '\n'])
 
     return output
