@@ -30,10 +30,10 @@ class IndirectObject(enum.Enum):
     plural   = auto()
     
 class ReflexivePronoun(enum.Enum):
-    none = auto(),
-    me = auto(),
-    te = auto(),
-    se = auto()
+    none          = auto(),
+    first_person  = auto(),
+    second_person = auto(),
+    third_person  = auto()
     
 class Negation(enum.Enum):
     none     = auto(),

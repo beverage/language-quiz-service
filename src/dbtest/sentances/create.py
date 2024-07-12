@@ -83,9 +83,9 @@ def problem_formatter(sentences) -> str:
 
     for sentence in sentences:
         output = output + " ".join(
-            [Answers.CORRECT if sentence.is_correct is True else Answers.INCORRECT, 
-             sentence.content, 
-             f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}" if sentence.is_correct else "", 
+            [Answers.CORRECT if sentence.is_correct is True else Answers.INCORRECT,
+             sentence.content,
+             f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}" if sentence.is_correct else "",
             '\n'])
 
     return output
