@@ -1,12 +1,14 @@
 import enum
 from enum import Enum, auto
 
+from dbtest.utils.prompt_enum import PromptEnum
+
 from sqlalchemy import Table, Column, ForeignKey, Enum, Integer, String
 
 from .metadata import metadata
 
 #   This highly suggests that temporal-ness should be a property in itself:
-class Tense(enum.Enum):
+class Tense(PromptEnum):
     present       = auto()
     passe_compose = auto()
     imparfait     = auto()

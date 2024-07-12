@@ -5,7 +5,7 @@
 
 CREATE TYPE pronoun          AS ENUM ('first_person', 'second_person', 'third_person', 'first_person_plural', 'second_person_plural', 'third_person_plural');
 CREATE TYPE direct_object    AS ENUM ('none', 'masculine', 'feminine', 'plural');
-CREATE TYPE indirect_object  AS ENUM ('none', 'singular', 'plural');
+CREATE TYPE indirect_object  AS ENUM ('none', 'masculine', 'feminine', 'plural');
 
 --  Some verbs work both with and without a reflexive pronoun.  Verbs that
 --  do not, or can do both, will all stored in their 'se <verb>' form:
