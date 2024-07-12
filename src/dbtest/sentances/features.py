@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from dbtest.database.sentences import DirectObject, IndirectPronoun
+from dbtest.database.sentences import DirectObject, IndirectPronoun, Negation
 
 import logging
 import random
@@ -11,19 +11,18 @@ class SentenceFeatures:
     #   TODO: add error-forcing flags once prompts are more reliable for all of these and the auxiliary once the prompts are more reliable:
 
     direct_object:      bool = False
-    indirect_object:    bool = False    #   Dative pronouns only.
+    indirect_pronoun:   bool = False
     reflexive:          bool = False    #   Not used yet - all verbs are explicitly reflexive or not.
-    negated:            bool = False    #   Not used yet.
+    negated:            bool = False
     
     def randomize(self, sentence):
 
-        sentence.direct_object = (
-            random.choice([p for p in DirectObject if p is not DirectObject.none]))
-
-        sentence.indirect_object = (
-            random.choice([p for p in IndirectPronoun if p is not IndirectPronoun.none and p.name is not sentence.direct_object.name]))
+        sentence.direct_object    = random.choice([p for p in DirectObject if p is not DirectObject.none])
+        sentence.indirect_pronoun = random.choice([p for p in IndirectPronoun if p is not IndirectPronoun.none and p.name is not sentence.direct_object.name])
+        sentence.negation         = random.choice([n for n in Negation])
 
         logging.debug(sentence.direct_object)
-        logging.debug(sentence.indirect_object)
+        logging.debug(sentence.indirect_pronoun)
+        logging.debug(sentence.negation)
 
         return sentence

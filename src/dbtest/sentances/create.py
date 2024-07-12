@@ -4,7 +4,7 @@ from dbtest.ai.client import AsyncChatGPTClient
 
 from dbtest.database.conjugations import Tense
 from dbtest.database.engine import get_async_session
-from dbtest.database.sentences import Pronoun
+from dbtest.database.sentences import Pronoun, DirectObject, IndirectPronoun
 
 from dbtest.sentances.features import SentenceFeatures
 from dbtest.sentances.prompts import SentencePromptGenerator
@@ -59,6 +59,18 @@ async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncCha
     sentence.content     = response_json["sentence"]
     sentence.translation = response_json["translation"]
 
+    # It is not always possible to generate a sentence with a COD or a COI (or both)
+    # for certain verbs.  Rather than trying to force the issue with whitelists or
+    # blacklists, lets just store the results as it will be sometime else querying
+    # for sentences from the database by features anyways.  We will take it as the best
+    # the AI can do:
+
+    if response_json["has_direct_object"] is False:
+        sentence.direct_object = DirectObject.none
+
+    if response_json["has_indirect_pronoun"] is False:
+        sentence.indirect_pronoun = IndirectPronoun.none
+
     return sentence
 
 async def create_random_problem(openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
@@ -84,6 +96,8 @@ def problem_formatter(sentences) -> str:
     for sentence in sentences:
         output = output + " ".join(
             [Answers.CORRECT if sentence.is_correct is True else Answers.INCORRECT,
+             f"{Color.LIGHT_GRAY}{"COD" if sentence.direct_object is not DirectObject.none else "---"}{Style.RESET}",
+             f"{Color.LIGHT_GRAY}{"COI" if sentence.indirect_pronoun is not IndirectPronoun.none else "---"}{Style.RESET}",
              sentence.content,
              f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}" if sentence.is_correct else "",
             '\n'])
