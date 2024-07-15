@@ -2,13 +2,14 @@ from dbtest.database.metadata import Base
 
 from dbtest.ai.client import AsyncChatGPTClient
 
-from dbtest.database.conjugations import Tense
 from dbtest.database.engine import get_async_session
-from dbtest.database.sentences import Pronoun, DirectObject, IndirectPronoun
 
 from dbtest.sentances.features import SentenceFeatures
+from dbtest.sentances.models import Pronoun, DirectObject, IndirectPronoun
 from dbtest.sentances.prompts import SentencePromptGenerator
+
 from dbtest.verbs.get import get_random_verb
+from dbtest.verbs.models import Tense
 
 from dbtest.utils.console import Answers, Color, Style
 
@@ -17,24 +18,19 @@ import logging
 import random
 
 def select_verb():
-    Conjugation = Base.classes.conjugations
-    Verb = Base.classes.verbs
     pass
 
 def create_sentence(verb: str):
-    Conjugation = Base.classes.conjugations
-    Verb = Base.classes.verbs
     pass
 
 async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
 
-    Verb = Base.classes.verbs
     Sentence = Base.classes.sentences
 
     db_session = get_async_session()
-    verb: Verb = await get_random_verb(db_session)
+    verb = await get_random_verb(db_session)
 
-    sentence: Sentence = Sentence()
+    sentence = Sentence()
     sentence.is_correct = is_correct
 
     sentence.infinitive = verb.infinitive

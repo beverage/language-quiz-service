@@ -1,6 +1,6 @@
 from asyncio import gather, Semaphore
-from ..ai.client import AsyncChatGPTClient
-from ..verbs.get import download_verb
+from dbtest.ai.client import AsyncChatGPTClient
+from dbtest.verbs.get import download_verb
 
 # Hardcore some verbs for now.  We will load verb lists later.
 auxiliaries: list[str] = ["avoir", "être"]

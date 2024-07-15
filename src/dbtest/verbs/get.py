@@ -1,12 +1,12 @@
 import json
 import logging
 
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
 from dbtest.ai.client import AsyncChatGPTClient
 from dbtest.database.engine import Base, get_async_session
-from dbtest.database.verbs import Verb
+from dbtest.verbs.models import Verb, Conjugation
 from dbtest.verbs.prompts import generate_verb_prompt
 
 async def get_verb(requested_verb: str, database_session: AsyncSession=get_async_session()) -> Verb:
@@ -31,8 +31,6 @@ async def get_random_verb(database_session: AsyncSession=get_async_session()) ->
         return verb
 
 async def download_verb(requested_verb: str, openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
-
-    Conjugation = Base.classes.conjugations
 
     logging.info("Fetching verb %s.", requested_verb)
 

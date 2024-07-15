@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from dbtest.database.sentences import DirectObject, IndirectPronoun, Negation
+from dbtest.sentances.models import DirectObject, IndirectPronoun, Negation
 
 import logging
 import random

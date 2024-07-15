@@ -1,14 +1,11 @@
-from enum import Enum, auto
+from enum import auto
 
-from dbtest.database.conjugations import Tense
+from dbtest.database.engine import async_engine
+from dbtest.database.metadata import metadata
 from dbtest.utils.prompt_enum import PromptEnum
+from dbtest.verbs.models import Tense
 
 from sqlalchemy import Enum, Table, Column, Integer, String, Boolean
-from sqlalchemy.orm import registry
-
-from .metadata import metadata
-
-mapper_registry = registry(metadata=metadata)
 
 class Pronoun(PromptEnum):
     first_person         = auto(),
@@ -64,6 +61,4 @@ sentence_table = Table("sentences", metadata,
 )
 
 class Sentence:
-    pass
-
-mapper_registry.map_imperatively(Sentence, sentence_table)
+    __table__ = Table('sentences', metadata, autoload=True, autoload_with=async_engine)
