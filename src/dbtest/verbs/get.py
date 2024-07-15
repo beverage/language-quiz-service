@@ -5,7 +5,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
 from dbtest.ai.client import AsyncChatGPTClient
-from dbtest.database.engine import Base, get_async_session
+from dbtest.database.engine import get_async_session
 from dbtest.verbs.models import Verb, Conjugation
 from dbtest.verbs.prompts import generate_verb_prompt
 
@@ -106,3 +106,5 @@ async def download_verb(requested_verb: str, openapi_client: AsyncChatGPTClient=
             else:
                 logging.info("Updating %s with tense %s.", conjugation.infinitive, conjugation.tense)
                 await session.merge(conjugation)
+
+        return verb
