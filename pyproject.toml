@@ -16,6 +16,7 @@ greenlet = "^3.0.3"
 asyncio = "^3.4.3"
 psycopg2 = "^2.9.9"
 pylint = "^3.2.3"
+backoff = "^2.2.1"
 
 [tool.poetry.scripts]
 dbtest = "dbtest.dbtest:main"

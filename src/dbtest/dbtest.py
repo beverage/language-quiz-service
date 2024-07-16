@@ -11,8 +11,10 @@ from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
 from .database.utils import object_as_dict
 
-from .sentances.create import create_random_sentence, create_random_problem, problem_formatter
+from .sentances.create import batch_problem_fetch, create_random_sentence, create_random_problem, problem_formatter
 from .verbs.get import download_verb, get_verb, get_random_verb
+
+from .utils.console import Style
 
 API_KEY = environ["OPENAI_API_KEY"]
 
@@ -54,6 +56,13 @@ async def problem():
 async def random():
     results = await create_random_problem()
     print(problem_formatter(results))
+
+@problem.command()
+@click.argument('quantity', default=10, type=click.INT)
+@click.option('--workers', default=10, type=click.INT)
+async def batch(quantity: int, workers: int):
+    results = await batch_problem_fetch(workers=workers, quantity=quantity)
+    print(f"{Style.BOLD}Generated {len(results)}{Style.RESET}")
 
 @cli.group()
 async def sentence():

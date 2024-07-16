@@ -1,3 +1,5 @@
+from asyncio import create_task, Queue, sleep
+
 from dbtest.database.metadata import Base
 
 from dbtest.ai.client import AsyncChatGPTClient
@@ -22,6 +24,33 @@ def select_verb():
 
 def create_sentence(verb: str):
     pass
+
+async def worker(queue: Queue, results):
+    while True:
+        task = await queue.get()
+        try:
+            result = await task
+            results.append(result)
+        except Exception as ex:
+            print(ex)
+        finally:
+            queue.task_done()
+
+async def batch_problem_fetch(workers: int, quantity: int):
+
+    queue: Queue = Queue()
+    results = []
+    workers = [create_task(worker(queue, results)) for i in range(workers)]
+
+    for i in range(quantity):
+        queue.put_nowait(create_random_problem_with_delay(display=True))
+
+    await queue.join()
+
+    for w in workers:
+        w.cancel()
+
+    return results
 
 async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
 
@@ -49,8 +78,8 @@ async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncCha
     # logging.info(prompt)
 
     response: str = await openapi_client.handle_request(prompt=prompt)
+    logging.debug(response)
     response_json = json.loads(response)
-    # logging.info(response_json)
 
     sentence.content     = response_json["sentence"]
     sentence.translation = response_json["translation"]
@@ -69,7 +98,11 @@ async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncCha
 
     return sentence
 
-async def create_random_problem(openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
+async def create_random_problem_with_delay(display=True):
+    await create_random_problem(display=display)
+    await sleep(random.uniform(0.5, 2.0))
+
+async def create_random_problem(openapi_client: AsyncChatGPTClient=AsyncChatGPTClient(), display=False):
 
     #   This will generate all four sentences sequentially to start and be parallelized later.
     Sentence = Base.classes.sentences
@@ -77,11 +110,13 @@ async def create_random_problem(openapi_client: AsyncChatGPTClient=AsyncChatGPTC
     answer: int = random.randrange(0, 4)
     openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()
 
-    print(Style.BOLD + f"Answer will be {answer + 1}:\n" + Style.RESET)
     responses: [Sentence] = []
 
     for i in range(4):
         responses.append(await create_random_sentence(True if i is answer else False, openapi_client))
+
+    if display:
+        print(problem_formatter(responses))
 
     return responses
 

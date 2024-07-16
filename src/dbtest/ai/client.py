@@ -1,11 +1,13 @@
 from os import environ
 
+import backoff
 import logging
 import openai
 import traceback
 
 client = openai.AsyncOpenAI(api_key=environ.get("OPENAI_API_KEY"))
 
+logging.getLogger("backoff").setLevel(logging.INFO)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 class AsyncChatGPTClient:
@@ -13,9 +15,13 @@ class AsyncChatGPTClient:
         self.model = model
         self.role = role
 
+    @backoff.on_exception(backoff.expo, openai.RateLimitError)
+    async def completions_with_backoff(self, **kwargs):
+        return await client.chat.completions.create(**kwargs)
+
     async def generate_response(self, prompt: str):
         try:
-            completion = await client.chat.completions.create(
+            completion = await self.completions_with_backoff(
                 model = self.model,
                 messages = [{ "role": self.role, "content": prompt }])
 
