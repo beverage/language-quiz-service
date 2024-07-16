@@ -21,7 +21,7 @@ async def get_verb(requested_verb: str, database_session: AsyncSession=get_async
         return verb
 
 async def get_random_verb(database_session: AsyncSession=get_async_session()) -> Verb:
-
+    # pylint: disable=not-callable
     async with database_session as session:
 
         verb: Verb = (

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 from os import environ
+from pprint import pprint
 
 import logging
 import asyncclick as click
-
-from pprint import pprint
 
 from .database.clear import clear_database
 from .database.engine import reflect_tables
@@ -23,7 +22,7 @@ API_KEY = environ["OPENAI_API_KEY"]
 @click.option('--debug/--no-debug', default=False)
 async def cli(debug=False):
     if debug:
-        click.echo(f"Debug mode is on.")
+        click.echo("Debug mode is on.")
         logging.basicConfig(level = logging.DEBUG)
     else:
         logging.basicConfig(level = logging.INFO)
@@ -89,9 +88,9 @@ async def download(verb: str):
 @click.argument('verb')
 async def get(verb: str):
     click.echo(f"Fetching verb {verb}.")
-    result = await get_verb(verb)    
+    result = await get_verb(verb)
     pprint(object_as_dict(result))
-    
+
 @verb.command()
 async def random():
     result = await get_random_verb()

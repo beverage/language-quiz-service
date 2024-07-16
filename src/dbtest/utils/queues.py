@@ -6,11 +6,11 @@ async def worker(queue: Queue, results):
         try:
             result = await task
             results.append(result)
-        except Exception as ex:
+        except Exception as ex: # pylint: disable=broad-exception-caught
             print(ex)
         finally:
             queue.task_done()
-            
+
 async def batch_operation(workers: int, quantity: int, method: any, **kwargs):
 
     queue: Queue = Queue()

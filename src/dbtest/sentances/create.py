@@ -1,12 +1,16 @@
 from asyncio import sleep
 
+import json
+import logging
+import random
+from typing import List
+
 from dbtest.ai.client import AsyncChatGPTClient
 
 from dbtest.database.engine import get_async_session
-from dbtest.database.metadata import Base
 
 from dbtest.sentances.features import SentenceFeatures
-from dbtest.sentances.models import Pronoun, DirectObject, IndirectPronoun
+from dbtest.sentances.models import Pronoun, DirectObject, IndirectPronoun, Sentence
 from dbtest.sentances.prompts import SentencePromptGenerator
 
 from dbtest.verbs.get import get_random_verb
@@ -14,19 +18,13 @@ from dbtest.verbs.models import Tense
 
 from dbtest.utils.console import Answers, Color, Style
 
-import json
-import logging
-import random
+# def select_verb():
+#     pass
 
-def select_verb():
-    pass
-
-def create_sentence(verb: str):
-    pass
+# def create_sentence(verb: str):
+#     pass
 
 async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
-
-    Sentence = Base.classes.sentences
 
     db_session = get_async_session()
     verb = await get_random_verb(db_session)
@@ -36,7 +34,7 @@ async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncCha
 
     sentence.infinitive = verb.infinitive
     sentence.auxiliary = verb.auxiliary
-    sentence.pronoun = random.choice([p for p in Pronoun])
+    sentence.pronoun = random.choice(list(Pronoun))
 
     # This raises the question as to if we even need participles if we are just
     # going to feed the tense right into ChatGTP:
@@ -71,21 +69,19 @@ async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncCha
     return sentence
 
 async def create_random_problem_with_delay(openapi_client: AsyncChatGPTClient=AsyncChatGPTClient(), display=True):
-    await create_random_problem(display=display)
+    await create_random_problem(openapi_client=openapi_client, display=display)
     await sleep(random.uniform(0.5, 2.0))
 
 async def create_random_problem(openapi_client: AsyncChatGPTClient=AsyncChatGPTClient(), display=False):
 
     #   This will generate all four sentences sequentially to start and be parallelized later.
-    Sentence = Base.classes.sentences
-
     answer: int = random.randrange(0, 4)
     openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()
 
-    responses: [Sentence] = []
+    responses: List[Sentence] = []
 
     for i in range(4):
-        responses.append(await create_random_sentence(True if i is answer else False, openapi_client))
+        responses.append(await create_random_sentence(i is answer, openapi_client))
 
     if display:
         print(problem_formatter(responses))

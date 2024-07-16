@@ -1,46 +1,45 @@
 from enum import auto
+from sqlalchemy import Enum, Table, Column, Integer, String, Boolean
 
 from dbtest.database.engine import async_engine
 from dbtest.database.metadata import metadata
 from dbtest.utils.prompt_enum import PromptEnum
 from dbtest.verbs.models import Tense
 
-from sqlalchemy import Enum, Table, Column, Integer, String, Boolean
-
 class Pronoun(PromptEnum):
-    first_person         = auto(),
-    second_person        = auto(),
-    third_person         = auto(),
-    first_person_plural  = auto(),
-    second_person_plural = auto(),
+    first_person         = auto()
+    second_person        = auto()
+    third_person         = auto()
+    first_person_plural  = auto()
+    second_person_plural = auto()
     third_person_plural  = auto()
 
 class DirectObject(PromptEnum):
-    none      = auto(),
-    masculine = auto(),
-    feminine  = auto(),
+    none      = auto()
+    masculine = auto()
+    feminine  = auto()
     plural    = auto()
-    
+
 class IndirectPronoun(PromptEnum):
-    none      = auto(),
-    masculine = auto(),
-    feminine  = auto(),
+    none      = auto()
+    masculine = auto()
+    feminine  = auto()
     plural    = auto()
-    
+
 class ReflexivePronoun(PromptEnum):
-    none          = auto(),
-    first_person  = auto(),
-    second_person = auto(),
+    none          = auto()
+    first_person  = auto()
+    second_person = auto()
     third_person  = auto()
-    
+
 class Negation(PromptEnum):
-    none     = auto(),
-    pas      = auto(),
-    jamais   = auto(),
-    rien     = auto(),
-    personne = auto(),
-    plus     = auto(),
-    aucun    = auto(),
+    none     = auto()
+    pas      = auto()
+    jamais   = auto()
+    rien     = auto()
+    personne = auto()
+    plus     = auto()
+    aucun    = auto()
     encore   = auto()
 
 sentence_table = Table("sentences", metadata,
@@ -60,5 +59,5 @@ sentence_table = Table("sentences", metadata,
     extend_existing=False
 )
 
-class Sentence:
+class Sentence: # pylint: disable=too-few-public-methods
     __table__ = Table('sentences', metadata, autoload=True, autoload_with=async_engine)

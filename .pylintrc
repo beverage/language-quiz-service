@@ -102,7 +102,7 @@ recursive=no
 # source root is an absolute path or a path relative to the current working
 # directory used to determine a package namespace for modules located under the
 # source root.
-source-roots=src/dbtest
+source-roots=
 
 # When enabled, pylint would attempt to guess common misconfiguration and emit
 # user-friendly hints instead of false-positive error messages.
@@ -155,7 +155,7 @@ class-attribute-naming-style=any
 #class-attribute-rgx=
 
 # Naming style matching correct class constant names.
-class-const-naming-style=UPPER_CASE
+class-const-naming-style=any
 
 # Regular expression matching correct class constant names. Overrides class-
 # const-naming-style. If left empty, class constant names will be checked with
@@ -232,7 +232,7 @@ name-group=
 
 # Regular expression which should only match function or class names that do
 # not require a docstring.
-no-docstring-rgx=^_
+no-docstring-rgx=.*
 
 # List of decorators that produce properties, such as abc.abstractproperty. Add
 # to this list to register other decorators that produce valid properties.
@@ -342,7 +342,7 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=128
+max-line-length=160
 
 # Maximum number of lines in a module.
 max-module-lines=1000

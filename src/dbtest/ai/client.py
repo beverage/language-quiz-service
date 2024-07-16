@@ -1,9 +1,9 @@
 from os import environ
 
-import backoff
-import logging
-import openai
 import traceback
+import logging
+import backoff
+import openai
 
 client = openai.AsyncOpenAI(api_key=environ.get("OPENAI_API_KEY"))
 
@@ -17,7 +17,7 @@ class AsyncChatGPTClient:
 
     @backoff.on_exception(backoff.expo, openai.RateLimitError)
     async def completions_with_backoff(self, **kwargs):
-        return await client.chat.completions.create(**kwargs)
+        return await client.chat.completions.create(**kwargs) # pylint: disable=broad-exception-caught disable=missing-kwoa
 
     async def generate_response(self, prompt: str):
         try:
@@ -29,7 +29,7 @@ class AsyncChatGPTClient:
                 return completion.choices[0].message.content
 
             raise openai.APIStatusError(message="No completion choices found.", response=None, body=None)
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-exception-caught
             return f"str({e}): {traceback.format_exc()}"
 
     async def handle_request(self, prompt: str):

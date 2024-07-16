@@ -7,10 +7,10 @@ from dbtest.database.metadata import Base, metadata
 from dbtest.utils.prompt_enum import PromptEnum
 
 class Tense(PromptEnum):
-    present       = auto(),
-    passe_compose = auto(),
-    imparfait     = auto(),
-    future_simple = auto(),
+    present       = auto()
+    passe_compose = auto()
+    imparfait     = auto()
+    future_simple = auto()
     participle    = auto()
 
 conjugation_table = Table("conjugations", metadata,
@@ -30,7 +30,7 @@ conjugation_table = Table("conjugations", metadata,
     extend_existing=False
 )
 
-class Conjugation(Base):
+class Conjugation(Base): # pylint: disable=too-few-public-methods
     __table__ = Table('conjugations', metadata, autoload=True, autoload_with=async_engine)
 
 verb_table = Table("verbs", metadata,
@@ -41,5 +41,5 @@ verb_table = Table("verbs", metadata,
     extend_existing=False
 )
 
-class Verb(Base):
+class Verb(Base): # pylint: disable=too-few-public-methods
     __table__ = Table('verbs', metadata, autoload=True, autoload_with=async_engine)
