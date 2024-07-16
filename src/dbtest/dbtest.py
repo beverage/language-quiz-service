@@ -10,7 +10,7 @@ from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
 from .database.utils import object_as_dict
 
-from .sentances.create import create_random_problem_with_delay, create_random_sentence, create_random_problem, problem_formatter
+from .sentences.create import create_random_problem_with_delay, create_random_sentence, create_random_problem, problem_formatter
 from .verbs.get import download_verb, get_verb, get_random_verb
 
 from .utils.console import Style
@@ -71,6 +71,7 @@ async def sentence():
 @sentence.command()
 async def random(correct: bool=True):
     result = await create_random_sentence(is_correct=correct)
+    print(result)
     print(object_as_dict(result))
 
 @cli.group()

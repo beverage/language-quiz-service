@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import logging
 import random
 
-from dbtest.sentances.models import DirectObject, IndirectPronoun, Negation, Sentence
+from dbtest.sentences.models import DirectObject, IndirectPronoun, Negation, Sentence
 
 @dataclass
 class SentenceFeatures:

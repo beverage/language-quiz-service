@@ -9,9 +9,9 @@ from dbtest.ai.client import AsyncChatGPTClient
 
 from dbtest.database.engine import get_async_session
 
-from dbtest.sentances.features import SentenceFeatures
-from dbtest.sentances.models import Pronoun, DirectObject, IndirectPronoun, Sentence
-from dbtest.sentances.prompts import SentencePromptGenerator
+from dbtest.sentences.features import SentenceFeatures
+from dbtest.sentences.models import Pronoun, DirectObject, IndirectPronoun, Sentence
+from dbtest.sentences.prompts import SentencePromptGenerator
 
 from dbtest.verbs.get import get_random_verb
 from dbtest.verbs.models import Tense
