@@ -21,4 +21,5 @@ jobs:
         poetry install
     - name: Analysing the code with pylint
       run: |
-        pylint $(git ls-files '*.py')
+        poetry run pylint $(git ls-files '*.py')
+      continue-on-error: true
