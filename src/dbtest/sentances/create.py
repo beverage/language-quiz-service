@@ -1,10 +1,9 @@
-from asyncio import create_task, Queue, sleep
-
-from dbtest.database.metadata import Base
+from asyncio import sleep
 
 from dbtest.ai.client import AsyncChatGPTClient
 
 from dbtest.database.engine import get_async_session
+from dbtest.database.metadata import Base
 
 from dbtest.sentances.features import SentenceFeatures
 from dbtest.sentances.models import Pronoun, DirectObject, IndirectPronoun
@@ -24,33 +23,6 @@ def select_verb():
 
 def create_sentence(verb: str):
     pass
-
-async def worker(queue: Queue, results):
-    while True:
-        task = await queue.get()
-        try:
-            result = await task
-            results.append(result)
-        except Exception as ex:
-            print(ex)
-        finally:
-            queue.task_done()
-
-async def batch_problem_fetch(workers: int, quantity: int):
-
-    queue: Queue = Queue()
-    results = []
-    workers = [create_task(worker(queue, results)) for i in range(workers)]
-
-    for i in range(quantity):
-        queue.put_nowait(create_random_problem_with_delay(display=True))
-
-    await queue.join()
-
-    for w in workers:
-        w.cancel()
-
-    return results
 
 async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncChatGPTClient=AsyncChatGPTClient()):
 
@@ -98,7 +70,7 @@ async def create_random_sentence(is_correct: bool=True, openapi_client: AsyncCha
 
     return sentence
 
-async def create_random_problem_with_delay(display=True):
+async def create_random_problem_with_delay(openapi_client: AsyncChatGPTClient=AsyncChatGPTClient(), display=True):
     await create_random_problem(display=display)
     await sleep(random.uniform(0.5, 2.0))
 
