@@ -19,13 +19,21 @@ from .utils.queues import batch_operation
 API_KEY = environ["OPENAI_API_KEY"]
 
 @click.group()
-@click.option('--debug/--no-debug', default=False)
-async def cli(debug=False):
+@click.option('--debug', default=False, is_flag=True)
+@click.option('--debug-openai', default=False, is_flag=True)
+@click.option('--debug-recovery', default=False, is_flag=True)
+async def cli(debug=False, debug_openai=False, debug_recovery=True):
     if debug:
         click.echo("Debug mode is on.")
         logging.basicConfig(level = logging.DEBUG)
     else:
         logging.basicConfig(level = logging.INFO)
+
+    if debug_openai:
+        logging.getLogger("openai").setLevel(logging.DEBUG)
+
+    if debug_recovery:
+        logging.getLogger("recovery").setLevel(logging.DEBUG)
 
     await reflect_tables()
 
