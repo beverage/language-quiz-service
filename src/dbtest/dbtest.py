@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from os import environ
 from pprint import pprint
 
 import logging
@@ -16,18 +15,13 @@ from .verbs.get import download_verb, get_verb, get_random_verb
 from .utils.console import Style
 from .utils.queues import batch_operation
 
-API_KEY = environ["OPENAI_API_KEY"]
-
 @click.group()
 @click.option('--debug', default=False, is_flag=True)
 @click.option('--debug-openai', default=False, is_flag=True)
 @click.option('--debug-recovery', default=False, is_flag=True)
 async def cli(debug=False, debug_openai=False, debug_recovery=True):
-    if debug:
-        click.echo("Debug mode is on.")
-        logging.basicConfig(level = logging.DEBUG)
-    else:
-        logging.basicConfig(level = logging.INFO)
+
+    logging.basicConfig(level = logging.DEBUG if debug else logging.INFO)
 
     if debug_openai:
         logging.getLogger("openai").setLevel(logging.DEBUG)
