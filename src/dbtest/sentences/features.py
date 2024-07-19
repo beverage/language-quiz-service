@@ -3,12 +3,62 @@ from dataclasses import dataclass
 import logging
 import random
 
+from dbtest.ai.promptable import Promptable
 from dbtest.sentences.models import DirectObject, IndirectPronoun, Negation, Sentence
+from dbtest.utils.prompt_enum import PromptEnum
+
+from abc import ABC
+
+# How do we enforce the existence of a 'none' on our prompt enums?  We can do that in Python,
+# but will it mess with sqlalchemy?  That needs to be tested, otherwise this can break easily.
+class SentenceFeature(Promptable, ABC):
+
+    def __init__(self, feature: PromptEnum, incorrect: bool=False, is_random: bool=False):
+
+        self.feature   = feature
+        self.incorrect = incorrect
+        self.is_random = is_random
+
+        if incorrect:
+            self.feature = random.choice([f for f in self.__feature() if f is not self.feature.none and f.name is not self.feature.name])
+        elif is_random:
+            self.feature = random.choice([f for f in self.__feature() if f is not self.feature.none])
+
+    def __feature(self):
+        return self.feature.__class__
+
+class DirectObjectFeature(SentenceFeature):
+    def __init__(self, feature: PromptEnum=DirectObject.none, incorrect: bool=False, is_random: bool=False):
+        super().__init__(feature, incorrect, is_random)
+
+    def prompt(self) -> str:
+        if self.incorrect is False:
+            return f"The sentence must have a correct {self.feature.prompt} direct object before its verb."
+        else:
+            return f"The sentence must have an incorrect {self.feature.prompt} direct object before its verb."
+
+class IndirectPronounFeature(SentenceFeature):
+    def __init__(self, feature: PromptEnum=IndirectPronoun.none, incorrect: bool=False, is_random: bool=False):
+        super().__init__(feature, incorrect, is_random)
+
+    def prompt(self) -> str:
+        if self.incorrect is False:
+            return f"The sentence must have a correct {self.feature.prompt} indirect pronoun as a pronoun before its verb."
+        else:
+            return f"The sentence must have an incorrect {self.feature.prompt} indirect pronoun as a pronoun before its verb."
+
+class NegationFeature(SentenceFeature):
+    def __init__(self, feature: PromptEnum=Negation.none, incorrect: bool=False, is_random: bool=False):
+        super().__init__(feature, incorrect, is_random)
+
+    def prompt(self) -> str:
+        if self.feature is not self.feature.none:
+            return f"The sentence must contain the negation {self.feature.prompt}."
+        else:
+            return "The sentence must not contain any negations."
 
 @dataclass
-class SentenceFeatures:
-
-    #   TODO: add error-forcing flags once prompts are more reliable for all of these and the auxiliary once the prompts are more reliable:
+class SentenceFeatures():
 
     direct_object:      bool = False
     indirect_pronoun:   bool = False
