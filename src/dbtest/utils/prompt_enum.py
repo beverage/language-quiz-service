@@ -1,6 +1,6 @@
-from enum import Enum
+import enum
 
-class PromptEnum(Enum):
+class PromptEnum(enum.Enum):
     @property
     def prompt(self):
         return self.name.replace('_', ' ')

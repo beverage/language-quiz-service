@@ -2,6 +2,7 @@
 from pprint import pprint
 
 import logging
+import traceback
 import asyncclick as click
 
 from .database.clear import clear_database
@@ -19,7 +20,7 @@ from .utils.queues import batch_operation
 @click.option('--debug', default=False, is_flag=True)
 @click.option('--debug-openai', default=False, is_flag=True)
 @click.option('--debug-recovery', default=False, is_flag=True)
-async def cli(debug=False, debug_openai=False, debug_recovery=True):
+async def cli(debug=False, debug_asyncio=False, debug_openai=False, debug_recovery=True):
 
     logging.basicConfig(level = logging.DEBUG if debug else logging.INFO)
 
@@ -63,8 +64,11 @@ async def random():
 @click.argument('quantity', default=10, type=click.INT)
 @click.option('--workers', default=10, type=click.INT)
 async def batch(quantity: int, workers: int):
-    results = await batch_operation(workers=workers, quantity=quantity, method=create_random_problem_with_delay, display=True)
-    print(f"{Style.BOLD}Generated {len(results)}{Style.RESET}")
+    try:
+        results = await batch_operation(workers=workers, quantity=quantity, method=create_random_problem_with_delay, display=True)
+        print(f"{Style.BOLD}Generated {len(results)}{Style.RESET}")
+    except Exception as ex:
+        print(f"str({ex}): {traceback.format_exc()}")
 
 @cli.group()
 async def sentence():
@@ -72,9 +76,12 @@ async def sentence():
 
 @sentence.command()
 async def random(correct: bool=True):
-    result = await create_random_sentence(is_correct=correct)
-    print(result)
-    print(object_as_dict(result))
+    try:
+        result = await create_random_sentence(is_correct=correct)
+        print(result)
+        print(object_as_dict(result))
+    except Exception as ex:
+        print(f"str({ex}): {traceback.format_exc()}")
 
 @cli.group()
 async def verb():
