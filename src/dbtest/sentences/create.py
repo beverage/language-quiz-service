@@ -90,7 +90,6 @@ async def create_random_problem(openai_client: AsyncChatGPTClient=AsyncChatGPTCl
     except Exception as ex:
         logging.error(traceback.format_exc())
 
-
     if display:
         print(problem_formatter(responses))
 

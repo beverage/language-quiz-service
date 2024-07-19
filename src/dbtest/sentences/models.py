@@ -1,6 +1,6 @@
 from enum import auto
 import sqlalchemy
-from sqlalchemy import Enum, Table, Column, Integer, String, Boolean, quoted_name
+from sqlalchemy import Enum, Column, String, Boolean, quoted_name
 from sqlalchemy.dialects.postgresql import ENUM as SQLAlchemyEnum
 
 from dbtest.database.engine import async_engine

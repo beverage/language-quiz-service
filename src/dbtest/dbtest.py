@@ -20,7 +20,7 @@ from .utils.queues import batch_operation
 @click.option('--debug', default=False, is_flag=True)
 @click.option('--debug-openai', default=False, is_flag=True)
 @click.option('--debug-recovery', default=False, is_flag=True)
-async def cli(debug=False, debug_asyncio=False, debug_openai=False, debug_recovery=True):
+async def cli(debug=False, debug_openai=False, debug_recovery=True):
 
     logging.basicConfig(level = logging.DEBUG if debug else logging.INFO)
 
