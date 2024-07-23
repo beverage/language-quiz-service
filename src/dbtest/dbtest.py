@@ -5,12 +5,15 @@ import logging
 import traceback
 import asyncclick as click
 
+from .cli.options import random_options, sentence_options
+
 from .database.clear import clear_database
 from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
 from .database.utils import object_as_dict
 
-from .sentences.create import create_random_problem_with_delay, create_random_sentence, create_random_problem, problem_formatter
+from .sentences.create import create_random_problem_with_delay, create_random_problem
+from .sentences.create import create_random_sentence, create_sentence, problem_formatter
 from .verbs.get import download_verb, get_verb, get_random_verb
 
 from .utils.console import Style
@@ -74,11 +77,23 @@ async def batch(quantity: int, workers: int):
 async def sentence():
     pass
 
-@sentence.command()
-async def random(correct: bool=True):
+@sentence.command('new')
+@click.option('-q', '--quantity', required=False, default=1)
+@sentence_options
+async def generate(quantity: int, **kwargs):
     try:
-        result = await create_random_sentence(is_correct=correct)
-        print(result)
+        results = []
+        for i in range(quantity):
+            results.append(await create_sentence(**kwargs))
+        print(problem_formatter(results))
+    except Exception as ex:
+        print(f"str({ex}): {traceback.format_exc()}")
+
+@sentence.command('random')
+@random_options
+async def random():
+    try:
+        result = await create_random_sentence(is_correct=True)
         print(object_as_dict(result))
     except Exception as ex:
         print(f"str({ex}): {traceback.format_exc()}")

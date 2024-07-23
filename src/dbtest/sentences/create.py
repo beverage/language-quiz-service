@@ -11,7 +11,7 @@ from dbtest.ai.client import AsyncChatGPTClient
 
 from dbtest.database.engine import get_async_session
 
-from dbtest.sentences.features import SentenceFeatures, SentenceFeaturesOld, DirectObjectFeature, IndirectPronounFeature, NegationFeature
+from dbtest.sentences.features import SentenceFeaturesOld
 from dbtest.sentences.models import Pronoun, DirectObject, IndirectPronoun, Negation, Sentence
 from dbtest.sentences.prompts import SentencePromptGenerator
 
@@ -33,7 +33,7 @@ async def create_sentence(verb_infinitive: str,
 
         verb: Verb = None
 
-        if verb_infinitive is None:
+        if verb_infinitive == "":
             verb = await get_random_verb(database_session=db_session)
         else:
             verb = await get_verb(requested_verb=verb_infinitive, database_session=db_session)
@@ -48,16 +48,18 @@ async def create_sentence(verb_infinitive: str,
         sentence.is_correct = is_correct
 
         # Sentence features:
-        sentence.direct_object    = direct_object
-        sentence.indirect_pronoun = indirect_pronoun
-        sentence.negation         = negation
+        sentence.direct_object    = DirectObject[direct_object]
+        sentence.indirect_pronoun = IndirectPronoun[indirect_pronoun]
+        sentence.negation         = Negation[negation]
 
         generator: SentencePromptGenerator = SentencePromptGenerator()
         prompt: str = generator.generate_sentence_prompt(sentence)
 
+        logging.debug(prompt)
         response: str = await openai_client.handle_request(prompt=prompt)
         logging.debug(response)
         response_json = json.loads(response)
+        logging.debug(response_json)
 
         sentence.content     = response_json["sentence"]
         sentence.translation = response_json["translation"]
@@ -69,7 +71,6 @@ async def create_sentence(verb_infinitive: str,
             sentence.indirect_pronoun = IndirectPronoun.none
 
         return sentence
-
 
 async def create_random_sentence(is_correct: bool=True, openai_client: AsyncChatGPTClient=AsyncChatGPTClient()):
 

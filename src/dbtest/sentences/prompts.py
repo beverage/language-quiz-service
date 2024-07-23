@@ -5,15 +5,15 @@ class SentencePromptGenerator:
 
     def __complement_objects(self, sentence):
         if sentence.direct_object is not DirectObject.none and sentence.indirect_pronoun is IndirectPronoun.none:
-            return f"The sentence must have a direct object as a pronoun in the first clause before the verb {sentence.infinitive}."
+            return f"The sentence must have a complement object direct in the first clause before the verb {sentence.infinitive}."
         if sentence.direct_object is DirectObject.none and sentence.indirect_pronoun is not IndirectPronoun.none:
-            return f"The sentence must have an indirect object as a pronoun in the first clause before the verb {sentence.infinitive}."
+            return f"The sentence must have a complement object indirect in the first clause before the verb {sentence.infinitive}."
         if sentence.direct_object is not DirectObject.none and sentence.indirect_pronoun is not IndirectPronoun.none:
-            return f"The sentence must have both a direct object as a pronoun and an indirect object as a pronoun in the first clause before the verb {sentence.infinitive}."
+            return f"The sentence must have both a complement object direct and an complement object indirect in the first clause before the verb {sentence.infinitive}."
         return ""
 
     def __negatedness(self, sentence):
-        return f"The sentence must contain the negation {sentence.negation.prompt}." if sentence.negation is not Negation.none else ""
+        return f"The sentence must contain the negation {sentence.negation}." if sentence.negation is not Negation.none else ""
 
     def __verb_properties(self, sentence):
         return f"The sentence has the verb infinitive {sentence.infinitive} in the {sentence.tense.prompt} tense, and may start with a {sentence.pronoun.prompt} subject pronoun."
@@ -31,7 +31,7 @@ class SentencePromptGenerator:
         return "The response should include an English translation." if sentence.is_correct else "The response should not include a translation."
 
     def __detect_objects(self):
-        return "If the generated sentence has a COD, set has_direct_object in the response to true.  Otherwise set it to false.  If the generated sentence has a COI, set the has_indirect_pronoun property to true.  Otherwise set it to false."
+        return "If the generated sentence has a complement object direct, set has_direct_object in the response to true.  Otherwise set it to false.  If the generated sentence has a complement object indirect, set the has_indirect_pronoun property to true.  Otherwise set it to false."
 
     def __transform_nouns_to_pronouns(self):
         return "Transform any COD and COI nouns in the sentence into their respective pronouns."
