@@ -19,7 +19,13 @@ class SentencePromptGenerator:
         return f"The sentence has the verb infinitive {sentence.infinitive} in the {sentence.tense.prompt} tense, and may start with a {sentence.pronoun.prompt} subject pronoun."
 
     def __sentence_correctness(self, sentence):
-        return "The sentence should be correctly formed." if sentence.is_correct else "The sentence should contain exactly one error in the pronoun, verb, objects, or negation." #  There must be only one clause."
+        if sentence.is_correct is False:
+            if sentence.direct_object is DirectObject.none and sentence.indirect_pronoun is IndirectPronoun.none and sentence.negation is Negation.none:
+                return "The sentence must contain an error in its pronoun or verb conjugation."
+            else:
+                return "The sentence must contain an error in any of its direct objects, indirect pronouns, or negations."
+        else:
+            return "The sentence should be correctly formed."
 
     def __translation(self, sentence):
         return "The response should include an English translation." if sentence.is_correct else "The response should not include a translation."

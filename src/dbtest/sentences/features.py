@@ -59,6 +59,10 @@ class NegationFeature(SentenceFeature):
 
 @dataclass
 class SentenceFeatures():
+    pass
+
+@dataclass
+class SentenceFeaturesOld():
 
     direct_object:      bool = False
     indirect_pronoun:   bool = False

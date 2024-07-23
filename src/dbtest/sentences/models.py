@@ -21,12 +21,14 @@ class DirectObject(PromptEnum):
     masculine = auto()
     feminine  = auto()
     plural    = auto()
+    random    = auto()
 
 class IndirectPronoun(PromptEnum):
     none      = auto()
     masculine = auto()
     feminine  = auto()
     plural    = auto()
+    random    = auto()
 
 class ReflexivePronoun(PromptEnum):
     none          = auto()
@@ -43,6 +45,7 @@ class Negation(PromptEnum):
     plus     = auto()
     aucun    = auto()
     encore   = auto()
+    random   = auto()
 
 sentence_table = sqlalchemy.Table("sentences", metadata,
     Column("id", sqlalchemy.Integer, primary_key=True),
