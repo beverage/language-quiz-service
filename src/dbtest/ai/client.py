@@ -10,7 +10,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 class AsyncChatGPTClient:
 
-    def __init__(self, model: str="gpt-3.5-turbo", role: str="user", api_key: str=None):
+    def __init__(self, model: str="gpt-4o", role: str="user", api_key: str=None):
         self.api_key = environ.get("OPENAI_API_KEY") if api_key is None else api_key
         self.client = openai.AsyncOpenAI(api_key=api_key)
         self.model = model

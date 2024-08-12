@@ -37,7 +37,7 @@ class SentencePromptGenerator:
         return "Transform any COD and COI nouns in the sentence into their respective pronouns."
 
     def __json_format(self):
-        return """The response should be returned as json in the format:
+        return """The response should be returned as raw json in the format.  All five fields must be present.  Do not wrap the json codes in JSON markers.
     {
         "sentence": "",
         "translation": "",

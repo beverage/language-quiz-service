@@ -48,16 +48,16 @@ async def create_sentence(verb_infinitive: str,
         sentence.is_correct = is_correct
 
         # Sentence features:
-        sentence.direct_object    = DirectObject[direct_object]
-        sentence.indirect_pronoun = IndirectPronoun[indirect_pronoun]
-        sentence.negation         = Negation[negation]
+        sentence.direct_object    = direct_object
+        sentence.indirect_pronoun = indirect_pronoun
+        sentence.negation         = negation
 
         generator: SentencePromptGenerator = SentencePromptGenerator()
         prompt: str = generator.generate_sentence_prompt(sentence)
 
         logging.debug(prompt)
         response: str = await openai_client.handle_request(prompt=prompt)
-        logging.debug(response)
+        logging.debug("response: " + response)
         response_json = json.loads(response)
         logging.debug(response_json)
 
