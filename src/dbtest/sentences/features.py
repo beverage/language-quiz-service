@@ -32,7 +32,9 @@ class DirectObjectFeature(SentenceFeature):
         super().__init__(feature, incorrect, is_random)
 
     def prompt(self) -> str:
-        if self.incorrect is False:
+        if self.random:
+            return "The sentence may or may not have a direct object before its verb."
+        elif self.incorrect is False:
             return f"The sentence must have a correct {self.feature.prompt} direct object before its verb."
         else:
             return f"The sentence must have an incorrect {self.feature.prompt} direct object before its verb."
@@ -42,7 +44,9 @@ class IndirectPronounFeature(SentenceFeature):
         super().__init__(feature, incorrect, is_random)
 
     def prompt(self) -> str:
-        if self.incorrect is False:
+        if self.random:
+            return "The sentence may or may not have an indirect pronoun before its verb."
+        elif self.incorrect is False:
             return f"The sentence must have a correct {self.feature.prompt} indirect pronoun as a pronoun before its verb."
         else:
             return f"The sentence must have an incorrect {self.feature.prompt} indirect pronoun as a pronoun before its verb."
@@ -52,7 +56,9 @@ class NegationFeature(SentenceFeature):
         super().__init__(feature, incorrect, is_random)
 
     def prompt(self) -> str:
-        if self.feature is not self.feature.none:
+        if self.random:
+            return "The sentence may or may not be negated, in any way."
+        elif self.feature is not self.feature.none:
             return f"The sentence must contain the negation {self.feature.prompt}."
         else:
             return "The sentence must not contain any negations."

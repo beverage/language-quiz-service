@@ -63,6 +63,10 @@ async def create_sentence(verb_infinitive: str,
 
         sentence.content     = response_json["sentence"]
         sentence.translation = response_json["translation"]
+        sentence.is_negated  = response_json["is_negated"]
+
+        if response_json["is_negated"] is False:
+            sentence.negation = Negation.none
 
         if response_json["has_direct_object"] is False:
             sentence.direct_object = DirectObject.none
@@ -102,6 +106,7 @@ async def create_random_sentence(is_correct: bool=True, openai_client: AsyncChat
 
         sentence.content     = response_json["sentence"]
         sentence.translation = response_json["translation"]
+        sentence.is_negated  = response_json["is_negated"]
 
         # It is not always possible to generate a sentence with a COD or a COI (or both)
         # for certain verbs.  Rather than trying to force the issue with whitelists or
@@ -146,10 +151,12 @@ def problem_formatter(sentences) -> str:
     output: str = ""
 
     for sentence in sentences:
+
         output = output + " ".join(
             [Answers.CORRECT if sentence.is_correct is True else Answers.INCORRECT,
              f"{Color.LIGHT_GRAY}{"COD" if sentence.direct_object is not DirectObject.none else "---"}{Style.RESET}",
              f"{Color.LIGHT_GRAY}{"COI" if sentence.indirect_pronoun is not IndirectPronoun.none else "---"}{Style.RESET}",
+             f"{Color.LIGHT_GRAY}{"NEG" if sentence.is_negated else "---"}{Style.RESET}",
              sentence.content,
              f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}" if sentence.is_correct else "",
             '\n'])
