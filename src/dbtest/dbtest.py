@@ -19,6 +19,9 @@ from .verbs.get import download_verb, get_verb, get_random_verb
 from .utils.console import Style
 from .utils.queues import batch_operation
 
+from .webserver.app import app
+import uvicorn
+
 @click.group()
 @click.option('--debug', default=False, is_flag=True)
 @click.option('--debug-openai', default=False, is_flag=True)
@@ -121,6 +124,16 @@ async def random():
     result = await get_random_verb()
     click.echo(f"Selected verb {result.infinitive}")
     pprint(object_as_dict(result))
+
+@cli.group()
+async def webserver():
+    pass
+
+@webserver.command()
+async def start():
+    config = uvicorn.Config(app, port=5000, log_level="debug")
+    server = uvicorn.Server(config)
+    await server.serve()
 
 def main():
     cli(_anyio_backend="asyncio")
