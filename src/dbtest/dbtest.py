@@ -93,11 +93,14 @@ async def generate(quantity: int, **kwargs):
         print(f"str({ex}): {traceback.format_exc()}")
 
 @sentence.command('random')
+@click.option('-q', '--quantity', required=False, default=1)
 @random_options
-async def random():
+async def random(quantity: int, **kwargs):
     try:
-        result = await create_random_sentence(is_correct=True)
-        print(object_as_dict(result))
+        results = []
+        for i in range(quantity):
+            results.append(await create_random_sentence(**kwargs))
+        print(problem_formatter(results))
     except Exception as ex:
         print(f"str({ex}): {traceback.format_exc()}")
 

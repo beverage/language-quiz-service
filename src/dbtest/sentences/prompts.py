@@ -59,7 +59,8 @@ class SentencePromptGenerator:
         return "The sentence should have correct French elisions.  This includes que and qui connectors."
 
     def __extra_rules(self):
-        return "The JSON must be properly formatted, with all properties and values in double quotes."
+        # TODO: we should not have an oddly specific rule around the word 'random'.  This is a hack to get around poor enum handling for now.
+        return "The JSON must be properly formatted, with all properties and values in double quotes.  The sentence must not include the word 'random'."
 
     def generate_sentence_prompt(self, sentence) -> str:
         return '\n'.join([
