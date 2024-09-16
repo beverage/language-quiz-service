@@ -4,6 +4,7 @@ class SentencePromptGenerator:
     # pylint: disable=too-few-public-methods, line-too-long
 
     def __complement_object(self, object_type, object_value, sentence):
+        #   TODO: This needs to not be using the hardcoded string.
         if object_value != "none":
             if object_value == "random":
                 return f"The sentence may randomly contain a masculine, feminine, or plural {object_type} in its first clause."
@@ -14,7 +15,13 @@ class SentencePromptGenerator:
 
     def __negatedness(self, sentence):
         #   TODO: This needs to not be using the hardcoded string.
-        return f"The sentence must contain the negation {sentence.negation}." if sentence.negation != "none" else "The sentence must not contain any negation."
+        if sentence.negation != "none":
+            if sentence.negation == "random":
+                return f"The sentance may randomly contain a negation from the list {' '.join([n.name for n in Negation])}, or no negation at all."
+            else:
+                return f"The sentence must contain the negation {sentence.negation}." if sentence.negation != "none" else "The sentence must not contain any negation."
+        else:
+            return "The sentence must not contain a negation."
 
     def __verb_properties(self, sentence):
         return f"The sentence has the verb infinitive {sentence.infinitive} in the {sentence.tense.prompt} tense, and may start with a {sentence.pronoun.prompt} subject pronoun."
@@ -48,7 +55,7 @@ class SentencePromptGenerator:
     """
 
     def __set_negation_field(self):
-        return "If the sentence contains a negation, set the negation field to that negation without the 'ne' prefix.  Otherwise set it to None"
+        return "If the sentence contains a negation, set the negation field to that negation without the 'ne' prefix.  Otherwise set it to none"
 
     def __set_object_type_field(self, object_type, object_name):
         return f"If the generated sentence has a {object_type}, set {object_name} to 'masculine if it is masculine', 'feminine' if it is feminine, or 'plural' if it is plural.  Set it to 'none' if it does not have an {object_name}."

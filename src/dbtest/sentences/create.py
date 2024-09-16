@@ -63,9 +63,9 @@ async def create_sentence(verb_infinitive:  str,
         sentence.direct_object    = response_json["direct_object"]
         sentence.indirect_pronoun = response_json["indirect_pronoun"]
 
-        print(response_json)
+        # print(response_json)
 
-        # await save_sentence(sentence=sentence)
+        await save_sentence(sentence=sentence)
 
         return sentence
 
