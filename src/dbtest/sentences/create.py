@@ -11,14 +11,12 @@ from dbtest.ai.client import AsyncChatGPTClient
 
 from dbtest.database.engine import get_async_session
 
-from dbtest.sentences.features import SentenceFeaturesOld
+from dbtest.sentences.database import save_sentence
 from dbtest.sentences.models import Pronoun, DirectObject, IndirectPronoun, Negation, Sentence
 from dbtest.sentences.prompts import SentencePromptGenerator
 
 from dbtest.verbs.get import get_random_verb, get_verb
 from dbtest.verbs.models import Tense, Verb
-
-from dbtest.utils.console import Answers, Color, Style
 
 async def create_sentence(verb_infinitive:  str,
                           pronoun:          Pronoun         = Pronoun.first_person,   # Pronoun and tense will remain both random
@@ -47,7 +45,7 @@ async def create_sentence(verb_infinitive:  str,
         sentence.tense      = random.choice([t for t in Tense if t is not Tense.participle])
         sentence.is_correct = is_correct
 
-        # Sentence features:
+        # Sentence features.  These may be overwritten by the response json.  (Always will for 'random'.)
         sentence.direct_object    = direct_object
         sentence.indirect_pronoun = indirect_pronoun
         sentence.negation         = negation
@@ -60,22 +58,14 @@ async def create_sentence(verb_infinitive:  str,
 
         sentence.content     = response_json["sentence"]
         sentence.translation = response_json["translation"]
-        sentence.is_negated  = response_json["is_negated"]
 
-        # It is not always possible to generate a sentence with a COD or a COI (or both)
-        # for certain verbs.  Rather than trying to force the issue with whitelists or
-        # blacklists, lets just store the results as it will be sometime else querying
-        # for sentences from the database by features anyways.  Direct calls are not meant
-        # to be part of the user experience.  Only database calls are.
+        sentence.negation         = response_json["negation"]
+        sentence.direct_object    = response_json["direct_object"]
+        sentence.indirect_pronoun = response_json["indirect_pronoun"]
 
-        if response_json["is_negated"] is False:
-            sentence.negation = Negation.none
+        print(response_json)
 
-        if response_json["has_direct_object"] is False:
-            sentence.direct_object = DirectObject.none
-
-        if response_json["has_indirect_pronoun"] is False:
-            sentence.indirect_pronoun = IndirectPronoun.none
+        # await save_sentence(sentence=sentence)
 
         return sentence
 
@@ -111,20 +101,3 @@ async def create_random_problem(openai_client: AsyncChatGPTClient=AsyncChatGPTCl
         print(problem_formatter(responses))
 
     return responses
-
-def problem_formatter(sentences) -> str:
-
-    output: str = ""
-
-    for sentence in sentences:
-
-        output = output + " ".join(
-            [Answers.CORRECT if sentence.is_correct is True else Answers.INCORRECT,
-             f"{Color.LIGHT_GRAY}{"COD" if sentence.direct_object is not DirectObject.none else "---"}{Style.RESET}",
-             f"{Color.LIGHT_GRAY}{"COI" if sentence.indirect_pronoun is not IndirectPronoun.none else "---"}{Style.RESET}",
-             f"{Color.LIGHT_GRAY}{"NEG" if sentence.is_negated else "---"}{Style.RESET}",
-             sentence.content,
-             f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}" if sentence.is_correct else "",
-            '\n'])
-
-    return output
