@@ -43,7 +43,7 @@ class SentencePromptGenerator:
         return "If the sentence has any French language negation present, set is_negated in the response to 'True'.  Otherwise set it to 'False'."
 
     def __json_format(self):
-        return """The response should be returned as raw json in the format.  All six fields must be present.  Do not wrap the json codes in JSON markers.
+        return """The response should be returned as raw json in the format below.  All six fields must be present.  Do not return as a fenced code block.
     {
         "sentence": "",
         "translation": "",
@@ -55,7 +55,7 @@ class SentencePromptGenerator:
     """
 
     def __set_negation_field(self):
-        return "If the sentence contains a negation, set the negation field to that negation without the 'ne' prefix.  Otherwise set it to none"
+        return "If the sentence contains a negation, set the negation field to that negation without the 'ne' prefix, or an n' prefix.  If it is two words, only use the first.  Otherwise set it to none"
 
     def __set_object_type_field(self, object_type, object_name):
         return f"If the generated sentence has a {object_type}, set {object_name} to 'masculine if it is masculine', 'feminine' if it is feminine, or 'plural' if it is plural.  Set it to 'none' if it does not have an {object_name}."
