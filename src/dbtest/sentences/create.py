@@ -1,6 +1,8 @@
 from asyncio import sleep
 
 import json
+from json.decoder import JSONDecodeError
+
 import logging
 import random
 import traceback
@@ -14,6 +16,7 @@ from dbtest.database.engine import get_async_session
 from dbtest.sentences.database import save_sentence
 from dbtest.sentences.models import Pronoun, DirectObject, IndirectPronoun, Negation, Sentence
 from dbtest.sentences.prompts import SentencePromptGenerator
+from dbtest.sentences.utils import problem_formatter
 
 from dbtest.verbs.get import get_random_verb, get_verb
 from dbtest.verbs.models import Tense, Verb
@@ -54,16 +57,24 @@ async def create_sentence(verb_infinitive:  str,
 
         prompt:   str = generator.generate_sentence_prompt(sentence)
         response: str = await openai_client.handle_request(prompt=prompt)
-        response_json = json.loads(response)
+
+        try:
+            response_json = json.loads(response)
+        except JSONDecodeError as ex:
+            logging.error(f"Unable to decode json response: {response}")
+            raise ex
 
         sentence.content     = response_json["sentence"]
         sentence.translation = response_json["translation"]
 
-        sentence.negation         = response_json["negation"]
-        sentence.direct_object    = response_json["direct_object"]
-        sentence.indirect_pronoun = response_json["indirect_pronoun"]
+        sentence.negation          = response_json["negation"]
+        sentence.direct_object     = response_json["direct_object"]
+        sentence.indirect_pronoun  = response_json["indirect_pronoun"]
+        sentence.reflexive_pronoun = "none" # Temporarily set this to none to not break things before removed, unless kept.
 
-        # print(response_json)
+        # This can happen if an incorrect answer is on the negation, which we cannot control yet:
+        if is_correct is False and sentence.negation == "n'" or sentence.negation == "ne":
+            sentence.negation = "none"
 
         await save_sentence(sentence=sentence)
 
@@ -93,7 +104,12 @@ async def create_random_problem(openai_client: AsyncChatGPTClient=AsyncChatGPTCl
     try:
         for i in range(4):
             # responses.append(await create_random_sentence(i is answer, openai_client))
-            responses.append(await create_sentence(verb_infinitive="savoir", is_correct=i is answer))
+            responses.append(await create_sentence("", "", "",
+                direct_object    = DirectObject.random,
+                indirect_pronoun = IndirectPronoun.random,
+                negation         = Negation.random,
+                is_correct       = i is answer))
+
     except Exception as ex:
         logging.error(traceback.format_exc())
 
