@@ -73,7 +73,7 @@ CREATE TABLE sentences (
     tense               tense               not null,
     direct_object       direct_object       not null,
     indirect_pronoun    indirect_pronoun    not null,
-    reflexive_pronoun   reflexive_pronoun   not null,
+--    reflexive_pronoun   reflexive_pronoun   not null,
     negation            negation            not null,
     content             varchar             not null,
     translation         varchar             not null,
