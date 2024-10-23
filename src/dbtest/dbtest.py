@@ -14,7 +14,7 @@ from .database.utils import object_as_dict
 
 from .sentences.create import create_random_problem_with_delay, create_random_problem
 from .sentences.create import create_random_sentence, create_sentence
-from .sentences.database import get_sentence
+from .sentences.database import get_random_sentence
 from .sentences.utils import problem_formatter
 
 from .verbs.get import download_verb, get_verb, get_random_verb
@@ -87,8 +87,8 @@ async def sentence():
 @click.option('-q', '--quantity', required=False, default=1)
 @sentence_options
 async def get(quantity: int, **kwargs):
-    result = await get_sentence(quantity, **kwargs)
-    print(problem_formatter([result.first()]))
+    result = await get_random_sentence(quantity, **kwargs)
+    print(problem_formatter(result))
 
 @sentence.command('new')
 @click.option('-q', '--quantity', required=False, default=1)

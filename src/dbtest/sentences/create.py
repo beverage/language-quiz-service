@@ -67,6 +67,10 @@ async def create_sentence(verb_infinitive:  str,
         sentence.content     = response_json["sentence"]
         sentence.translation = response_json["translation"]
 
+        # The Promptable extension requires the full base enum name so we have to do this here.  That can be changed later.
+        sentence.tense   = str(sentence.tense)
+        sentence.pronoun = str(sentence.pronoun)
+
         sentence.negation          = response_json["negation"]
         sentence.direct_object     = response_json["direct_object"]
         sentence.indirect_pronoun  = response_json["indirect_pronoun"]
