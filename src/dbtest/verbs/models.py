@@ -4,9 +4,11 @@ from sqlalchemy import Enum, Table, Column, Integer, String, ForeignKey
 
 from dbtest.database.engine import async_engine
 from dbtest.database.metadata import Base, metadata
+from dbtest.database.utils import DatabaseStringEnum
+
 from dbtest.utils.prompt_enum import PromptEnum
 
-class Tense(PromptEnum):
+class Tense(DatabaseStringEnum, PromptEnum):
     present       = auto()
     passe_compose = auto()
     imparfait     = auto()
