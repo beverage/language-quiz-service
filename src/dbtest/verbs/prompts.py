@@ -16,7 +16,8 @@ def generate_verb_tense_format() -> str:
 """
 
 def generate_extra_rules() -> str:
-    return """Do not return any newlines in the response. \
+    return """Do not return as a fenced code block. \
+            Do not return any newlines in the response. \
             Do not include reflexive pronouns in the pronoun field. \
             Always use both genders in the 3rd person pronouns.  \
             Always include 'on' for the 3rd person singular form.  \

@@ -1,4 +1,4 @@
-from dbtest.sentences.models import DirectObject, IndirectPronoun, Negation
+from dbtest.sentences.models import DirectObject, IndirectPronoun, Negation, Sentence
 
 class SentencePromptGenerator: 
     # pylint: disable=too-few-public-methods, line-too-long
@@ -54,8 +54,8 @@ class SentencePromptGenerator:
     }
     """
 
-    def __set_negation_field(self):
-        return "If the sentence contains a negation, set the negation field to that negation without the 'ne' prefix, or an n' prefix.  If it is two words, only use the first.  Otherwise set it to none"
+    def __set_negation_field(self, sentence):
+        return f"If the sentence contains a negation, set the negation field to that negation without the 'ne' prefix, or an n' prefix.  If it is two words, only use the first.  Otherwise set it to none.  If {sentence.is_correct} it must contain 'ne' or 'n''."
 
     def __set_object_type_field(self, object_type, object_name):
         return f"If the generated sentence has a {object_type}, set {object_name} to 'masculine if it is masculine', 'feminine' if it is feminine, or 'plural' if it is plural.  Set it to 'none' if it does not have an {object_name}."
@@ -77,9 +77,44 @@ class SentencePromptGenerator:
                 self.__translation(sentence),
                 self.__detect_negations(),
                 self.__json_format(),
-                self.__set_negation_field(),
+                self.__set_negation_field(sentence),
                 self.__set_object_type_field("COD", "direct_object"),
                 self.__set_object_type_field("COI", "indirect_pronoun"),
                 self.__correct_elisions(),
                 self.__extra_rules()
             ])
+
+    def validate_french_sentence_prompt(self, sentence) -> str:
+        return f"Is '{sentence.content}' a grammatically correct French sentence?  Any missing 'ne' or 'n'' before a negation is wrong.  Return 'True' or 'False'"
+
+    def validate_english_translation_prompt(self, sentence) -> str:
+        return f"Is '{sentence.translation}' accurate for the French sentence '{sentence.translation}'?"
+
+    def correct_sentence_prompt(self, sentence) -> str:
+
+        correction_prompt: str = ""
+
+        if sentence.direct_object != "none":
+            correction_prompt += f"\nThe sentence should have a {sentence.direct_object}"
+
+        if sentence.indirect_object != "none":
+            correction_prompt += f"\nThe sentence should have a {sentence.indirect_pronoun}"
+
+        if sentence.negation != "none":
+            correction_prompt += f"\nThe sentence should be negated with {sentence.negation}.  It should always until ne or n' if it is negated."
+
+        correction_prompt: str = '\n'.join([
+            f"Is the French language sentence '${sentence.content}' well formed?  Provide a translation if it is not as 'corrected_sentence'.",
+            f"If it is not well formed a translation for the new sentence translation as 'corrected_translation'."
+            "If it is well formed, return True or False, as 'is_well_formed in the json object below."
+        ])
+
+        correction_prompt += """\nThe response should be returned as raw json in the format below.  All three fields must be present.  Do not return as a fenced code block.
+    {
+        "corrected_sentence": "",
+        "corrected_translation": "",
+        "is_well_formed": ""
+    }
+    """
+
+        return correction_prompt

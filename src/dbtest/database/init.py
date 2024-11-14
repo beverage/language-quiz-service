@@ -5,7 +5,7 @@ from dbtest.verbs.get import download_verb
 # Hardcore some verbs for now.  We will load verb lists later.
 auxiliaries: list[str] = ["avoir", "être"]
 irregulars: list[str] = ["aller", "devoir", "dire", "faire", "pouvoir", "prendre", "savoir", "venir", "voir", "vouloir"]
-pronominals: list[str] = ["se sentir", "se souvenir"]
+pronominals: list[str] = [] # ["se sentir", "se souvenir"]
 
 # Artificial lower bound for testing.  Will make this high enough for the hard coded verbs for now.
 limit = Semaphore(17)
