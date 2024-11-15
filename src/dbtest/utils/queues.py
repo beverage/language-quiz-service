@@ -1,8 +1,12 @@
-from asyncio import create_task, Queue
+from asyncio import create_task, gather, Queue
 
 async def worker(queue: Queue, results):
     while True:
         task = await queue.get()
+
+        if task is None:
+            break
+
         try:
             result = await task
             results.append(result)
@@ -15,14 +19,17 @@ async def batch_operation(workers: int, quantity: int, method: any, **kwargs):
 
     queue: Queue = Queue()
     results = []
-    workers = [create_task(worker(queue, results)) for i in range(workers)]
+    worker_tasks = [create_task(worker(queue, results)) for _ in range(workers)]
 
-    for i in range(quantity):
-        queue.put_nowait(method(**kwargs))
+    for _ in range(quantity):
+        task = method(**kwargs)
+        queue.put_nowait(task)
 
     await queue.join()
 
-    for w in workers:
-        w.cancel()
+    for _ in range(workers):
+        queue.put_nowait(None)
+
+    await gather(*worker_tasks)
 
     return results
