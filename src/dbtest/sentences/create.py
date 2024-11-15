@@ -56,6 +56,9 @@ async def create_sentence(verb_infinitive:  str,
         generator: SentencePromptGenerator = SentencePromptGenerator()
 
         prompt:   str = generator.generate_sentence_prompt(sentence)
+
+        logging.debug(prompt)
+
         response: str = await openai_client.handle_request(prompt=prompt)
 
         try:
@@ -84,14 +87,11 @@ async def create_sentence(verb_infinitive:  str,
         if is_correct:
 
             # This could be repeated, but the plan we are testing this on is very slow.
-            print(generator.validate_french_sentence_prompt(sentence))
+            logging.debug(generator.validate_french_sentence_prompt(sentence))
             is_actually_correct: bool = bool(await openai_client.handle_request(prompt=generator.validate_french_sentence_prompt(sentence)))
-            print(f"Checked that {sentence.content} is well formed: {is_actually_correct}")
-            # print(json.dumps(sentence))
+            logging.debug(f"Checked that {sentence.content} is well formed: {is_actually_correct}")
 
             if is_actually_correct == False:
-                print(f"Correcting sentence {sentence.content}")
-                print(generator.correct_sentence_prompt(sentence))
                 correction = await openai_client.handle_request(prompt=generator.correct_sentence_prompt(sentence))
                 sentence.content     = correction.corrected_sentence
                 sentence.translation = correction.corrected_translation

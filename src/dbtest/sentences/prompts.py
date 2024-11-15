@@ -1,30 +1,46 @@
-from dbtest.sentences.models import DirectObject, IndirectPronoun, Negation, Sentence
+from dbtest.sentences.models import DirectObject, IndirectPronoun, Negation
 
 class SentencePromptGenerator: 
     # pylint: disable=too-few-public-methods, line-too-long
 
-    def __complement_object(self, object_type, object_value, sentence):
-        #   TODO: This needs to not be using the hardcoded string.
-        if object_value != "none":
-            if object_value == "random":
-                return f"The sentence may randomly contain a masculine, feminine, or plural {object_type} in its first clause."
+    def __complement_object_direct(self, sentence):
+        if sentence.direct_object != DirectObject.none:
+            if sentence.direct_object == DirectObject.random:
+                return f"The sentence must return a random COD (direct object) with the verb {sentence.infinitive} unless the verb forbids it."
             else:
-                return f"The sentence must contain a {object_value} {object_type} in its first clause before the verb {sentence.infinitive}."
+                return f"The sentence must return a COD (direct object) of gender {sentence.direct_object} with the verb {sentence.infinitive} unless the verb forbids it."
         else:
-            return f"The sentence must not contain a {object_type}."
+            return "The sentence must not contain a COD (direct object) unless the verb requires it."
+
+    def __complement_pronoun_indirect(self, sentence):
+        if sentence.direct_object != IndirectPronoun.none:
+            if sentence.direct_object == IndirectPronoun.random:
+                return f"The sentence must return a random COI (indirect pronoun) with the verb {sentence.infinitive} if possible."
+            else:
+                return f"The sentence must return a COI (indirect pronoun) of gender {sentence.indirect_pronoun} with the verb {sentence.infinitive} if possible."
+        else:
+            return "The sentence must not contain a COI (indirect pronoun) unless the verb requires it."
+
+    def __pronoun_ordering(self):
+        return "If the sentence has a COD (direct object) and a COI (indirect pronoun), put them in the right order.  Switch them if necessary."
 
     def __negatedness(self, sentence):
-        #   TODO: This needs to not be using the hardcoded string.
         if sentence.negation != "none":
             if sentence.negation == "random":
-                return f"The sentance may randomly contain a negation from the list {' '.join([n.name for n in Negation])}, or no negation at all."
+                return f"The sentance may randomly contain a negation from the list {' '.join([n.name for n in Negation])}, or no negation at all.  The sentence must always include 'ne'.  'Ne' must always come before any direct objects or indirect pronouns."
             else:
-                return f"The sentence must contain the negation {sentence.negation}." if sentence.negation != "none" else "The sentence must not contain any negation."
+                return f"The sentence must contain the negation {sentence.negation}.  The sentence must always include 'ne'." if sentence.negation != "none" else "The sentence must not contain any negation.  'Ne' must always come before any direct objects or indirect pronouns."
         else:
             return "The sentence must not contain a negation."
 
     def __verb_properties(self, sentence):
         return f"The sentence has the verb infinitive {sentence.infinitive} in the {sentence.tense.prompt} tense, and may start with a {sentence.pronoun.prompt} subject pronoun."
+
+    def __verb_compliments(self):
+        return "If the verb requires additional objects or infinitives afterwards, add some.  They must agree in gender and number."
+
+    def __prepositions(self):
+        return "Prepositions, such as à and de must be correct."
 
     def __sentence_correctness(self, sentence):
         if sentence.is_correct is False:
@@ -43,7 +59,7 @@ class SentencePromptGenerator:
         return "If the sentence has any French language negation present, set is_negated in the response to 'True'.  Otherwise set it to 'False'."
 
     def __json_format(self):
-        return """The response should be returned as raw json in the format below.  All six fields must be present.  Do not return as a fenced code block.
+        return """The response should be returned as raw json in the format below.  All six fields must be present.  Do not use json code fencing.
     {
         "sentence": "",
         "translation": "",
@@ -69,10 +85,13 @@ class SentencePromptGenerator:
 
     def generate_sentence_prompt(self, sentence) -> str:
         return '\n'.join([
-                self.__complement_object("COD", sentence.direct_object, sentence),
-                self.__complement_object("COI", sentence.indirect_pronoun, sentence),
+                self.__complement_object_direct(sentence),
+                self.__complement_pronoun_indirect(sentence),
+                self.__pronoun_ordering(),
                 self.__negatedness(sentence),
                 self.__verb_properties(sentence),
+                self.__verb_compliments(),
+                self.__prepositions(),
                 self.__sentence_correctness(sentence),
                 self.__translation(sentence),
                 self.__detect_negations(),
@@ -85,7 +104,7 @@ class SentencePromptGenerator:
             ])
 
     def validate_french_sentence_prompt(self, sentence) -> str:
-        return f"Is '{sentence.content}' a grammatically correct French sentence?  Any missing 'ne' or 'n'' before a negation is wrong.  Return 'True' or 'False'"
+        return f"Is the sentence '{sentence.content}' grammatically correct in terms of French syntax and verb usage? If it is grammatically correct, return 'True', or if not, return 'False'."
 
     def validate_english_translation_prompt(self, sentence) -> str:
         return f"Is '{sentence.translation}' accurate for the French sentence '{sentence.translation}'?"
@@ -101,7 +120,7 @@ class SentencePromptGenerator:
             correction_prompt += f"\nThe sentence should have a {sentence.indirect_pronoun}"
 
         if sentence.negation != "none":
-            correction_prompt += f"\nThe sentence should be negated with {sentence.negation}.  It should always until ne or n' if it is negated."
+            correction_prompt += f"\nThe sentence must be negated with {sentence.negation}.  It strictly MUST have a ne."
 
         correction_prompt: str = '\n'.join([
             f"Is the French language sentence '${sentence.content}' well formed?  Provide a translation if it is not as 'corrected_sentence'.",
