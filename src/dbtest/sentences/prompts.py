@@ -27,7 +27,7 @@ class SentencePromptGenerator:
     def __negatedness(self, sentence):
         if sentence.negation != "none":
             if sentence.negation == "random":
-                return f"The sentance may randomly contain a negation from the list {' '.join([n.name for n in Negation])}, or no negation at all.  The sentence must always include 'ne'.  'Ne' must always come before any direct objects or indirect pronouns.  The negation must come directly after the object."
+                return f"The sentance may randomly contain a negation from the list {' '.join([n.name for n in Negation])}, or no negation at all.  'Ne' must always come before any direct objects or indirect pronouns.  The negation must come directly after the object."
             else:
                 return f"The sentence must contain the negation {sentence.negation}.  The sentence must always include 'ne'." if sentence.negation != "none" else "The sentence must not contain any negation.  'Ne' must always come before any direct objects or indirect pronouns.  The negation must come directly after the object."
         else:
