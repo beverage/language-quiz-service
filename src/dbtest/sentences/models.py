@@ -43,6 +43,7 @@ class Negation(DatabaseStringEnum, PromptEnum):
     personne = auto()
     plus     = auto()
     aucun    = auto()
+    aucune   = auto()
     encore   = auto()
     random   = auto()
 

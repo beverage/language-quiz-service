@@ -16,7 +16,7 @@ CREATE TYPE reflexivity AS ENUM ('no', 'yes');
 CREATE TYPE auxiliary AS ENUM ('avoir', 'être');
 
 --  Aucun needs to match gender:
-CREATE TYPE negation AS ENUM ('none', 'pas', 'jamais', 'rien', 'personne', 'plus', 'aucun', 'encore'); 
+CREATE TYPE negation AS ENUM ('none', 'pas', 'jamais', 'rien', 'personne', 'plus', 'aucun', 'aucune', 'encore'); 
 
 --  This structure needs reconsideration:
 --
