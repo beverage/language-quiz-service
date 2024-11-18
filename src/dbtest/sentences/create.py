@@ -79,6 +79,10 @@ async def create_sentence(verb_infinitive:  str,
         sentence.indirect_pronoun  = response_json["indirect_pronoun"]
         sentence.reflexive_pronoun = "none" # Temporarily set this to none to not break things before removed, unless kept.
 
+        # These can happen if an incorrect answer is on the negation, which is fine, but will break the negation enum.
+        if is_correct is False and sentence.negation not in Negation.__members__:
+            sentence.negation = str(Negation.none)
+
         # If a sentence is supposed to be correct, double check it, as the prompts to generate it are overly complicated right now.
         if is_correct:
 
