@@ -1,3 +1,5 @@
+import json
+
 from .models import DirectObject, IndirectPronoun, Negation
 from ..utils.console import Answers, Color, Style
 
@@ -17,3 +19,10 @@ def problem_formatter(sentences) -> str:
             '\n'])
 
     return output
+
+def clean_json_output(raw_output: str) -> dict:
+    try:
+        raw_json = raw_output.strip("```json").strip("```").strip()
+        return json.loads(raw_json)
+    except json.JSONDecodeError:
+        raise ValueError("Malformed JSON received: " + raw_output)

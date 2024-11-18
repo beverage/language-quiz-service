@@ -16,7 +16,7 @@ from dbtest.database.engine import get_async_session
 from dbtest.sentences.database import save_sentence
 from dbtest.sentences.models import Pronoun, DirectObject, IndirectPronoun, Negation, Sentence
 from dbtest.sentences.prompts import SentencePromptGenerator
-from dbtest.sentences.utils import problem_formatter
+from dbtest.sentences.utils import clean_json_output, problem_formatter
 
 from dbtest.verbs.get import get_random_verb, get_verb
 from dbtest.verbs.models import Tense, Verb
@@ -62,7 +62,7 @@ async def create_sentence(verb_infinitive:  str,
         response: str = await openai_client.handle_request(prompt=prompt)
 
         try:
-            response_json = json.loads(response)
+            response_json = clean_json_output(response)
         except JSONDecodeError as ex:
             logging.error(f"Unable to decode json response: {response}")
             raise ex
@@ -86,15 +86,26 @@ async def create_sentence(verb_infinitive:  str,
         # If a sentence is supposed to be correct, double check it, as the prompts to generate it are overly complicated right now.
         if is_correct:
 
-            # This could be repeated, but the plan we are testing this on is very slow.
-            logging.debug(generator.validate_french_sentence_prompt(sentence))
-            is_actually_correct: bool = bool(await openai_client.handle_request(prompt=generator.validate_french_sentence_prompt(sentence)))
-            logging.debug(f"Checked that {sentence.content} is well formed: {is_actually_correct}")
+            correctness_response = await openai_client.handle_request(prompt=generator.validate_french_sentence_prompt(sentence))
+            is_actually_correct: bool = correctness_response.strip() == "True"
+
+            logging.debug(f"Checked that '{sentence.content}' is well formed: {is_actually_correct}")
 
             if is_actually_correct == False:
+
+                logging.debug(f"Sentence {sentence.content} is not well formed, and will be updated.")
                 correction = await openai_client.handle_request(prompt=generator.correct_sentence_prompt(sentence))
-                sentence.content     = correction.corrected_sentence
-                sentence.translation = correction.corrected_translation
+
+                try:
+                    correction_json = clean_json_output(correction)
+                except JSONDecodeError as ex:
+                    logging.error(f"Unable to decode json response: {correction}")
+                    raise ex
+
+                sentence.content     = correction_json["corrected_sentence"]
+                sentence.translation = correction_json["corrected_translation"]
+
+                logging.debug(f"Sentence was updated to '{sentence.content}'")
 
         await save_sentence(sentence=sentence)
 
