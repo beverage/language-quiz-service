@@ -41,13 +41,7 @@ From there the application is ready to start generating problem data from the co
 
 ## Webserver
 
-This project is eventually meant to become the backend for an already existing language quizzing mobile app.  The most rudimentary of bootstrapping is all that is completed at this point.  It can be started up, and serves a single hardcoded endpoint.
-```
-    dbtest webserver start
-```
-Only the `/sentences` endpoint exists, and it is hardcoded to a single verb and question configuration.  It also pulls straight from OpenAI instead of the database, where it really should be pulling from.
-
-This will quickly be built out once remaining major bugs and customization issues with the current tooling is taken care of.
+This project intends to back services behind a mobile app that already exists, so coming soon.
 
 ## Examples
 
