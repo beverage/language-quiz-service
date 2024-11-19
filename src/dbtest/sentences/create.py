@@ -79,10 +79,6 @@ async def create_sentence(verb_infinitive:  str,
         sentence.indirect_pronoun  = response_json["indirect_pronoun"]
         sentence.reflexive_pronoun = "none" # Temporarily set this to none to not break things before removed, unless kept.
 
-        # These can happen if an incorrect answer is on the negation, which is fine, but will break the negation enum.
-        if is_correct is False and sentence.negation not in Negation.__members__:
-            sentence.negation = str(Negation.none)
-
         # If a sentence is supposed to be correct, double check it, as the prompts to generate it are overly complicated right now.
         if is_correct:
 
@@ -116,13 +112,13 @@ async def create_random_sentence(is_correct: bool=True, openai_client: AsyncChat
     return await create_sentence("", "", "",    # Verb, pronoun, and tense remain fully random for now.
         direct_object       = DirectObject.random, 
         indirect_pronoun    = IndirectPronoun.random, 
-        negation            = Negation.random if random.randint(0, 1) == 1 else Negation.none, 
+        negation         = Negation.none if random.randint(0, 2) == 0 else Negation.random, 
         is_correct          = is_correct, 
         openai_client       = openai_client)
 
 async def create_random_problem_with_delay(openai_client: AsyncChatGPTClient=AsyncChatGPTClient(), display=True):
     await create_random_problem(openai_client=openai_client, display=display)
-    await sleep(random.uniform(0.5, 2.0))
+    await sleep(random.uniform(1.5, 2.0))
 
 async def create_random_problem(openai_client: AsyncChatGPTClient=AsyncChatGPTClient(), display=False):
 
@@ -138,7 +134,7 @@ async def create_random_problem(openai_client: AsyncChatGPTClient=AsyncChatGPTCl
             responses.append(await create_sentence("", "", "",
                 direct_object    = DirectObject.random,
                 indirect_pronoun = IndirectPronoun.random,
-                negation         = Negation.random,
+                negation         = Negation.none if random.randint(0, 2) == 0 else Negation.random, 
                 is_correct       = i is answer))
 
     except Exception as ex:

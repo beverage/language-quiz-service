@@ -15,7 +15,7 @@ def problem_formatter(sentences) -> str:
              f"{Color.LIGHT_GRAY}{"COI" if sentence.indirect_pronoun != IndirectPronoun.none.name else "---"}{Style.RESET}",
              f"{Color.LIGHT_GRAY}{"NEG" if sentence.negation != Negation.none.name else "---"}{Style.RESET}",
              sentence.content,
-             f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}" if sentence.is_correct else "",
+             f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}" if sentence.is_correct else f"{Color.LIGHT_RED}({sentence.translation}){Style.RESET}",
             '\n'])
 
     return output

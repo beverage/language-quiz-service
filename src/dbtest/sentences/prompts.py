@@ -25,11 +25,11 @@ class SentencePromptGenerator:
         return "If the sentence has a COD (direct object) and a COI (indirect pronoun), put them in the right order.  Switch them if necessary."
 
     def __negatedness(self, sentence):
-        if sentence.negation != "none":
-            if sentence.negation == "random":
-                return f"The sentance may randomly contain a negation from the list {' '.join([n.name for n in Negation])}, or no negation at all.  'Ne' must always come before any direct objects or indirect pronouns.  The negation must come directly after the object."
-            else:
-                return f"The sentence must contain the negation {sentence.negation}.  The sentence must always include 'ne'." if sentence.negation != "none" else "The sentence must not contain any negation.  'Ne' must always come before any direct objects or indirect pronouns.  The negation must come directly after the object."
+        if sentence.negation != Negation.none:
+            return "  ".join([
+                f"The sentence must contain the negation {sentence.negation}.  " if sentence.negation != Negation.random else f"The sentance may randomly contain a negation from the list {' '.join([n.name for n in Negation if n != Negation.random])}, or no negation at all."
+                "'Ne' must always come before any direct objects or indirect pronouns.  The negation must come directly after the object."
+            ])
         else:
             return "The sentence must not contain a negation."
 
@@ -47,12 +47,12 @@ class SentencePromptGenerator:
             if sentence.direct_object is DirectObject.none and sentence.indirect_pronoun is IndirectPronoun.none and sentence.negation is Negation.none:
                 return "The sentence must contain an error in its pronoun or verb conjugation."
             else:
-                return "The sentence must contain an error in any of its direct objects, indirect pronouns, or negations."
+                return "The sentence must contain an error in any of its direct objects, indirect pronouns, negations, or prepositions, ordering."
         else:
             return "The sentence should be correctly formed."
 
     def __translation(self, sentence):
-        return "The response should include an English translation." if sentence.is_correct else "The response should not include a translation."
+        return "The response should include an English translation." if sentence.is_correct else f"The 'translation' field should be a short reason why '{sentence.content}' is incorrect.  Do not repeat '{sentence.content}' in the output.  Return only the reason."
 
     def __detect_negations(self):
         #   TODO: This needs to be smarter, and plug in supported negations directly.
@@ -71,13 +71,13 @@ class SentencePromptGenerator:
     """
 
     def __set_negation_field(self, sentence):
-        return f"If the sentence contains a negation, set the negation field to that negation without the 'ne' prefix, or an n' prefix.  If it is two words, only use the first.  Otherwise set it to none.  If {sentence.is_correct} it must contain 'ne' or 'n''."
+        return f"If the sentence contains a negation, set the 'negation' field in the response to that negation, without any 'ne', or 'n'' prefix.  If the negation is two words, use only the first word.  If the sentence is not negated, or 'False' is returned, set it to 'none'"
 
     def __set_object_type_field(self, object_type, object_name):
         return f"If the generated sentence has a {object_type}, set {object_name} to 'masculine if it is masculine', 'feminine' if it is feminine, or 'plural' if it is plural.  Set it to 'none' if it does not have an {object_name}."
 
     def __correct_elisions(self):
-        return "The sentence should have correct French elisions.  This includes que and qui connectors."
+        return "The sentence should have correct French elisions.  This includes que, and qui connectors.  This includes 'n'' negations."
 
     def __extra_rules(self):
         # TODO: we should not have an oddly specific rule around the word 'random'.  This is a hack to get around poor enum handling for now.

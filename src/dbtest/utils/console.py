@@ -8,6 +8,7 @@ class Color(StrEnum):
     BOLD_WHITE   = f"\033[37m{Style.BOLD}"
     BRIGHT_BLUE  = '\033[94m'
     LIGHT_GRAY   = '\033[90m'
+    LIGHT_RED    = '\033[91m'
     STRONG_GREEN = '\033[38;5;46m'
     STRONG_RED   = '\033[38;5;196m'
     WHITE        = '\033[37m'
