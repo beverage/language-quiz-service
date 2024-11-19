@@ -4,9 +4,12 @@
 
 # OpenAI Language Quiz Generator
 
-## Contents
+A tool to provide quizzing material for a variety of French language features, and provide feedback for its learnings.  What is seen here is it in its command-line application form, but what is within can be consumed by client applications later after further refinement.
 
-## Why
+![Example](docs/example.gif)
+> This example is highly rate-limited and with randomised features.
+
+While the overall correctness for right answers has been verified, some of the answers are not always ideomatic (around 10% of the time) given that they are generated with no surrounding context.  This is unavoidable for the time being.
 
 ## Getting started
 
