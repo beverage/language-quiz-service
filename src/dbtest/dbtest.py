@@ -12,7 +12,8 @@ from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
 from .database.utils import object_as_dict
 
-from .sentences.create import create_random_problem_with_delay, create_random_problem
+from .problems.create import create_random_problem_with_delay, create_random_problem
+
 from .sentences.create import create_random_sentence, create_sentence
 from .sentences.database import get_random_sentence
 from .sentences.utils import problem_formatter
