@@ -7,6 +7,7 @@ import openai
 
 logging.getLogger("backoff").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
 
 class AsyncChatGPTClient:
 

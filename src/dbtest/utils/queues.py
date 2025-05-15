@@ -1,10 +1,12 @@
 from asyncio import create_task, gather, Queue
+from typing import Any, Awaitable
 
 async def worker(queue: Queue, results):
     while True:
         task = await queue.get()
 
         if task is None:
+            queue.task_done()
             break
 
         try:
@@ -15,7 +17,7 @@ async def worker(queue: Queue, results):
         finally:
             queue.task_done()
 
-async def batch_operation(workers: int, quantity: int, method: any, **kwargs):
+async def batch_operation(workers: int, quantity: int, method: list[Awaitable[Any]], **kwargs):
 
     queue: Queue = Queue()
     results = []
