@@ -2,11 +2,11 @@ from enum import auto
 
 from sqlalchemy import Enum, Table, Column, Integer, String, ForeignKey
 
-from dbtest.database.engine import async_engine
-from dbtest.database.metadata import Base, metadata
-from dbtest.database.utils import DatabaseStringEnum
+from lqconsole.database.engine import async_engine
+from lqconsole.database.metadata import Base, metadata
+from lqconsole.database.utils import DatabaseStringEnum
 
-from dbtest.utils.prompt_enum import PromptEnum
+from lqconsole.utils.prompt_enum import PromptEnum
 
 class Tense(DatabaseStringEnum, PromptEnum):
     present       = auto()

@@ -1,5 +1,5 @@
-from dbtest.sentences.features import IndirectPronounFeature
-from dbtest.sentences.models import IndirectPronoun
+from lqconsole.sentences.features import IndirectPronounFeature
+from lqconsole.sentences.models import IndirectPronoun
 
 def test_explicit_direct_object():
 

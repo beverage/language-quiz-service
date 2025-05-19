@@ -1,8 +1,8 @@
 
-from ..database.engine import AsyncSession, get_async_session
+from lqconsole.database.engine import get_async_session
 
 from .models import Pronoun, DirectObject, IndirectPronoun, Negation, Sentence
-from ..verbs.models import Tense
+from lqconsole.verbs.models import Tense
 
 from sqlalchemy import select
 from sqlalchemy.sql.expression import func

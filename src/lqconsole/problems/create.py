@@ -7,11 +7,11 @@ import traceback
 
 from typing import List
 
-from dbtest.ai.client import AsyncChatGPTClient
+from lqconsole.ai.client import AsyncChatGPTClient
 
-from dbtest.sentences.create import create_sentence
-from dbtest.sentences.models import DirectObject, IndirectPronoun, Negation, Sentence
-from dbtest.sentences.utils import problem_formatter
+from lqconsole.sentences.create import create_sentence
+from lqconsole.sentences.models import DirectObject, IndirectPronoun, Negation, Sentence
+from lqconsole.sentences.utils import problem_formatter
 
 async def create_random_problem_with_delay(openai_client: AsyncChatGPTClient=AsyncChatGPTClient(), display=True):
     await create_random_problem(openai_client=openai_client, display=display)

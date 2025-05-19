@@ -1,9 +1,9 @@
 [tool.poetry]
-name = "dbtest"
+name = "lqconsole"
 version = "0.0.1"
 description = ""
 authors = [ "Alex Beverage" ]
-packages = [{ include = "dbtest", from = "src" }]
+packages = [{ include = "lqconsole", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -22,7 +22,7 @@ fastapi = "^0.112.2"
 uvicorn = "^0.30.6"
 
 [tool.poetry.scripts]
-dbtest = "dbtest.dbtest:main"
+lqconsole = "lqconsole.lqconsole:main"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,5 +1,5 @@
-from dbtest.sentences.features import DirectObjectFeature
-from dbtest.sentences.models import DirectObject
+from lqconsole.sentences.features import DirectObjectFeature
+from lqconsole.sentences.models import DirectObject
 
 def test_explicit_direct_object():
 

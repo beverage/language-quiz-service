@@ -4,10 +4,10 @@ import logging
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
-from dbtest.ai.client import AsyncChatGPTClient
-from dbtest.database.engine import get_async_session
-from dbtest.verbs.models import Verb, Conjugation
-from dbtest.verbs.prompts import generate_verb_prompt
+from lqconsole.ai.client import AsyncChatGPTClient
+from lqconsole.database.engine import get_async_session
+from lqconsole.verbs.models import Verb, Conjugation
+from lqconsole.verbs.prompts import generate_verb_prompt
 
 async def get_verb(requested_verb: str, database_session: AsyncSession=get_async_session()) -> Verb:
 

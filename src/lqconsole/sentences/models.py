@@ -2,10 +2,10 @@ from enum import auto
 
 from sqlalchemy.ext.asyncio import AsyncAttrs
 
-from dbtest.database.metadata import Base
-from dbtest.database.utils import DatabaseStringEnum
+from lqconsole.database.metadata import Base
+from lqconsole.database.utils import DatabaseStringEnum
 
-from dbtest.utils.prompt_enum import PromptEnum
+from lqconsole.utils.prompt_enum import PromptEnum
 
 class Pronoun(DatabaseStringEnum, PromptEnum):
     first_person         = auto()

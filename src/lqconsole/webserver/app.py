@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 
-from dbtest.sentences.create import create_sentence
-from dbtest.webserver.verbs.get import get_verb_and_conjugations
+from lqconsole.sentences.create import create_sentence
+from lqconsole.webserver.verbs.get import get_verb_and_conjugations
 
 app = FastAPI()
 

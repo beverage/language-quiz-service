@@ -1,4 +1,4 @@
-from dbtest import main
+from lqconsole import main
 
 if __name__ == '__main__':
     main()

@@ -31,7 +31,8 @@ Better secrets management for both the OpenAI keys and database passwords will b
 
 Once running, you will need to pre-populate the database with a minimal verb set before any sentence or problem generation.  To do that, run the following:
 ```
-    dbtest database init
+    poetry shell            # Optional - you can just use a 'poetry run' prefix to any further commands.
+    lqconsole database init
 ```
 From there the application is ready to start generating problem data from the command line.  See the documentation below.
 

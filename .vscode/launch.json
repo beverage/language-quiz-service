@@ -5,10 +5,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python Debugger: dbtest.py",
+      "name": "Python Debugger: lqconsole.py",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/src/dbtest/dbtest.py",
+      "program": "${workspaceFolder}/src/lqconsole/lqconsole.py",
       "cwd": "${workspaceFolder}/src",
       "console": "integratedTerminal",
       "args": "verb get -s avoir"

@@ -3,9 +3,9 @@ from dataclasses import dataclass
 import logging
 import random
 
-from dbtest.ai.promptable import Promptable
-from dbtest.sentences.models import DirectObject, IndirectPronoun, Negation, Sentence
-from dbtest.utils.prompt_enum import PromptEnum
+from lqconsole.ai.promptable import Promptable
+from lqconsole.sentences.models import DirectObject, IndirectPronoun, Negation, Sentence
+from lqconsole.utils.prompt_enum import PromptEnum
 
 from abc import ABC
 
