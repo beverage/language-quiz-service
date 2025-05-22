@@ -24,6 +24,8 @@ from .utils.console import Style
 from .utils.queues import batch_operation
 
 from .webserver.app import app
+
+import os
 import uvicorn
 
 @click.group()
@@ -145,8 +147,13 @@ async def webserver():
 
 @webserver.command()
 async def start():
-    config = uvicorn.Config(app, port=5000, log_level="debug")
+
+    host = os.getenv("WEB_HOST", "127.0.0.1")
+    port = int(os.getenv("WEB_PORT", 5000))
+
+    config = uvicorn.Config(app, host=host, port=port, log_level="info", access_log=True)
     server = uvicorn.Server(config)
+
     await server.serve()
 
 def main():
