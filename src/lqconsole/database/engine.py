@@ -1,5 +1,6 @@
 # from asyncio import Lock, Event
 import logging
+import os
 import traceback
 
 from typing import AsyncGenerator
@@ -9,7 +10,13 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 
 from .metadata import Base
 
-async_engine = create_async_engine("postgresql+asyncpg://postgres:postgres@localhost/language_app")
+db_user = os.getenv("DB_USER", "postgres")
+db_password = os.getenv("DB_PASSWORD", "postgres")
+db_name = os.getenv("DB_NAME", "language_app")
+db_host = os.getenv("DB_HOST", "localhost")
+db_port = os.getenv("DB_PORT", "5432")
+
+async_engine = create_async_engine(f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}")
 
 # reflection_lock: Lock  = Lock()
 # reflection_done: Event = Event()

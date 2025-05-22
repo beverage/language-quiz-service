@@ -6,9 +6,11 @@ services:
     ports:
       - 5432:5432
     environment:
-      POSTGRES_DB: language_app
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      DB_NAME: language_app
+      DB_USER: postgres
+      DB_HOST: postgres
+      DB_URL: localhost
+      DB_PORT: 5432
     volumes:
       - type: volume
         source: pg-data

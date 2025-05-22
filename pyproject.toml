@@ -6,20 +6,20 @@ authors = [ "Alex Beverage" ]
 packages = [{ include = "lqconsole", from = "src" }]
 
 [tool.poetry.dependencies]
-python = "^3.12"
-sqlalchemy = "^2.0.25"
-asyncclick="8.1.7.2"
-openai = "^1.12.0"
+python = "^3.13"
 aiohttp = "^3.9.3"
-asyncpg = "^0.29.0"
-greenlet = "^3.0.3"
-asyncio = "^3.4.3"
-psycopg2 = "^2.9.9"
-pylint = "^3.2.3"
+asyncclick = "^8.1.7.2"
+asyncpg = "^0.30.0"
 backoff = "^2.2.1"
-pytest = "^8.2.2"
 fastapi = "^0.112.2"
+greenlet = "^3.0.3"
+openai = "^1.81.0"
+sqlalchemy = "^2.0.25"
 uvicorn = "^0.30.6"
+
+[tool.poetry.group.dev.dependencies]
+pylint = "^3.2.3"
+pytest = "^8.2.2"
 
 [tool.poetry.scripts]
 lqconsole = "lqconsole.lqconsole:main"
