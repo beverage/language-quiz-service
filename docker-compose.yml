@@ -3,14 +3,14 @@ services:
     image: "postgres:latest"
     labels:
       - openai-language-test
+    networks:
+      - lqnet
     ports:
       - 5432:5432
     environment:
-      DB_NAME: language_app
-      DB_USER: postgres
-      DB_HOST: postgres
-      DB_URL: localhost
-      DB_PORT: 5432
+      POSTGRES_DB: language_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     volumes:
       - type: volume
         source: pg-data
@@ -22,6 +22,10 @@ services:
       timeout: 30s
       retries: 5
       start_period: 30s
+
+networks:
+  lqnet:
+    driver: bridge
 
 volumes:
   pg-data:
