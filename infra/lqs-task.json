@@ -7,7 +7,7 @@
   "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
-      "name": "language-quiz-task",
+      "name": "lqs-service",
       "image": "<IMAGE_NAME>",
       "portMappings": [
         {
