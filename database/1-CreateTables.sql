@@ -2,6 +2,7 @@
 -- CREATE TYPE pronoun          AS ENUM ('je', 'tu', 'on', 'il', 'elle', 'nous', 'vous', 'ils', 'elles');
 -- CREATE TYPE direct_pronoun   AS ENUM ('la', 'le', 'les');
 -- CREATE TYPE indirect_pronoun AS ENUM ('lui', 'leur');
+\c language_app
 
 CREATE TYPE pronoun          AS ENUM ('first_person', 'second_person', 'third_person', 'first_person_plural', 'second_person_plural', 'third_person_plural');
 CREATE TYPE direct_object    AS ENUM ('none', 'masculine', 'feminine', 'plural');
