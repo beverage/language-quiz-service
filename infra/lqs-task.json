@@ -4,25 +4,23 @@
   "cpu": "256",
   "memory": "512",
   "requiresCompatibilities": ["FARGATE"],
-  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecsTaskExecutionRole",
   "containerDefinitions": [
     {
       "name": "lqs-service",
       "image": "<IMAGE_NAME>",
       "portMappings": [
         {
-          "containerPort": 8000,
+          "containerPort": 8080,
           "protocol": "tcp"
         }
       ],
       "essential": true,
       "environment": [
         { "name": "DB_USER", "value": "postgres" },
-        { "name": "DB_PASSWORD", "value": "${{ secrets.POSTGRES_PASSWORD }}" },
         { "name": "DB_NAME", "value": "language_app" },
         { "name": "DB_HOST", "value": "db.lqs.beverage.me" },
-        { "name": "DB_PORT", "value": "5432" },
-        { "name": "OPENAI_API_KEY", "value": "${{ secrets.OPENAI_API_KEY }}" }
+        { "name": "DB_PORT", "value": "5432" }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
