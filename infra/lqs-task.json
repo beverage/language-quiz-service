@@ -1,0 +1,37 @@
+{
+  "family": "lqs-tasks",
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "requiresCompatibilities": ["FARGATE"],
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "language-quiz-task",
+      "image": "<IMAGE_NAME>",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        { "name": "DB_USER", "value": "postgres" },
+        { "name": "DB_PASSWORD", "value": "${{ secrets.POSTGRES_PASSWORD }}" },
+        { "name": "DB_NAME", "value": "language_app" },
+        { "name": "DB_HOST", "value": "db.lqs.beverage.me" },
+        { "name": "DB_PORT", "value": "5432" },
+        { "name": "OPENAI_API_KEY", "value": "${{ secrets.OPENAI_API_KEY }}" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/language-quiz-service",
+          "awslogs-region": "eu-west-3",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
