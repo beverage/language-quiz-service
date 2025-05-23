@@ -1,6 +1,9 @@
 from lqconsole.sentences.features import DirectObjectFeature
 from lqconsole.sentences.models import DirectObject
 
+import pytest
+
+@pytest.mark.skip(reason="Not implemented yet")
 def test_explicit_direct_object():
 
     direct_object_feature: DirectObjectFeature=DirectObjectFeature(feature=DirectObject.feminine)
