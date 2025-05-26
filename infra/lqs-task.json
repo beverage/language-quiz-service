@@ -16,12 +16,7 @@
         }
       ],
       "essential": true,
-      "environment": [
-        { "name": "DB_USER", "value": "postgres" },
-        { "name": "DB_NAME", "value": "language_app" },
-        { "name": "DB_HOST", "value": "db.lqs.beverage.me" },
-        { "name": "DB_PORT", "value": "5432" }
-      ],
+      "environment": [],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
