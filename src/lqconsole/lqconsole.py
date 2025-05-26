@@ -7,6 +7,7 @@ import asyncclick as click
 
 from .cli.options import random_options, sentence_options
 
+from .cloud.database import down as database_down, up as database_up, status as database_status
 from .cloud.service import down as service_down, up as service_up
 
 from .database.clear import clear_database
@@ -54,6 +55,27 @@ async def cloud():
 async def database():
     pass
 
+@database.command()
+async def down():
+    """
+    Takes down the database by stopping the RDS instance.
+    """
+    await database_down()
+
+@database.command()
+async def up():
+    """
+    Brings up the database by starting the RDS instance.
+    """
+    await database_up()
+
+@database.command()
+async def status():
+    """
+    Checks the status of the database RDS instance.
+    """
+    await database_status()
+
 @cloud.group()
 async def service():
     pass
@@ -66,12 +88,12 @@ async def down():
     await service_down()
 
 @service.command()
-@click.option('--count', default=1, type=click.INT)
-async def up(count: int = 1):
+@click.option('--task-count', default=1, type=click.INT)
+async def up(task_count: int = 1):
     """
-    Brings up the service by setting the ECS tasks desired count to --count.  (Default: 1)
+    Brings up the service by setting the ECS tasks desired count to --task-count.  (Default: 1)
     """
-    await service_up(count=count)
+    await service_up(count=task_count)
 
 @cli.group()
 async def database():
