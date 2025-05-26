@@ -16,6 +16,7 @@ greenlet = "^3.0.3"
 openai = "^1.81.0"
 sqlalchemy = "^2.0.25"
 uvicorn = "^0.30.6"
+boto3 = "^1.38.22"
 
 [tool.poetry.group.dev.dependencies]
 pylint = "^3.2.3"

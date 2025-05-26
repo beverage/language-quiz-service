@@ -7,6 +7,8 @@ import asyncclick as click
 
 from .cli.options import random_options, sentence_options
 
+from .cloud.service import down as service_down, up as service_up
+
 from .database.clear import clear_database
 from .database.engine import reflect_tables
 from .database.init import init_auxiliaries
@@ -43,6 +45,33 @@ async def cli(debug=False, debug_openai=False, debug_recovery=True):
         logging.getLogger("recovery").setLevel(logging.DEBUG)
 
     await reflect_tables()
+
+@cli.group()
+async def cloud():
+    pass
+
+@cloud.group()
+async def database():
+    pass
+
+@cloud.group()
+async def service():
+    pass
+
+@service.command()
+async def down():
+    """
+    Takes down the service by setting the ECS tasks desired count to 0.
+    """
+    await service_down()
+
+@service.command()
+@click.option('--count', default=1, type=click.INT)
+async def up(count: int = 1):
+    """
+    Brings up the service by setting the ECS tasks desired count to --count.  (Default: 1)
+    """
+    await service_up(count=count)
 
 @cli.group()
 async def database():
