@@ -13,8 +13,8 @@ While the overall correctness for right answers has been verified, some of the a
 
 Right now it is a simple Python app, installable from the command line via [Poetry](https://python-poetry.org/):
 ```
-    python -m pip install --upgrade pip
-    pip install poetry
+    pipx install poetry
+    pipx inject poetry poetry-plugin-shell
     poetry install
 ```
 This app will additiionally require a postgresql database, and an OpenAI API key in your environment.  (This will be configurable, and hidden later.)
