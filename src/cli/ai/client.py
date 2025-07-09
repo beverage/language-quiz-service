@@ -1,41 +1,25 @@
-import traceback
-import logging
-import backoff
+"""Client for OpenAI."""
 import openai
 
-from ..config.settings import app_settings
+# Use new core configuration
+import sys
+from pathlib import Path
+parent_dir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(parent_dir))
 
-logging.getLogger("backoff").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("openai").setLevel(logging.WARNING)
+from core.config import settings
+
 
 class AsyncChatGPTClient:
+    """Async client for ChatGPT."""
+    
+    def __init__(self, api_key: str = None):
+        self.client = openai.AsyncOpenAI(api_key=api_key or settings.openai_api_key)
 
-    def __init__(self, model: str="gpt-4o", role: str="user", api_key: str=None):
-        self.api_key = api_key if api_key is not None else app_settings.openai_api_key
-        self.client = openai.AsyncOpenAI(api_key=self.api_key)
-        self.model = model
-        self.role = role
-
-    @backoff.on_exception(backoff.expo, openai.RateLimitError)
-    async def completions_with_backoff(self, **kwargs):
-        return await self.client.chat.completions.create(**kwargs) # pylint: disable=broad-exception-caught disable=missing-kwoa
-
-    async def generate_response(self, prompt: str):
-        try:
-            if hasattr(self, 'api_key') is False:
-                raise ValueError("Missing API key.")
-
-            completion = await self.completions_with_backoff(
-                model = self.model,
-                messages = [{ "role": self.role, "content": prompt }])
-
-            if completion.choices and len(completion.choices) > 0:
-                return completion.choices[0].message.content
-
-            raise openai.APIStatusError(message="No completion choices found.", response=None, body=None)
-        except Exception as e: # pylint: disable=broad-exception-caught
-            return f"str({e}): {traceback.format_exc()}"
-
-    async def handle_request(self, prompt: str):
-        return await self.generate_response(prompt)
+    async def handle_request(self, prompt: str) -> str:
+        """Handle a request to ChatGPT."""
+        completion = await self.client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return completion.choices[0].message.content

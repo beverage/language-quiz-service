@@ -1,21 +1,18 @@
-from asyncio import gather, Semaphore
-from cli.ai.client import AsyncChatGPTClient
-from cli.verbs.get import download_verb
+"""
+CLI database initialization - MIGRATED.
 
-# Hardcore some verbs for now.  We will load verb lists later.
-auxiliaries: list[str] = ["avoir", "être"]
-irregulars: list[str] = ["aller", "devoir", "dire", "faire", "pouvoir", "prendre", "savoir", "venir", "voir", "vouloir"]
-pronominals: list[str] = [] # ["se sentir", "se souvenir"]
+This module now imports from the new core database initialization.
+Maintained for backward compatibility during migration.
+"""
+import sys
+from pathlib import Path
 
-# Artificial lower bound for testing.  Will make this high enough for the hard coded verbs for now.
-limit = Semaphore(17)
+# Add the parent directory to the path for imports
+parent_dir = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(parent_dir))
 
-async def rate_limited_verb_fetch(verb: str, openapi_client: AsyncChatGPTClient):
-    async with limit:
-        await download_verb(requested_verb=verb, openapi_client=openapi_client)
+# Import from new core module
+from core.database_init import init_auxiliaries
 
-async def init_auxiliaries(with_common_verbs=False):
-    openapi_client: AsyncChatGPTClient = AsyncChatGPTClient()
-    verbs = auxiliaries + irregulars + pronominals if with_common_verbs else auxiliaries
-    tasks = [rate_limited_verb_fetch(verb=verb, openapi_client=openapi_client) for verb in verbs]
-    await gather(*tasks, return_exceptions=True)
+# Backward compatibility - expose the functions as before
+__all__ = ['init_auxiliaries']
