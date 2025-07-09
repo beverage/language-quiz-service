@@ -3,17 +3,17 @@ from json.decoder import JSONDecodeError
 import logging
 import random
 
-from lqconsole.ai.client import AsyncChatGPTClient
+from cli.ai.client import AsyncChatGPTClient
 
-from lqconsole.database.engine import get_async_session
+from cli.database.engine import get_async_session
 
-from lqconsole.sentences.database import save_sentence
-from lqconsole.sentences.models import Pronoun, DirectObject, IndirectPronoun, Negation, Sentence
-from lqconsole.sentences.prompts import SentencePromptGenerator
-from lqconsole.sentences.utils import clean_json_output
+from cli.sentences.database import save_sentence
+from cli.sentences.models import Pronoun, DirectObject, IndirectPronoun, Negation, Sentence
+from cli.sentences.prompts import SentencePromptGenerator
+from cli.sentences.utils import clean_json_output
 
-from lqconsole.verbs.get import get_random_verb, get_verb
-from lqconsole.verbs.models import Tense, Verb
+from cli.verbs.get import get_random_verb, get_verb
+from cli.verbs.models import Tense, Verb
 
 async def create_sentence(verb_infinitive:  str,
                           pronoun:          Pronoun         = Pronoun.first_person,   # Pronoun and tense will remain both random

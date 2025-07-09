@@ -2,8 +2,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-from lqconsole.database.engine import async_engine
-from lqconsole.verbs.models import conjugation_table, verb_table
+from cli.database.engine import async_engine
+from cli.verbs.models import conjugation_table, verb_table
 
 async_session = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
 

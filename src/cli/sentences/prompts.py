@@ -1,4 +1,4 @@
-from lqconsole.sentences.models import DirectObject, IndirectPronoun, Negation
+from cli.sentences.models import DirectObject, IndirectPronoun, Negation
 
 class SentencePromptGenerator: 
     # pylint: disable=too-few-public-methods, line-too-long

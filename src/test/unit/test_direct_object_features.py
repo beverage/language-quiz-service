@@ -1,5 +1,5 @@
-from lqconsole.sentences.features import DirectObjectFeature
-from lqconsole.sentences.models import DirectObject
+from cli.sentences.features import DirectObjectFeature
+from cli.sentences.models import DirectObject
 
 import pytest
 

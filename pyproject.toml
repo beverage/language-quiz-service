@@ -1,9 +1,9 @@
 [tool.poetry]
-name = "lqconsole"
+name = "language-quiz-service"
 version = "0.0.1"
 description = ""
 authors = [ "Alex Beverage" ]
-packages = [{ include = "lqconsole", from = "src" }]
+packages = [{ include = "cli", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.13"
@@ -26,7 +26,7 @@ pylint = "^3.2.3"
 pytest = "^8.2.2"
 
 [tool.poetry.scripts]
-lqconsole = "lqconsole.lqconsole:main"
+lqs = "cli.console:main"
 
 [build-system]
 requires = ["poetry-core"]

@@ -12,5 +12,5 @@ else
     exit 1
 fi
 
-$POETRY_CMD run lqconsole cloud database up
-$POETRY_CMD run lqconsole cloud service up
+$POETRY_CMD run lqs cloud database up
+$POETRY_CMD run lqs cloud service up

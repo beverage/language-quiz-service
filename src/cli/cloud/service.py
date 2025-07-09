@@ -6,7 +6,7 @@ import time
 
 from functools import partial
 
-from lqconsole.utils.console import Color, Style
+from cli.utils.console import Color, Style
 
 def __cluster_display_name(cluster_name):
     return f"{Style.BOLD}{Color.BRIGHT_BLUE}{cluster_name}{Style.RESET}"

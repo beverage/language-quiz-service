@@ -1,5 +1,5 @@
-from lqconsole.sentences.features import IndirectPronounFeature
-from lqconsole.sentences.models import IndirectPronoun
+from cli.sentences.features import IndirectPronounFeature
+from cli.sentences.models import IndirectPronoun
 
 import pytest
 

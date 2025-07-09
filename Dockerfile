@@ -17,4 +17,4 @@ ENV WEB_PORT=${WEB_PORT}
 
 EXPOSE ${WEB_PORT}
 
-CMD ["poetry", "run", "lqconsole", "webserver", "start"]
+CMD ["poetry", "run", "lqs", "webserver", "start"]

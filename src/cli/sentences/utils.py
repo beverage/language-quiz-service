@@ -1,7 +1,7 @@
 import json
 
 from .models import DirectObject, IndirectPronoun, Negation
-from lqconsole.utils.console import Answers, Color, Style
+from cli.utils.console import Answers, Color, Style
 
 def problem_formatter(sentences) -> str:
 

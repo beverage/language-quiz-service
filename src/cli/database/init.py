@@ -1,6 +1,6 @@
 from asyncio import gather, Semaphore
-from lqconsole.ai.client import AsyncChatGPTClient
-from lqconsole.verbs.get import download_verb
+from cli.ai.client import AsyncChatGPTClient
+from cli.verbs.get import download_verb
 
 # Hardcore some verbs for now.  We will load verb lists later.
 auxiliaries: list[str] = ["avoir", "être"]

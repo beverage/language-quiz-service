@@ -1,7 +1,7 @@
 from sqlalchemy import delete
 
-from lqconsole.database.engine import get_async_session
-from lqconsole.verbs.models import Verb
+from cli.database.engine import get_async_session
+from cli.verbs.models import Verb
 
 async def clear_database():
 

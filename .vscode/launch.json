@@ -5,10 +5,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python Debugger: lqconsole.py",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/src/lqconsole/lqconsole.py",
+                  "name": "Python Debugger: console.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/cli/console.py",
       "cwd": "${workspaceFolder}/src",
       "console": "integratedTerminal",
       "args": "verb get -s avoir"

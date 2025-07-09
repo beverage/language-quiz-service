@@ -13,6 +13,6 @@
         }
     ],
     "python.analysis.extraPaths": [
-        "./src/lqconsole"
+        "./src/cli"
     ]
 }
