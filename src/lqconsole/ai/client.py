@@ -1,9 +1,9 @@
-from os import environ
-
 import traceback
 import logging
 import backoff
 import openai
+
+from ..config.settings import app_settings
 
 logging.getLogger("backoff").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -12,8 +12,8 @@ logging.getLogger("openai").setLevel(logging.WARNING)
 class AsyncChatGPTClient:
 
     def __init__(self, model: str="gpt-4o", role: str="user", api_key: str=None):
-        self.api_key = environ.get("OPENAI_API_KEY") if api_key is None else api_key
-        self.client = openai.AsyncOpenAI(api_key=api_key)
+        self.api_key = api_key if api_key is not None else app_settings.openai_api_key
+        self.client = openai.AsyncOpenAI(api_key=self.api_key)
         self.model = model
         self.role = role
 
