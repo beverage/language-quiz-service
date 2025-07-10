@@ -5,10 +5,14 @@ Migrated from the original database/init.py to use the new service layer.
 """
 
 import asyncio
+import logging
 from pathlib import Path
 
 from clients.supabase import get_supabase_client
 from services.verb_service import VerbService
+
+
+logger = logging.getLogger(__name__)
 
 
 async def init_auxiliaries(with_common_verbs: bool = False):
@@ -72,16 +76,6 @@ async def init_auxiliaries(with_common_verbs: bool = False):
 
                     openai_client = AsyncChatGPTClient()
 
-                    # Check if verb already exists
-                    existing_verb = await verb_service.get_verb_by_infinitive(
-                        verb_infinitive
-                    )
-                    if existing_verb:
-                        print(
-                            f"⏭️  Verb '{verb_infinitive}' already exists, skipping..."
-                        )
-                        return existing_verb
-
                     # Download verb with AI assistance
                     print(f"🤖 Processing '{verb_infinitive}' with OpenAI...")
                     verb = await verb_service.download_verb_with_ai(
@@ -93,12 +87,10 @@ async def init_auxiliaries(with_common_verbs: bool = False):
                     return verb
 
                 except Exception as e:
-                    print(f"❌ Error processing '{verb_infinitive}': {str(e)}")
+                    logger.error(f"❌ Error processing '{verb_infinitive}': {str(e)}")
+                    logger.exception(e)
                     error_count += 1
                     return None
-
-                # Add small delay between requests
-                await asyncio.sleep(0.1)
 
         # Process all verbs concurrently with rate limiting
         results = await asyncio.gather(

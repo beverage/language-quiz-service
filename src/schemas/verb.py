@@ -2,17 +2,19 @@
 
 from pydantic import BaseModel
 from typing import Optional
-from enum import Enum
+from strenum import StrEnum
 
 
-class Tense(str, Enum):
+class Tense(StrEnum):
     """French verb tenses."""
 
     PRESENT = "present"
     PASSE_COMPOSE = "passe_compose"
     IMPARFAIT = "imparfait"
     FUTURE_SIMPLE = "future_simple"
-    PARTICIPLE = "participle"
+    CONDITIONNEL = "conditionnel"
+    SUBJUNCTIVE = "subjunctive"
+    IMPERATIVE = "imperative"
 
 
 class VerbBase(BaseModel):
@@ -20,19 +22,7 @@ class VerbBase(BaseModel):
 
     infinitive: str
     auxiliary: str
-
-
-class VerbCreate(VerbBase):
-    """Schema for creating a verb."""
-
-    pass
-
-
-class VerbUpdate(VerbBase):
-    """Schema for updating a verb."""
-
-    infinitive: Optional[str] = None
-    auxiliary: Optional[str] = None
+    reflexive: bool = False
 
 
 class Verb(VerbBase):
@@ -42,6 +32,22 @@ class Verb(VerbBase):
 
     class Config:
         from_attributes = True
+
+
+class VerbCreate(VerbBase):
+    """Schema for creating a verb."""
+
+    infinitive: str
+    auxiliary: str
+    reflexive: bool
+
+
+class VerbUpdate(VerbBase):
+    """Schema for updating a verb."""
+
+    infinitive: Optional[str] = None
+    auxiliary: Optional[str] = None
+    reflexive: Optional[bool] = None
 
 
 class ConjugationBase(BaseModel):
@@ -58,12 +64,6 @@ class ConjugationBase(BaseModel):
     third_person_plural: Optional[str] = None
 
 
-class ConjugationCreate(ConjugationBase):
-    """Schema for creating a conjugation."""
-
-    pass
-
-
 class Conjugation(ConjugationBase):
     """Complete conjugation schema with ID."""
 
@@ -71,6 +71,12 @@ class Conjugation(ConjugationBase):
 
     class Config:
         from_attributes = True
+
+
+class ConjugationCreate(ConjugationBase):
+    """Schema for creating a conjugation."""
+
+    pass
 
 
 class VerbGroup(BaseModel):

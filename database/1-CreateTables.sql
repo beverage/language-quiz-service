@@ -24,7 +24,7 @@ CREATE TYPE negation AS ENUM ('none', 'pas', 'jamais', 'rien', 'personne', 'plus
 --  Modes and tenses.  There are exact combinations that need to be pre-loaded here:
 -- CREATE TYPE mode  AS ENUM('indicative', 'subjunctive', 'imperative', 'infinitive', 'participle');
 -- CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imperfect', 'conditionnel présent');
-CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imparfait', 'future_simple', 'participle');
+CREATE TYPE tense AS ENUM('present', 'passe_compose', 'imparfait', 'future_simple', 'conditionnel', 'subjunctive', 'imperative');
 
 --  This represents a common suffix for groups of verbs:
 CREATE TABLE verb_groups (
@@ -42,7 +42,8 @@ CREATE TABLE verbs (
     id              serial  primary key,
     -- group_id        serial  not null references verb_groups (id),
     infinitive      varchar not null,
-    auxiliary       varchar not null
+    auxiliary       varchar not null,
+    reflexive       boolean not null
 );
 
 --  This represents a conjugation for a valid tense of a verb above:

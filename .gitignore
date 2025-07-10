@@ -6,3 +6,5 @@ postgres/**
 **/__pycache__/**
 **/*.egg-info
 .env
+
+commit_message.txt
