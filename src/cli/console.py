@@ -22,7 +22,8 @@ from .database.utils import object_as_dict
 
 from .problems.create import create_random_problem_with_delay, create_random_problem
 
-from .sentences.create import create_random_sentence, create_sentence
+from .sentences.create import create_random_sentence
+from services.sentence_service import SentenceService
 from .sentences.database import get_random_sentence
 from .sentences.utils import problem_formatter
 
@@ -174,12 +175,13 @@ async def sentence_get(quantity: int, **kwargs):
 @sentence_options
 async def generate(quantity: int, **kwargs):
     try:
+        svc = SentenceService()
         results = []
-        for i in range(quantity):
-            results.append(await create_sentence(**kwargs))
+        for _ in range(quantity):
+            results.append(await svc.create_sentence(**kwargs))
         print(problem_formatter(results))
     except Exception as ex:
-        print(f"str({ex}): {traceback.format_exc()}")
+        print(f"{ex}: {traceback.format_exc()}")
 
 
 @sentence.command("random")

@@ -4,7 +4,7 @@ import json
 import logging
 from typing import List, Optional
 
-from cli.ai.client import AsyncChatGPTClient
+from clients.openai_client import OpenAIClient
 from repositories.verb_repository import VerbRepository
 from prompts.verb_prompts import VerbPromptGenerator
 from schemas.verb import VerbCreate, Verb, Conjugation, ConjugationCreate, Tense
@@ -13,9 +13,16 @@ logger = logging.getLogger(__name__)
 
 
 class VerbService:
-    def __init__(self):
-        self.verb_prompt_generator = VerbPromptGenerator()
-        self.verb_repository = VerbRepository()
+    def __init__(
+        self,
+        openai_client: OpenAIClient = None,
+        verb_repository: VerbRepository = None,
+        prompt_generator: VerbPromptGenerator = None,
+    ):
+        """Initialize the verb service with injectable dependencies."""
+        self.openai_client = openai_client or OpenAIClient()
+        self.verb_prompt_generator = prompt_generator or VerbPromptGenerator()
+        self.verb_repository = verb_repository or VerbRepository()
 
     async def create_verb(self, verb_data: VerbCreate) -> Verb:
         """Create a new verb."""
@@ -49,28 +56,17 @@ class VerbService:
         """Get conjugations for a verb."""
         return await self.verb_repository.get_conjugations(verb_id)
 
-    async def download_verb_with_ai(
-        self, requested_verb: str, openai_client: AsyncChatGPTClient
-    ) -> Verb:
+    async def download_verb(self, requested_verb: str) -> Verb:
         """Download a verb using AI integration."""
-
-        # Import here to avoid path issues
-        import sys
-        from pathlib import Path
-
-        # Add CLI path
-        cli_path = Path(__file__).parent.parent / "cli"
-        sys.path.insert(0, str(cli_path))
-
         logger.info("Fetching verb %s.", requested_verb)
 
+        client = OpenAIClient()
         verb_prompt = self.verb_prompt_generator.generate_verb_prompt(
             verb_infinitive=requested_verb
         )
 
         # Get AI response
-        response = await openai_client.handle_request(verb_prompt)
-
+        response = await client.handle_request(verb_prompt)
         logger.debug(f"✅ Response: {response}")
         response_json = json.loads(response)
 

@@ -4,7 +4,7 @@ class VerbPromptGenerator:
     def __init__(self):
         pass
 
-    VERB_PROMPT_FORMAT = """
+    VERB_PROMPT = """
 You are a French verb conjugation expert.  Provide the conjugation of the French verb {infinitive} in the following format:
 
 Tenses:
@@ -47,4 +47,4 @@ Guidelines:
 """
 
     def generate_verb_prompt(self, verb_infinitive: str) -> str:
-        return self.VERB_PROMPT_FORMAT.format(infinitive=verb_infinitive)
+        return self.VERB_PROMPT.format(infinitive=verb_infinitive)

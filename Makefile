@@ -30,8 +30,8 @@ lint: lint-fix lint-check
 
 # Formatting target (exclude src/cli as requested)
 format:
-	@echo "Formatting code with ruff (excluding src/cli)..."
-	poetry run ruff format src/core/ src/repositories/ src/services/ src/schemas/ tests/
+	@echo "Formatting code with ruff on the whole project..."
+	poetry run ruff format .
 
 # Testing target
 test:

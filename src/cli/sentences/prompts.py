@@ -6,18 +6,30 @@ class SentencePromptGenerator:
 
     def __complement_object_direct(self, sentence):
         if sentence.direct_object != DirectObject.NONE:
-            return f"The sentence must return a COD (direct object) of gender {sentence.direct_object} if it is possible to do with the verb {sentence.infinitive}."
+            return """
+The sentence must return a COD (direct object) of gender {sentence.direct_object} if it is possible to do with the verb {sentence.infinitive}.
+"""
         else:
-            return f"The sentence must not contain a COD (direct object) unless the verb {sentence.infinitive} requires it."
+            return """
+The sentence must not contain a COD (direct object) unless the verb {sentence.infinitive} requires it.
+"""
 
     def __complement_pronoun_indirect(self, sentence):
         if sentence.indirect_pronoun != IndirectPronoun.NONE:
-            return f"The sentence must return a COI (indirect pronoun) of gender {sentence.indirect_pronoun} with the verb {sentence.infinitive} if possible to do with the verb {sentence.infinitive}."
+            return """
+The sentence must return a COI (indirect pronoun) of gender {sentence.indirect_pronoun} with the verb {sentence.infinitive} 
+if possible to do with the verb {sentence.infinitive}.
+"""
         else:
-            return f"The sentence must not contain a COI (indirect pronoun) unless the verb {sentence.infinitive} requires it."
+            return """
+The sentence must not contain a COI (indirect pronoun) unless the verb {sentence.infinitive} requires it.
+"""
 
     def __pronoun_ordering(self):
-        return "If the sentence has a COD (direct object) and a COI (indirect pronoun), put them in the right order.  Switch them if necessary."
+        return """
+If the sentence has a COD (direct object) and a COI (indirect pronoun), put them in the right order.  
+Switch them if necessary.
+"""
 
     def __negatedness(self, sentence):
         if sentence.negation != Negation.NONE:
@@ -31,13 +43,20 @@ class SentencePromptGenerator:
             return "The sentence must not contain a negation."
 
     def __verb_properties(self, sentence):
-        return f"The sentence has the verb infinitive {sentence.infinitive} in the {sentence.tense.value} tense, and may start with a {sentence.pronoun.value} subject pronoun."
+        return """
+The sentence has the verb infinitive {sentence.infinitive} in the {sentence.tense.value} tense, and may start 
+with a {sentence.pronoun.value} subject pronoun.
+"""
 
     def __verb_compliments(self):
-        return "If the verb requires additional objects or infinitives afterwards, add some.  They must agree in gender and number."
+        return """
+If the verb requires additional objects or infinitives afterwards, add some.  They must agree in gender and number.
+"""
 
     def __prepositions(self):
-        return "All prepositions match their indirect, or subordinate pronouns."
+        return """
+All prepositions match their indirect, or subordinate pronouns.
+"""
 
     def __sentence_correctness(self, sentence):
         if sentence.is_correct is False:
@@ -58,13 +77,18 @@ class SentencePromptGenerator:
         else:
             # If content exists, use it in the error message; otherwise use a generic message
             if hasattr(sentence, "content") and sentence.content:
-                return f"The 'translation' field should be a short reason why '{sentence.content}' is incorrect.  Do not repeat '{sentence.content}' in the output.  Return only the reason."
+                return """
+The 'translation' field should be a short reason why '{sentence.content}' is incorrect.  Do not repeat 
+'{sentence.content}' in the output.  Return only the reason.
+"""
             else:
                 return "The 'translation' field should be a short reason why the sentence is incorrect."
 
     def __detect_negations(self):
         #   TODO: This needs to be smarter, and plug in supported negations directly.
-        return "If the sentence has any French language negation present, set is_negated in the response to 'True'.  Otherwise set it to 'False'."
+        return """
+If the sentence has any French language negation present, set is_negated in the response to 'True'.  
+Otherwise set it to 'False'."""
 
     def __json_format(self):
         return """The response should be returned as raw json in the format below.  All six fields must be present.  Do not use json code fencing.
