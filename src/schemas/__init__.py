@@ -1,1 +1,1 @@
-"""Pydantic data models and schemas.""" 
+"""Pydantic data models and schemas."""

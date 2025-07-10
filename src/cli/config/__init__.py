@@ -1,1 +1,1 @@
-# Configuration module for environment management using pydantic 
+# Configuration module for environment management using pydantic

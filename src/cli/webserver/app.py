@@ -5,13 +5,16 @@ from cli.webserver.verbs.get import get_verb_and_conjugations
 
 app = FastAPI()
 
+
 @app.get("/hello")
 async def hello():
     return "Hello, world!"
 
+
 @app.get("/sentence")
 async def sentence():
     return await create_sentence("savoir")
+
 
 @app.get("/verbs/{infinitive}")
 async def get_verb(infinitive: str):

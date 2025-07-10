@@ -1,35 +1,54 @@
+"""
+CLI sentence database operations - MIGRATED.
 
-from cli.database.engine import get_async_session
+Migrated to use Supabase services instead of SQLAlchemy.
+Maintained for backward compatibility.
+"""
 
-from .models import Pronoun, DirectObject, IndirectPronoun, Negation, Sentence
-from cli.verbs.models import Tense
+from schemas.sentence import Pronoun, DirectObject, IndirectPronoun, Negation
+from schemas.verb import Tense
+from services.sentence_service import SentenceService
 
-from sqlalchemy import select
-from sqlalchemy.sql.expression import func
 
 async def get_random_sentence(
-                    quantity:         int,
-                    verb_infinitive:  str,
-                    pronoun:          Pronoun         = Pronoun.first_person,   # Pronoun and tense will remain both random
-                    tense:            Tense           = Tense.present,          # and correct for now.  These values will be
-                    direct_object:    DirectObject    = DirectObject.none,      # ignored.
-                    indirect_pronoun: IndirectPronoun = IndirectPronoun.none,
-                    negation:         Negation        = Negation.none,
-                    is_correct:       bool            = True):                   # This cannot be guaranteed until the AI has responded.
+    quantity: int,
+    verb_infinitive: str,
+    pronoun: Pronoun = Pronoun.FIRST_PERSON,
+    tense: Tense = Tense.PRESENT,
+    direct_object: DirectObject = DirectObject.NONE,
+    indirect_pronoun: IndirectPronoun = IndirectPronoun.NONE,
+    negation: Negation = Negation.NONE,
+    is_correct: bool = True,
+):
+    """Get random sentences - migrated to use SentenceService."""
+    sentence_service = SentenceService()
 
-    async with get_async_session() as session:
+    # Get sentences with filters
+    sentences = await sentence_service.get_sentences(
+        infinitive=verb_infinitive if verb_infinitive else None,
+        is_correct=is_correct,
+        limit=quantity,
+    )
 
-        stmt = (
-            select(Sentence)
-                .where(Sentence.infinitive == verb_infinitive)
-                .where(Sentence.is_correct == is_correct)
-                .order_by(func.random())
-                .limit(quantity)
-        )
+    return sentences
 
-        return await session.scalars(stmt)
 
-async def save_sentence(sentence: Sentence):
-    async with get_async_session() as session:
-        session.add(sentence)
-        await session.commit()
+async def save_sentence(sentence):
+    """Save a sentence - migrated to use SentenceService."""
+    sentence_service = SentenceService()
+
+    # Convert old sentence object to SentenceCreate if needed
+    from schemas.sentence import SentenceCreate
+
+    if hasattr(sentence, "__dict__"):
+        # Convert from old model format
+        sentence_data = {
+            key: value
+            for key, value in sentence.__dict__.items()
+            if not key.startswith("_")
+        }
+        sentence_create = SentenceCreate(**sentence_data)
+    else:
+        sentence_create = sentence
+
+    return await sentence_service.create_sentence(sentence_create)

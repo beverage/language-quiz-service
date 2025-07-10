@@ -1,4 +1,5 @@
 """Sentence-related schemas."""
+
 from pydantic import BaseModel
 from typing import Optional
 from enum import Enum
@@ -7,6 +8,7 @@ from .verb import Tense
 
 class Pronoun(str, Enum):
     """French pronouns."""
+
     FIRST_PERSON = "first_person"
     SECOND_PERSON = "second_person"
     THIRD_PERSON = "third_person"
@@ -17,6 +19,7 @@ class Pronoun(str, Enum):
 
 class DirectObject(str, Enum):
     """Direct object types."""
+
     NONE = "none"
     MASCULINE = "masculine"
     FEMININE = "feminine"
@@ -25,6 +28,7 @@ class DirectObject(str, Enum):
 
 class IndirectPronoun(str, Enum):
     """Indirect pronoun types."""
+
     NONE = "none"
     MASCULINE = "masculine"
     FEMININE = "feminine"
@@ -33,6 +37,7 @@ class IndirectPronoun(str, Enum):
 
 class Negation(str, Enum):
     """Negation types."""
+
     NONE = "none"
     PAS = "pas"
     JAMAIS = "jamais"
@@ -46,6 +51,7 @@ class Negation(str, Enum):
 
 class SentenceBase(BaseModel):
     """Base sentence schema."""
+
     infinitive: str
     auxiliary: str
     pronoun: Pronoun
@@ -60,11 +66,13 @@ class SentenceBase(BaseModel):
 
 class SentenceCreate(SentenceBase):
     """Schema for creating a sentence."""
+
     pass
 
 
 class SentenceUpdate(BaseModel):
     """Schema for updating a sentence."""
+
     infinitive: Optional[str] = None
     auxiliary: Optional[str] = None
     pronoun: Optional[Pronoun] = None
@@ -79,7 +87,8 @@ class SentenceUpdate(BaseModel):
 
 class Sentence(SentenceBase):
     """Complete sentence schema with ID."""
+
     id: int
 
     class Config:
-        from_attributes = True 
+        from_attributes = True

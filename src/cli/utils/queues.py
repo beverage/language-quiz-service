@@ -1,6 +1,7 @@
 from asyncio import create_task, gather, Queue
 from typing import Any, Awaitable
 
+
 async def worker(queue: Queue, results):
     while True:
         task = await queue.get()
@@ -12,13 +13,15 @@ async def worker(queue: Queue, results):
         try:
             result = await task
             results.append(result)
-        except Exception as ex: # pylint: disable=broad-exception-caught
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             print(ex)
         finally:
             queue.task_done()
 
-async def batch_operation(workers: int, quantity: int, method: list[Awaitable[Any]], **kwargs):
 
+async def batch_operation(
+    workers: int, quantity: int, method: list[Awaitable[Any]], **kwargs
+):
     queue: Queue = Queue()
     results = []
     worker_tasks = [create_task(worker(queue, results)) for _ in range(workers)]

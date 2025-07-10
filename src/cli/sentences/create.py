@@ -1,111 +1,162 @@
-from json.decoder import JSONDecodeError
+"""
+CLI sentence operations - MIGRATED.
+
+Migrated to use Supabase services instead of SQLAlchemy.
+Maintained for backward compatibility.
+"""
 
 import logging
 import random
+from json.decoder import JSONDecodeError
 
 from cli.ai.client import AsyncChatGPTClient
-
-from cli.database.engine import get_async_session
-
-from cli.sentences.database import save_sentence
-from cli.sentences.models import Pronoun, DirectObject, IndirectPronoun, Negation, Sentence
 from cli.sentences.prompts import SentencePromptGenerator
 from cli.sentences.utils import clean_json_output
+from schemas.sentence import (
+    SentenceCreate,
+    Pronoun,
+    DirectObject,
+    IndirectPronoun,
+    Negation,
+)
+from schemas.verb import Tense
+from services.sentence_service import SentenceService
+from services.verb_service import VerbService
 
-from cli.verbs.get import get_random_verb, get_verb
-from cli.verbs.models import Tense, Verb
 
-async def create_sentence(verb_infinitive:  str,
-                          pronoun:          Pronoun         = Pronoun.first_person,   # Pronoun and tense will remain both random
-                          tense:            Tense           = Tense.present,          # and correct for now.  These values will be
-                          direct_object:    DirectObject    = DirectObject.none,      # ignored.
-                          indirect_pronoun: IndirectPronoun = IndirectPronoun.none,
-                          negation:         Negation        = Negation.none,
-                          is_correct:       bool            = True,                   # This cannot be guaranteed until the AI has responded.
-                          openai_client: AsyncChatGPTClient = AsyncChatGPTClient()):
+async def create_sentence(
+    verb_infinitive: str,
+    pronoun: Pronoun = Pronoun.FIRST_PERSON,
+    tense: Tense = Tense.PRESENT,
+    direct_object: DirectObject = DirectObject.NONE,
+    indirect_pronoun: IndirectPronoun = IndirectPronoun.NONE,
+    negation: Negation = Negation.NONE,
+    is_correct: bool = True,
+    openai_client: AsyncChatGPTClient = None,
+):
+    """Create a sentence using AI - migrated to use Supabase services."""
 
-    async with get_async_session() as db_session:
+    if openai_client is None:
+        openai_client = AsyncChatGPTClient()
 
-        verb: Verb = None
+    verb_service = VerbService()
+    sentence_service = SentenceService()
 
-        if verb_infinitive == "":
-            verb = await get_random_verb(database_session=db_session)
-        else:
-            verb = await get_verb(requested_verb=verb_infinitive, database_session=db_session)
+    # Get verb
+    if verb_infinitive == "":
+        verb = await verb_service.get_random_verb()
+    else:
+        verb = await verb_service.get_verb_by_infinitive(verb_infinitive)
 
-        sentence = Sentence()
+    if not verb:
+        raise ValueError(f"Verb {verb_infinitive} not found")
 
-        # Sentence basics:
-        sentence.infinitive = verb.infinitive
-        sentence.auxiliary  = verb.auxiliary
-        sentence.pronoun    = random.choice(list(Pronoun))
-        sentence.tense      = random.choice([t for t in Tense if t is not Tense.participle])
-        sentence.is_correct = is_correct
+    # Create sentence structure
+    sentence_data = {
+        "infinitive": verb.infinitive,
+        "auxiliary": verb.auxiliary,
+        "pronoun": random.choice(list(Pronoun)),
+        "tense": random.choice([t for t in Tense if t != Tense.PARTICIPLE]),
+        "is_correct": is_correct,
+        "direct_object": direct_object,
+        "indirect_pronoun": indirect_pronoun,
+        "negation": negation,
+    }
 
-        # Sentence features.  These may be overwritten by the response json.  (Always will for 'random'.)
-        sentence.direct_object    = direct_object
-        sentence.indirect_pronoun = indirect_pronoun
-        sentence.negation         = negation
+    # Generate prompt
+    generator = SentencePromptGenerator()
 
-        generator: SentencePromptGenerator = SentencePromptGenerator()
+    # Create a temporary sentence object for the prompt
+    class TempSentence:
+        def __init__(self, data):
+            for key, value in data.items():
+                setattr(self, key, value)
 
-        prompt:   str = generator.generate_sentence_prompt(sentence)
+    temp_sentence = TempSentence(sentence_data)
+    prompt = generator.generate_sentence_prompt(temp_sentence)
 
-        logging.debug(prompt)
+    logging.debug(prompt)
 
-        response: str = await openai_client.handle_request(prompt=prompt)
+    # Get AI response
+    response = await openai_client.handle_request(prompt=prompt)
 
-        try:
-            response_json = clean_json_output(response)
-        except JSONDecodeError as ex:
-            logging.error(f"Unable to decode json response: {response}")
-            raise ex
+    try:
+        response_json = clean_json_output(response)
+    except JSONDecodeError as ex:
+        logging.error(f"Unable to decode json response: {response}")
+        raise ex
 
-        sentence.content     = response_json["sentence"]
-        sentence.translation = response_json["translation"]
+    # Update sentence with AI response
+    sentence_data.update(
+        {
+            "content": response_json["sentence"],
+            "translation": response_json["translation"],
+            "tense": sentence_data["tense"].value,  # Convert enum to string value
+            "pronoun": sentence_data["pronoun"].value,  # Convert enum to string value
+            "negation": response_json["negation"],
+            "direct_object": response_json["direct_object"],
+            "indirect_pronoun": response_json["indirect_pronoun"],
+            "reflexive_pronoun": "none",  # Temporarily set to none
+        }
+    )
 
-        # The Promptable extension requires the full base enum name so we have to do this here.  That can be changed later.
-        sentence.tense   = str(sentence.tense)
-        sentence.pronoun = str(sentence.pronoun)
+    # Validate correctness if needed
+    if is_correct:
+        # Create a new temp sentence with content for validation
+        temp_sentence_with_content = TempSentence(sentence_data)
+        correctness_response = await openai_client.handle_request(
+            prompt=generator.validate_french_sentence_prompt(temp_sentence_with_content)
+        )
+        is_actually_correct = correctness_response.strip() == "True"
 
-        sentence.negation          = response_json["negation"]
-        sentence.direct_object     = response_json["direct_object"]
-        sentence.indirect_pronoun  = response_json["indirect_pronoun"]
-        sentence.reflexive_pronoun = "none" # Temporarily set this to none to not break things before removed, unless kept.
+        logging.debug(
+            f"Checked that '{sentence_data['content']}' is well formed: {is_actually_correct}"
+        )
 
-        # If a sentence is supposed to be correct, double check it, as the prompts to generate it are overly complicated right now.
-        if is_correct:
+        if not is_actually_correct:
+            logging.debug(
+                f"Sentence {sentence_data['content']} is not well formed, and will be updated."
+            )
+            correction = await openai_client.handle_request(
+                prompt=generator.correct_sentence_prompt(temp_sentence_with_content)
+            )
 
-            correctness_response = await openai_client.handle_request(prompt=generator.validate_french_sentence_prompt(sentence))
-            is_actually_correct: bool = correctness_response.strip() == "True"
+            try:
+                correction_json = clean_json_output(correction)
+            except JSONDecodeError as ex:
+                logging.error(f"Unable to decode json response: {correction}")
+                raise ex
 
-            logging.debug(f"Checked that '{sentence.content}' is well formed: {is_actually_correct}")
+            sentence_data.update(
+                {
+                    "content": correction_json["corrected_sentence"],
+                    "translation": correction_json["corrected_translation"],
+                }
+            )
 
-            if is_actually_correct == False:
+            logging.debug(f"Sentence was updated to '{sentence_data['content']}'")
 
-                logging.debug(f"Sentence {sentence.content} is not well formed, and will be updated.")
-                correction = await openai_client.handle_request(prompt=generator.correct_sentence_prompt(sentence))
+    # Save sentence using the service
+    sentence_create = SentenceCreate(**sentence_data)
+    saved_sentence = await sentence_service.create_sentence(sentence_create)
 
-                try:
-                    correction_json = clean_json_output(correction)
-                except JSONDecodeError as ex:
-                    logging.error(f"Unable to decode json response: {correction}")
-                    raise ex
+    return saved_sentence
 
-                sentence.content     = correction_json["corrected_sentence"]
-                sentence.translation = correction_json["corrected_translation"]
 
-                logging.debug(f"Sentence was updated to '{sentence.content}'")
+async def create_random_sentence(
+    is_correct: bool = True, openai_client: AsyncChatGPTClient = None
+):
+    """Create a random sentence - migrated to use Supabase services."""
 
-        await save_sentence(sentence=sentence)
-
-        return sentence
-
-async def create_random_sentence(is_correct: bool=True, openai_client: AsyncChatGPTClient=AsyncChatGPTClient()):
-
-    return await create_sentence("", "", "",    # Verb, pronoun, and tense remain fully random for now.
-        direct_object       = DirectObject.random, 
-        indirect_pronoun    = IndirectPronoun.random, 
-        negation         = Negation.none if random.randint(0, 2) == 0 else Negation.random, 
-        is_correct          = is_correct, 
-        openai_client       = openai_client)
+    return await create_sentence(
+        "",
+        "",
+        "",  # Verb, pronoun, and tense remain fully random for now.
+        direct_object=DirectObject.NONE,  # Use correct enum values
+        indirect_pronoun=IndirectPronoun.NONE,
+        negation=Negation.NONE
+        if random.randint(0, 2) == 0
+        else random.choice([n for n in Negation if n != Negation.NONE]),
+        is_correct=is_correct,
+        openai_client=openai_client,
+    )

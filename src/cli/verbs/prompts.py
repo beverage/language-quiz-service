@@ -1,6 +1,7 @@
 def generate_tense_list_prompt() -> str:
     return ""
 
+
 def generate_verb_tense_format() -> str:
     return """ \
                 {   \
@@ -15,6 +16,7 @@ def generate_verb_tense_format() -> str:
                 } \
 """
 
+
 def generate_extra_rules() -> str:
     return """Do not return as a fenced code block. \
             Do not return any newlines in the response. \
@@ -28,6 +30,7 @@ def generate_extra_rules() -> str:
             All json property names and values need to be enclosed in double quotes. \
             The tenses 'past_participle', 'participe_passe', 'passecompose', 'past_compose', and 'participe' should always be renamed 'participle' \
             """
+
 
 def generate_verb_prompt(verb_infinitive: str):
     return f"""Give me the present, passé composé (as passe_compose), imparfait, future simple tense, \

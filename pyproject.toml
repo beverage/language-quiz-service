@@ -3,7 +3,14 @@ name = "language-quiz-service"
 version = "0.0.1"
 description = ""
 authors = [ "Alex Beverage" ]
-packages = [{ include = "cli", from = "src" }]
+packages = [
+  { include = "cli", from = "src" },
+  { include = "services", from = "src" },
+  { include = "schemas", from = "src" },
+  { include = "clients", from = "src" },
+  { include = "core", from = "src" },
+  { include = "repositories", from = "src" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.13"
@@ -16,10 +23,11 @@ greenlet = "^3.0.3"
 openai = "^1.81.0"
 pydantic = "^2.10.0"
 pydantic-settings = "^2.10.0"
-sqlalchemy = "^2.0.25"
+
 supabase = "^2.10.0"
 uvicorn = "^0.30.6"
 boto3 = "^1.38.22"
+ruff = "^0.12.2"
 
 [tool.poetry.group.dev.dependencies]
 pylint = "^3.2.3"

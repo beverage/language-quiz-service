@@ -1,91 +1,92 @@
-"""Sentence data access layer."""
-from supabase import Client
+"""Sentence repository for data access."""
+
 from typing import List, Optional
-from ..schemas.sentence import Sentence, SentenceCreate, SentenceUpdate, Pronoun, Tense, DirectObject, IndirectPronoun, Negation
+from supabase import Client
+from schemas.sentence import Sentence, SentenceCreate
+from clients.supabase import get_supabase_client
 
 
 class SentenceRepository:
-    """Repository for sentence-related database operations."""
-    
-    def __init__(self, client: Client):
-        self.client = client
+    def __init__(self, client: Optional[Client] = None):
+        self.client = client or get_supabase_client()
 
-    async def get_by_id(self, sentence_id: int) -> Optional[Sentence]:
-        """Get sentence by ID."""
-        response = self.client.table('sentences').select('*').eq('id', sentence_id).execute()
-        return Sentence(**response.data[0]) if response.data else None
+    async def create_sentence(self, sentence: SentenceCreate) -> Sentence:
+        """Create a new sentence."""
+        sentence_dict = sentence.model_dump()
 
-    async def get_all(self, limit: int = 100, offset: int = 0) -> List[Sentence]:
-        """Get all sentences with pagination."""
-        response = self.client.table('sentences').select('*').range(offset, offset + limit - 1).execute()
-        return [Sentence(**row) for row in response.data]
+        # Convert enums to string values for storage
+        for key, value in sentence_dict.items():
+            if hasattr(value, "value"):
+                sentence_dict[key] = value.value
 
-    async def get_by_verb_infinitive(self, infinitive: str, limit: int = 10) -> List[Sentence]:
-        """Get sentences by verb infinitive."""
-        response = self.client.table('sentences').select('*').eq('infinitive', infinitive).limit(limit).execute()
-        return [Sentence(**row) for row in response.data]
+        result = self.client.table("sentences").insert(sentence_dict).execute()
 
-    async def get_random_sentences(
+        if result.data:
+            return Sentence(**result.data[0])
+        raise Exception("Failed to create sentence")
+
+    async def get_sentence(self, sentence_id: int) -> Optional[Sentence]:
+        """Get a sentence by ID."""
+        result = (
+            self.client.table("sentences").select("*").eq("id", sentence_id).execute()
+        )
+
+        if result.data:
+            return Sentence(**result.data[0])
+        return None
+
+    async def get_sentences(
         self,
-        quantity: int,
-        verb_infinitive: Optional[str] = None,
-        pronoun: Optional[Pronoun] = None,
-        tense: Optional[Tense] = None,
-        direct_object: Optional[DirectObject] = None,
-        indirect_pronoun: Optional[IndirectPronoun] = None,
-        negation: Optional[Negation] = None,
-        is_correct: bool = True
+        infinitive: Optional[str] = None,
+        is_correct: Optional[bool] = None,
+        limit: int = 50,
     ) -> List[Sentence]:
-        """Get random sentences with optional filters."""
-        query = self.client.table('sentences').select('*')
-        
-        # Apply filters
-        if verb_infinitive:
-            query = query.eq('infinitive', verb_infinitive)
-        if pronoun:
-            query = query.eq('pronoun', pronoun.value)
-        if tense:
-            query = query.eq('tense', tense.value)
-        if direct_object:
-            query = query.eq('direct_object', direct_object.value)
-        if indirect_pronoun:
-            query = query.eq('indirect_pronoun', indirect_pronoun.value)
-        if negation:
-            query = query.eq('negation', negation.value)
-        
-        query = query.eq('is_correct', is_correct)
-        
-        # Note: Supabase doesn't have a built-in random function
-        # In production, you might want to implement this differently
-        response = query.limit(quantity * 3).execute()  # Get more than needed
-        
-        if response.data:
+        """Get sentences with optional filters."""
+        query = self.client.table("sentences").select("*")
+
+        if infinitive:
+            query = query.eq("infinitive", infinitive)
+        if is_correct is not None:
+            query = query.eq("is_correct", is_correct)
+
+        result = query.limit(limit).execute()
+
+        return [Sentence(**sentence) for sentence in result.data]
+
+    async def get_random_sentence(self) -> Optional[Sentence]:
+        """Get a random sentence."""
+        # Note: Supabase doesn't have native random, this is a simple implementation
+        result = self.client.table("sentences").select("*").limit(50).execute()
+
+        if result.data:
             import random
-            selected = random.sample(response.data, min(quantity, len(response.data)))
-            return [Sentence(**row) for row in selected]
-        
-        return []
 
-    async def create(self, sentence: SentenceCreate) -> Sentence:
-        """Create new sentence."""
-        response = self.client.table('sentences').insert(sentence.dict()).execute()
-        return Sentence(**response.data[0])
+            return Sentence(**random.choice(result.data))
+        return None
 
-    async def update(self, sentence_id: int, sentence: SentenceUpdate) -> Optional[Sentence]:
-        """Update existing sentence."""
-        update_data = {k: v for k, v in sentence.dict().items() if v is not None}
-        if not update_data:
-            return await self.get_by_id(sentence_id)
-        
-        response = self.client.table('sentences').update(update_data).eq('id', sentence_id).execute()
-        return Sentence(**response.data[0]) if response.data else None
+    async def update_sentence(
+        self, sentence_id: int, sentence: SentenceCreate
+    ) -> Optional[Sentence]:
+        """Update a sentence."""
+        sentence_dict = sentence.model_dump(exclude_unset=True)
 
-    async def delete(self, sentence_id: int) -> bool:
-        """Delete sentence."""
-        response = self.client.table('sentences').delete().eq('id', sentence_id).execute()
-        return len(response.data) > 0
+        # Convert enums to string values for storage
+        for key, value in sentence_dict.items():
+            if hasattr(value, "value"):
+                sentence_dict[key] = value.value
 
-    async def delete_all_by_verb(self, infinitive: str) -> int:
-        """Delete all sentences for a specific verb. Returns count of deleted sentences."""
-        response = self.client.table('sentences').delete().eq('infinitive', infinitive).execute()
-        return len(response.data) 
+        result = (
+            self.client.table("sentences")
+            .update(sentence_dict)
+            .eq("id", sentence_id)
+            .execute()
+        )
+
+        if result.data:
+            return Sentence(**result.data[0])
+        return None
+
+    async def delete_sentence(self, sentence_id: int) -> bool:
+        """Delete a sentence."""
+        result = self.client.table("sentences").delete().eq("id", sentence_id).execute()
+        return len(result.data) > 0

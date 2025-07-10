@@ -1,66 +1,115 @@
-"""Database initialization using new Supabase service layer."""
-import logging
-from asyncio import gather, Semaphore
+"""
+Database initialization using Supabase services.
 
-# Import path setup for direct execution
-import sys
+Migrated from the original database/init.py to use the new service layer.
+"""
+
+import asyncio
 from pathlib import Path
 
-# Get the absolute path to the src directory
-src_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(src_dir))
-
-from services.verb_service import VerbService
 from clients.supabase import get_supabase_client
-from cli.ai.client import AsyncChatGPTClient
+from services.verb_service import VerbService
 
 
-# Hardcore some verbs for now. We will load verb lists later.
-auxiliaries: list[str] = ["avoir", "être"]
-irregulars: list[str] = ["aller", "devoir", "dire", "faire", "pouvoir", "prendre", "savoir", "venir", "voir", "vouloir"]
-pronominals: list[str] = []  # ["se sentir", "se souvenir"]
+async def init_auxiliaries(with_common_verbs: bool = False):
+    """
+    Initialize the database with auxiliary verbs and optionally common verbs.
 
-# Artificial lower bound for testing. Will make this high enough for the hard coded verbs for now.
-limit = Semaphore(17)
+    This function replaces the original SQLAlchemy-based initialization
+    with our new Supabase service layer approach.
+    """
 
+    # Get Supabase client (for potential direct operations if needed)
+    get_supabase_client()
 
-async def rate_limited_verb_fetch(verb: str, verb_service: VerbService, openai_client: AsyncChatGPTClient):
-    """Fetch a verb with rate limiting using new service layer."""
-    async with limit:
-        try:
-            await verb_service.download_verb_with_ai(infinitive=verb, openai_client=openai_client)
-        except Exception as e:
-            logging.error("Error downloading verb %s: %s", verb, e)
+    # Use the verb service
+    verb_service = VerbService()  # Don't pass client - it will create its own
 
+    print("🔄 Starting database initialization...")
 
-async def init_auxiliaries(with_common_verbs=False):
-    """Initialize auxiliary verbs and optionally common verbs using new service layer."""
-    # Setup clients and services
-    supabase_client = get_supabase_client()
-    verb_service = VerbService(supabase_client)
-    openai_client = AsyncChatGPTClient()
-    
-    # Select verbs to download
-    verbs = auxiliaries + irregulars + pronominals if with_common_verbs else auxiliaries
-    
-    logging.info("Starting initialization of %d verbs using Supabase service layer", len(verbs))
-    
-    # Create tasks for rate-limited verb fetching
-    tasks = [
-        rate_limited_verb_fetch(verb=verb, verb_service=verb_service, openai_client=openai_client) 
-        for verb in verbs
-    ]
-    
-    # Execute all tasks
-    results = await gather(*tasks, return_exceptions=True)
-    
-    # Log results
-    success_count = sum(1 for r in results if not isinstance(r, Exception))
-    error_count = len(results) - success_count
-    
-    logging.info("Database initialization completed: %d successful, %d errors", success_count, error_count)
-    
-    if error_count > 0:
-        logging.warning("Some verbs failed to download. Check logs for details.")
-    
-    return success_count, error_count 
+    if with_common_verbs:
+        print("📚 Loading common verbs with AI assistance...")
+
+        # Load essential verbs from data files
+        auxiliary_verbs_file = (
+            Path(__file__).parent.parent.parent / "data" / "auxilliary-verbs.txt"
+        )
+        essential_verbs_file = (
+            Path(__file__).parent.parent.parent
+            / "data"
+            / "essential-irregular-verbs.txt"
+        )
+
+        # Read auxiliary verbs
+        auxiliary_verbs = []
+        if auxiliary_verbs_file.exists():
+            with open(auxiliary_verbs_file, "r", encoding="utf-8") as f:
+                auxiliary_verbs = [line.strip() for line in f if line.strip()]
+
+        # Read essential irregular verbs
+        essential_verbs = []
+        if essential_verbs_file.exists():
+            with open(essential_verbs_file, "r", encoding="utf-8") as f:
+                essential_verbs = [line.strip() for line in f if line.strip()]
+
+        # Combine all verbs and remove duplicates
+        all_verbs = list(set(auxiliary_verbs + essential_verbs))
+
+        print(f"📝 Processing {len(all_verbs)} verbs...")
+
+        # Process verbs with AI assistance using semaphore for rate limiting
+        semaphore = asyncio.Semaphore(17)  # Rate limit API calls
+
+        successful_count = 0
+        error_count = 0
+
+        async def process_verb_with_limit(verb_infinitive):
+            nonlocal successful_count, error_count
+            async with semaphore:
+                try:
+                    # Import here to avoid circular dependency
+                    from cli.ai.client import AsyncChatGPTClient
+
+                    openai_client = AsyncChatGPTClient()
+
+                    # Check if verb already exists
+                    existing_verb = await verb_service.get_verb_by_infinitive(
+                        verb_infinitive
+                    )
+                    if existing_verb:
+                        print(
+                            f"⏭️  Verb '{verb_infinitive}' already exists, skipping..."
+                        )
+                        return existing_verb
+
+                    # Download verb with AI assistance
+                    print(f"🤖 Processing '{verb_infinitive}' with OpenAI...")
+                    verb = await verb_service.download_verb_with_ai(
+                        verb_infinitive, openai_client
+                    )
+
+                    print(f"✅ Successfully processed '{verb_infinitive}'")
+                    successful_count += 1
+                    return verb
+
+                except Exception as e:
+                    print(f"❌ Error processing '{verb_infinitive}': {str(e)}")
+                    error_count += 1
+                    return None
+
+                # Add small delay between requests
+                await asyncio.sleep(0.1)
+
+        # Process all verbs concurrently with rate limiting
+        results = await asyncio.gather(
+            *[process_verb_with_limit(verb) for verb in all_verbs]
+        )
+
+        print("\n📊 Initialization complete!")
+        print(f"✅ {successful_count} successful, ❌ {error_count} errors")
+
+        return results
+
+    else:
+        print("✅ Basic auxiliary initialization complete (no verbs loaded)")
+        return []

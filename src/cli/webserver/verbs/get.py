@@ -1,52 +1,51 @@
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import sessionmaker
+"""
+Webserver verb endpoints - MIGRATED.
 
-from cli.database.engine import async_engine
-from cli.verbs.models import conjugation_table, verb_table
+Migrated to use Supabase VerbService instead of SQLAlchemy.
+"""
 
-async_session = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
+from services.verb_service import VerbService
+
 
 async def get_verb_and_conjugations(infinitive: str):
-    async with async_session() as session:
-        result = await session.execute(
-            select(verb_table).where(verb_table.c.infinitive == infinitive)
-        )
+    """Get verb and its conjugations - migrated to use VerbService."""
+    verb_service = VerbService()
 
-        verb_row = result.fetchone()
-        if not verb_row:
-            return None
+    # Get verb with conjugations
+    verb = await verb_service.get_verb_by_infinitive(infinitive)
+    if not verb:
+        return None
 
-        verb_id   = verb_row.id
-        auxiliary = verb_row.auxiliary
+    # Get conjugations for this verb
+    conjugations = await verb_service.get_conjugations_by_verb_id(verb.id)
 
-        result = await session.execute(
-            select(conjugation_table).where(conjugation_table.c.verb_id == verb_id)
-        )
-
-        conjugations = []
-
-        for row in result.fetchall():
-            conjugation = {
-                "tense": row.tense.name,
-                "infinitive": row.infinitive
-            }
-
-            conjugation_fields = [
-                c.name for c in conjugation_table.columns
-                if c.name not in ("id", "verb_id", "tense", "infinitive")
-            ]
-
-            for field in conjugation_fields:
-                value = getattr(row, field)
-
-                if value is not None:
-                    conjugation[field] = value.replace("_", " ")
-
-            conjugations.append(conjugation)
-
-        return {
-            "infinitive": verb_row.infinitive,
-            "auxiliary": auxiliary,
-            "conjugations": conjugations
+    # Format conjugations for API response
+    formatted_conjugations = []
+    for conj in conjugations:
+        conjugation = {
+            "tense": conj.tense.value,  # Convert enum to string
+            "infinitive": conj.infinitive,
         }
+
+        # Add all conjugation fields, replacing underscores with spaces
+        conjugation_fields = [
+            "first_person_singular",
+            "second_person_singular",
+            "third_person_singular",
+            "first_person_plural",
+            "second_person_formal",
+            "third_person_plural",
+        ]
+
+        for field in conjugation_fields:
+            value = getattr(conj, field, None)
+            if value is not None:
+                conjugation[field] = value.replace("_", " ")
+
+        formatted_conjugations.append(conjugation)
+
+    return {
+        "infinitive": verb.infinitive,
+        "auxiliary": verb.auxiliary,
+        "conjugations": formatted_conjugations,
+    }
