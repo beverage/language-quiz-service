@@ -1,5 +1,7 @@
 [![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/pylint-dev/pylint) [![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
 
+> For the time being this will no longer work as a standalone console application while it is being transformed into a backend service to power other applications.  A console application will remain as a client of said service, runnable locally, when it is completed.
+> 
 # OpenAI Language Quiz Generator
 
 A tool to provide quizzing material for a variety of French language features, and provide feedback for its learners.  What is seen here is it in its command-line application form, but what is within can be consumed by client applications later after further refinement.
