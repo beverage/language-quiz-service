@@ -78,9 +78,7 @@ async def init_auxiliaries(with_common_verbs: bool = False):
 
                     # Download verb with AI assistance
                     print(f"🤖 Processing '{verb_infinitive}' with OpenAI...")
-                    verb = await verb_service.download_verb_with_ai(
-                        verb_infinitive, openai_client
-                    )
+                    verb = await verb_service.download_verb(verb_infinitive)
 
                     print(f"✅ Successfully processed '{verb_infinitive}'")
                     successful_count += 1

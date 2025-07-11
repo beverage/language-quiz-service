@@ -8,7 +8,6 @@ Maintained for backward compatibility.
 import logging
 import random
 
-from cli.ai.client import AsyncChatGPTClient
 from schemas.sentence import (
     SentenceCreate,
     Pronoun,
@@ -16,7 +15,7 @@ from schemas.sentence import (
     IndirectPronoun,
     Negation,
 )
-from schemas.verb import Tense
+from schemas.verbs import Tense
 from services.sentence_service import SentenceService
 from services.verb_service import VerbService
 

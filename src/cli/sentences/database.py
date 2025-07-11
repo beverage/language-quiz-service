@@ -6,7 +6,7 @@ Maintained for backward compatibility.
 """
 
 from schemas.sentence import Pronoun, DirectObject, IndirectPronoun, Negation
-from schemas.verb import Tense
+from schemas.verbs import Tense
 from services.sentence_service import SentenceService
 
 

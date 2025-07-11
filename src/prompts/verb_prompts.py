@@ -12,7 +12,7 @@ Tenses:
 - passé composé: named exactly as 'passe_compose'
 - imparfait: named exactly as 'imparfait'
 - futur simple: named exactly as 'future_simple'
-- conditionnel présent: named exactly as 'conditionnel'
+- conditionnel présent: named exactly as 'conditional'
 - subjonctif présent: named exactly as 'subjunctive'
 - impératif présent: named exactly as 'imperative'
 
@@ -21,6 +21,9 @@ Tenses:
     "auxiliary": "être" or "avoir",
     "reflexive": true or false,
     "past_participle": "the participe paseé of the verb",
+    "present_participle": "the present participle of the verb",
+    "is_irregular": true or false,
+    "translation": "the translation of the verb infinitive",
     "tenses": [
         {{
             "tense": "",
@@ -42,6 +45,7 @@ Guidelines:
 - If the verb is reflexive and the infinitive starts with 'se', set the reflexive property to true.
 - Do not include the reflexive pronoun in the conjugation.
 - Return the tense names exactly as they are listed above.
+- If the verb is irregular in French, set the is_irregular property to true.  Verbs etre, avoir, aller, venir, etc. are irregular.
 - For verbs with auxiliary 'être', do not include gender or number hints on the participe paseé.  No (e) or (s) or (es).
 - Return well-formed JSON.  Do not include any other text or comments.  Do not include trailing commas.
 """

@@ -118,6 +118,7 @@ async def clean():
     await clear_database()
 
 
+# Migrated
 @database.command()
 async def init():
     click.echo("Initializing the database to default settings and content.")
@@ -125,22 +126,26 @@ async def init():
     await init_auxiliaries(with_common_verbs=True)
 
 
+# Not needed
 @database.command()
 async def reset():
     click.echo("Resetting the database container.")
 
 
+# Not migrated
 @cli.group()
 async def problem():
     pass
 
 
+# Not migrated
 @problem.command("random")
 async def problem_random():
     results = await create_random_problem()
     print(problem_formatter(results))
 
 
+# Not migrated
 @problem.command()
 @click.argument("quantity", default=10, type=click.INT)
 @click.option("--workers", default=10, type=click.INT)
@@ -162,6 +167,7 @@ async def sentence():
     pass
 
 
+# Migrated
 @sentence.command("get")
 @click.option("-q", "--quantity", required=False, default=1)
 @sentence_options
@@ -169,7 +175,7 @@ async def sentence_get(quantity: int, **kwargs):
     result = await get_random_sentence(quantity, **kwargs)
     print(problem_formatter(result))
 
-
+# Migrated
 @sentence.command("new")
 @click.option("-q", "--quantity", required=False, default=1)
 @sentence_options
@@ -184,6 +190,7 @@ async def generate(quantity: int, **kwargs):
         print(f"{ex}: {traceback.format_exc()}")
 
 
+# Migrated
 @sentence.command("random")
 @click.option("-q", "--quantity", required=False, default=1)
 @random_options
@@ -202,6 +209,7 @@ async def verb():
     pass
 
 
+# Migrated
 @verb.command()
 @click.argument("verb")
 async def download(verb: str):
@@ -210,6 +218,8 @@ async def download(verb: str):
     print(object_as_dict(result))
 
 
+
+# Migrated
 @verb.command("get")
 @click.argument("verb")
 async def verb_get(verb: str):
@@ -218,6 +228,7 @@ async def verb_get(verb: str):
     pprint(object_as_dict(result))
 
 
+# Migrated
 @verb.command("random")
 async def verb_random():
     result = await get_random_verb()

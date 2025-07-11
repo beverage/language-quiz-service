@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel
 from enum import StrEnum
-from .verb import Tense
+from schemas.verbs import Tense
 
 
 class Pronoun(StrEnum):
