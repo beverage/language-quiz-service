@@ -106,14 +106,23 @@ RETURNS TABLE (
     reflexive BOOLEAN,
     translation TEXT,
     past_participle TEXT,
-    present_participle TEXT
+    present_participle TEXT,
+    target_language_code TEXT,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ
 ) AS $$
+DECLARE
+    tbl_count INT;
+    rand_offset INT;
 BEGIN
+    SELECT count(*) INTO tbl_count FROM verbs WHERE verbs.target_language_code = p_target_language;
+    rand_offset := floor(random() * tbl_count);
+
     RETURN QUERY
-    SELECT v.id, v.infinitive, v.auxiliary, v.reflexive, v.translation, v.past_participle, v.present_participle
+    SELECT v.id, v.infinitive, v.auxiliary, v.reflexive, v.translation, v.past_participle, v.present_participle, v.target_language_code, v.created_at, v.updated_at
     FROM verbs v
     WHERE v.target_language_code = p_target_language
-    ORDER BY RANDOM()
+    OFFSET rand_offset
     LIMIT 1;
 END;
 $$ LANGUAGE plpgsql;

@@ -20,7 +20,7 @@ The JSON structure MUST be as follows. Do not deviate.
 
 {{
     "infinitive": "{infinitive}",
-    "target_language_code": "fra",
+    "target_language_code": "{target_language_code}",
     "auxiliary": "être" or "avoir",
     "reflexive": true or false,
     "translation": "English translation of the verb",
@@ -64,5 +64,9 @@ Guidelines:
 - Return only well-formed JSON. No extra text, comments, or trailing commas.
 """
 
-    def generate_verb_prompt(self, verb_infinitive: str) -> str:
-        return self.VERB_PROMPT.format(infinitive=verb_infinitive)
+    def generate_verb_prompt(
+        self, verb_infinitive: str, target_language_code: str = "eng"
+    ) -> str:
+        return self.VERB_PROMPT.format(
+            infinitive=verb_infinitive, target_language_code=target_language_code
+        )

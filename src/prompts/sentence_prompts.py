@@ -8,7 +8,8 @@ class SentencePromptGenerator:
     def __init__(self):
         pass
 
-    SENTENCE_PROMPT = """
+    def _get_sentence_prompt(self, sentence: Sentence, sentence_properties: str) -> str:
+        return f"""
 You are a French grammar expert.  Construct a sentence in French with the following properties:
 
 {sentence_properties}
@@ -18,30 +19,26 @@ You are a French grammar expert.  Construct a sentence in French with the follow
     "translation": "",
     "is_correct": "true or false",
     "explanation": "",
-    "negation": "",
-    "direct_object": "none, masculine, feminine, or plural",
-    "indirect_pronoun": "none, masculine, feminine, or plural"
+    "negation": {sentence.negation.value},
+    "direct_object": {sentence.direct_object.value},
+    "indirect_pronoun": {sentence.indirect_pronoun.value}
+    "has_compliment_object_direct": "",
+    "has_compliment_object_indirect": "",
 }}
 
 Rules:
-- If the sentence has a direct object and an indirect pronoun, put them in the right order.  Switch them if necessary.
-- If the sentence contains any negation, set the negation field to true.
-- Check all elisions are correct.  Examples: 'Je habite' -> 'J'habite', or 'Est-ce que il est là' -> 'Est-ce qu'il est là.'
-- All prepositions match their indirect, or subordinate pronouns."
+- The sentence must semantically and idiomaticallymake sense.
+- All prepositions match their indirect, or subordinate pronouns.
+- If the sentence generated does not have a complement object direct - a le, la, or les before the verb - set has_compliment_object_direct to false.
+- If the sentence generated does not have a complement object indirect - a lui, la, or leur before the verb - set has_compliment_object_indirect to false.
 - If the verb requires additional objects or infinitives afterwards, add some.  They must agree in gender and number.
 - If the conjugation uses the participle, and the auxiliary is 'être', make sure the number and gender match the subject.
-- If verbis reflexive, use the reflexive pronoun in the sentence.
-- If the phrase is negatated, return either the precise negation (pas, jamais, rien, etc.), or 'none'.
+- If verb is reflexive, use the reflexive pronoun in the sentence.
+- If the sentence is not correct, provide a short explanation of why it is incorrect.
 
 Format:
-- Return well-formed JSON.  Do not include any other text or comments.  Do not include trailing commas.
-- Return the sentence in the language of the sentence properties.
-- Return the translation in the language of the sentence properties.
-- Return the is_correct as a boolean.
-- Return the explanation as a string.  This should be a short explanation of why the sentence is correct or incorrect.
-- Return the negation as a string.
-- Return the direct_object as a string.  Either masculine, feminine, plural, or none.
-- Return the indirect_pronoun as a string.  Either masculine, feminine, plural, or none.
+- Check all elisions are correct.  Examples: 'Je habite' -> 'J'habite', or 'Est-ce que il est là' -> 'Est-ce qu'il est là.'
+- Return the translation in {sentence.target_language_code}.
 - Return well-formed JSON.  Do not include any other text or comments.  Do not include trailing commas.
 """
 
@@ -53,11 +50,17 @@ The sentence uses {verb.auxiliary} as the auxiliary.
 """
 
     def __compliment_object_direct(self, sentence: Sentence, verb: Verb) -> str:
-        return f"""The sentance must contain a {sentence.direct_object.value} direct object before the verb if the verb {verb.infinitive} allows it.
+        return f"""
+The sentance must contain a {sentence.direct_object.value} compliment direct object before the verb if the verb {verb.infinitive} allows it.
+A compliment direct object is a direct object that is not the actual direct object, comes before the verb, and is either le, la, or les.  It
+replaces the actual direct object.
     """
 
     def __compliment_object_indirect(self, sentence: Sentence, verb: Verb) -> str:
-        return f"""The sentence must contain an {sentence.indirect_pronoun.value} indirect pronoun before the verb if the verb {verb.infinitive} allows it.
+        return f"""
+The sentence must contain an {sentence.indirect_pronoun.value} compliment indirect object before the verb if the verb {verb.infinitive} allows it.
+A compliment indirect object is an indirect object that is not the actual indirect object, comes before the verb, and is either lui, la, or leur.  It
+replaces the actual indirect object.
     """
 
     def __negation(self, sentence):
@@ -72,10 +75,10 @@ gender disagreements, incorrect object agreement, incorrect pronoun agreement, i
 """
             ]
             if sentence.direct_object != DirectObject.NONE:
-                prompt.append("The complement object may be incorrect.")
+                prompt.append("The complement object should be incorrect.")
 
             if sentence.indirect_pronoun != IndirectPronoun.NONE:
-                prompt.append("The indirect pronoun may be incorrect.")
+                prompt.append("The indirect pronoun should be incorrect.")
 
             return "\n".join(prompt)
         else:
@@ -95,6 +98,9 @@ gender disagreements, incorrect object agreement, incorrect pronoun agreement, i
         if sentence.negation != Negation.NONE:
             sentence_properties.append(self.__negation(sentence))
 
-        return self.SENTENCE_PROMPT.format(
-            sentence_properties="\n".join(sentence_properties)
+        if not sentence.is_correct:
+            sentence_properties.append(self.__correctness(sentence))
+
+        return self._get_sentence_prompt(
+            sentence, sentence_properties="\n".join(sentence_properties)
         )

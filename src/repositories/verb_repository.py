@@ -94,7 +94,7 @@ class VerbRepository:
         return [Verb.model_validate(verb) for verb in result.data]
 
     async def get_random_verb(
-        self, target_language_code: str = "fra"
+        self, target_language_code: str = "eng"
     ) -> Optional[Verb]:
         """
         Get a random verb using the database function.
@@ -106,15 +106,7 @@ class VerbRepository:
         ).execute()
 
         if result.data:
-            # The function returns the verb data directly with participles
-            verb_data = result.data[0]
-            # Need to fetch the full verb record to get all fields
-            return await self.get_verb_by_infinitive(
-                infinitive=verb_data["infinitive"],
-                auxiliary=verb_data["auxiliary"],
-                reflexive=verb_data["reflexive"],
-                target_language_code=target_language_code,
-            )
+            return Verb.model_validate(result.data[0])
         return None
 
     async def update_verb(self, verb_id: UUID, verb: VerbUpdate) -> Optional[Verb]:

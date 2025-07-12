@@ -67,6 +67,9 @@ pythonpath = "."
 [tool.coverage.run]
 source = ["src"]
 branch = true
+omit = [
+    "src/cli/*"
+]
 
 [tool.coverage.report]
 exclude_lines = [

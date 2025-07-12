@@ -13,6 +13,7 @@ from src.cli.cloud.database import (
 )
 from src.cli.cloud.service import down as service_down, up as service_up
 from src.cli.database.clear import clear_database
+from src.cli.database.init import init_verbs
 from src.cli.database.utils import object_as_dict
 from src.cli.problems.create import (
     create_random_problem_with_delay,
@@ -108,6 +109,15 @@ async def database():
 async def clean():
     click.echo("Cleaning the database of any user data and history.")
     await clear_database()
+
+
+@database.command("init")
+async def db_init():
+    """
+    Seeds the database with an initial set of verbs.
+    """
+    click.echo("Seeding the database with initial verbs...")
+    await init_verbs()
 
 
 # Not needed

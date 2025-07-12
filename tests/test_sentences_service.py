@@ -155,6 +155,7 @@ class TestSentenceService:
             "translation": "Ceci est une phrase incorrecte.",
             "is_correct": False,
             "explanation": "The verb conjugation is wrong.",
+            "negation": "none",
         }
         mock_openai_client.handle_request.return_value = json.dumps(ai_response)
 
@@ -202,6 +203,8 @@ class TestSentenceService:
             "direct_object": "masculine",
             "indirect_pronoun": "plural",
             "negation": "jamais",
+            "has_compliment_object_direct": True,
+            "has_compliment_object_indirect": True,
         }
         mock_openai_client.handle_request.return_value = json.dumps(ai_response)
 
@@ -266,6 +269,7 @@ class TestSentenceService:
             "sentence": sample_db_sentence.content,
             "translation": sample_db_sentence.translation,
             "is_correct": True,
+            "negation": "none",
         }
         mock_openai_client.handle_request.return_value = json.dumps(ai_response)
         mock_sentence_repository.create_sentence.return_value = sample_db_sentence
@@ -310,6 +314,7 @@ class TestSentenceService:
             "sentence": sample_db_sentence.content,
             "translation": sample_db_sentence.translation,
             "is_correct": True,
+            "negation": "none",
         }
         mock_openai_client.handle_request.return_value = json.dumps(ai_response)
         mock_sentence_repository.create_sentence.return_value = sample_db_sentence
@@ -343,7 +348,12 @@ class TestSentenceService:
     ):
         """Test that generate_random_sentence can produce a negated sentence."""
         mock_verb_service.get_random_verb.return_value = sample_db_verb
-        ai_response = {"sentence": "test", "translation": "test", "is_correct": True}
+        ai_response = {
+            "sentence": "test",
+            "translation": "test",
+            "is_correct": True,
+            "negation": "pas",
+        }
         mock_openai_client.handle_request.return_value = json.dumps(ai_response)
         mock_sentence_repository.create_sentence.return_value = sample_db_sentence
 
@@ -374,7 +384,12 @@ class TestSentenceService:
     ):
         """Test that generate_random_sentence can produce a non-negated sentence."""
         mock_verb_service.get_random_verb.return_value = sample_db_verb
-        ai_response = {"sentence": "test", "translation": "test", "is_correct": True}
+        ai_response = {
+            "sentence": "test",
+            "translation": "test",
+            "is_correct": True,
+            "negation": "none",
+        }
         mock_openai_client.handle_request.return_value = json.dumps(ai_response)
         mock_sentence_repository.create_sentence.return_value = sample_db_sentence
 

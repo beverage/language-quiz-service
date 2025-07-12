@@ -166,27 +166,28 @@ class SentenceService:
         sentence_request.translation = response_json.get("translation", "")
 
         # Handle is_correct from AI response
-        ai_is_correct = response_json.get("is_correct")
-        if isinstance(ai_is_correct, bool):
-            sentence_request.is_correct = ai_is_correct
-        elif isinstance(ai_is_correct, str):
-            sentence_request.is_correct = ai_is_correct.lower() == "true"
+        is_correct = response_json.get("is_correct")
+        if isinstance(is_correct, bool):
+            sentence_request.is_correct = is_correct
 
         # Set explanation if sentence is incorrect
         if not sentence_request.is_correct:
             sentence_request.explanation = response_json.get("explanation", "")
 
         # Update grammatical elements if AI modified them
-        if "direct_object" in response_json:
-            sentence_request.direct_object = DirectObject(
-                response_json["direct_object"]
-            )
-        if "indirect_pronoun" in response_json:
-            sentence_request.indirect_pronoun = IndirectPronoun(
-                response_json["indirect_pronoun"]
-            )
-        if "negation" in response_json:
-            sentence_request.negation = Negation(response_json["negation"])
+        sentence_request.direct_object = (
+            DirectObject(response_json["direct_object"])
+            if response_json.get("has_compliment_object_direct")
+            else DirectObject.NONE
+        )
+
+        sentence_request.indirect_pronoun = (
+            IndirectPronoun(response_json["indirect_pronoun"])
+            if response_json.get("has_compliment_object_indirect")
+            else IndirectPronoun.NONE
+        )
+
+        sentence_request.negation = Negation(response_json["negation"])
 
         logger.info(
             f"⬅️ Generated: COD: {sentence_request.direct_object.value}, "

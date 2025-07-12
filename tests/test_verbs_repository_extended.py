@@ -169,17 +169,7 @@ async def test_get_random_verb(verb_repository, mock_supabase_client, sample_db_
     # Arrange
     # Mock the RPC call
     rpc_execute_mock = mock_supabase_client.rpc.return_value.execute
-    rpc_execute_mock.return_value.data = [
-        {
-            "infinitive": "aller",
-            "auxiliary": "être",
-            "reflexive": False,
-            "target_language_code": "fra",
-        }
-    ]
-    # Mock the follow-up get_verb_by_infinitive call
-    get_execute_mock = mock_supabase_client.table.return_value.execute
-    get_execute_mock.return_value.data = [sample_db_verb.model_dump()]
+    rpc_execute_mock.return_value.data = [sample_db_verb.model_dump()]
 
     # Act
     result = await verb_repository.get_random_verb(target_language_code="fra")

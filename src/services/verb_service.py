@@ -231,7 +231,7 @@ class VerbService:
 
         # Generate AI prompt
         verb_prompt = self.verb_prompt_generator.generate_verb_prompt(
-            verb_infinitive=requested_verb
+            verb_infinitive=requested_verb, target_language_code=target_language_code
         )
 
         # Get AI response
