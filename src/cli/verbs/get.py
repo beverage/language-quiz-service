@@ -5,7 +5,10 @@ Migrated to use Supabase VerbService instead of SQLAlchemy.
 Maintained for backward compatibility.
 """
 
-from services.verb_service import VerbService
+from src.services.verb_service import VerbService
+from rich.console import Console
+
+console = Console()
 
 
 async def get_verb(requested_verb: str, database_session=None):
@@ -20,8 +23,17 @@ async def get_random_verb(database_session=None):
     return verb
 
 
-async def download_verb(requested_verb: str, openapi_client=None):
-    """Download a verb using AI - migrated to use VerbService."""
-    # Use the enhanced download method from VerbService
-    verb = await VerbService().download_verb(requested_verb)
-    return verb
+async def download_verb(requested_verb: str, target_language_code: str = "fra") -> None:
+    """
+    Download a verb and its conjugations from the AI service and store it.
+    """
+    try:
+        service = VerbService()
+        verb = await service.download_verb(
+            requested_verb=requested_verb, target_language_code=target_language_code
+        )
+        console.print(f"✅ Verb '{verb.infinitive}' downloaded successfully.")
+    except ValueError as e:
+        console.print(f"❌ Error: {e}")
+    except Exception as e:
+        console.print(f"❌ An unexpected error occurred: {e}")

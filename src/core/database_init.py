@@ -8,8 +8,8 @@ import asyncio
 import logging
 from pathlib import Path
 
-from clients.supabase import get_supabase_client
-from services.verb_service import VerbService
+from src.clients.supabase import get_supabase_client
+from src.services.verb_service import VerbService
 
 
 logger = logging.getLogger(__name__)

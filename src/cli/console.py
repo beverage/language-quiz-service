@@ -5,34 +5,26 @@ import traceback
 import uvicorn
 from pprint import pprint
 
-from .cli.options import random_options, sentence_options
-
-from .cloud.database import (
+from src.cli.cli.options import random_options, sentence_options
+from src.cli.cloud.database import (
     down as database_down,
     up as database_up,
     status as database_status,
 )
-from .cloud.service import down as service_down, up as service_up
-
-from .database.clear import clear_database
-
-# Removed: from .database.engine import reflect_tables  # SQLAlchemy dependency removed
-from .database.init import init_auxiliaries
-from .database.utils import object_as_dict
-
-from .problems.create import create_random_problem_with_delay, create_random_problem
-
-from .sentences.create import create_random_sentence
-from services.sentence_service import SentenceService
-from .sentences.database import get_random_sentence
-from .sentences.utils import problem_formatter
-
-from .verbs.get import download_verb, get_verb, get_random_verb
-
-from .utils.console import Style
-from .utils.queues import batch_operation
-
-from .webserver.app import app
+from src.cli.cloud.service import down as service_down, up as service_up
+from src.cli.database.clear import clear_database
+from src.cli.database.utils import object_as_dict
+from src.cli.problems.create import (
+    create_random_problem_with_delay,
+    create_random_problem,
+)
+from src.cli.sentences.create import create_random_sentence, create_sentence
+from src.cli.sentences.database import get_random_sentence
+from src.cli.sentences.utils import problem_formatter
+from src.cli.verbs.get import download_verb, get_verb, get_random_verb
+from src.cli.utils.console import Style
+from src.cli.utils.queues import batch_operation
+from src.cli.webserver.app import app
 
 
 @click.group()
@@ -118,14 +110,6 @@ async def clean():
     await clear_database()
 
 
-# Migrated
-@database.command()
-async def init():
-    click.echo("Initializing the database to default settings and content.")
-    click.echo("Fetching auxiliaries.")
-    await init_auxiliaries(with_common_verbs=True)
-
-
 # Not needed
 @database.command()
 async def reset():
@@ -182,10 +166,9 @@ async def sentence_get(quantity: int, **kwargs):
 @sentence_options
 async def generate(quantity: int, **kwargs):
     try:
-        svc = SentenceService()
         results = []
         for _ in range(quantity):
-            results.append(await svc.create_sentence(**kwargs))
+            results.append(await create_sentence(**kwargs))
         print(problem_formatter(results))
     except Exception as ex:
         print(f"{ex}: {traceback.format_exc()}")

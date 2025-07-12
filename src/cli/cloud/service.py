@@ -6,7 +6,7 @@ import time
 
 from functools import partial
 
-from cli.utils.console import Color, Style
+from src.cli.utils.console import Color, Style
 
 
 def __cluster_display_name(cluster_name):

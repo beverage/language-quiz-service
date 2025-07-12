@@ -4,7 +4,7 @@ Pydantic schemas for French verbs and conjugations.
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -261,6 +261,10 @@ class ConjugationBase(BaseModel):
         if not v or not v.strip():
             raise ValueError("Infinitive cannot be empty")
         return v.strip()
+
+
+class LLMVerbPayload(VerbBase):
+    tenses: List[ConjugationBase]
 
 
 class ConjugationCreate(ConjugationBase):

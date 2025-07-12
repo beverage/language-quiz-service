@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 
-from cli.sentences.create import create_sentence
-from cli.webserver.verbs.get import get_verb_and_conjugations
+from src.cli.sentences.create import create_sentence
+from src.cli.webserver.verbs.get import get_verb_and_conjugations
 
 app = FastAPI()
 

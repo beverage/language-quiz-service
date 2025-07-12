@@ -1,12 +1,12 @@
-import openai
-from ..core.config import settings
+from openai import AsyncOpenAI
+from src.core.config import settings
 
 
 class OpenAIClient:
     """Async client for OpenAI."""
 
     def __init__(self, api_key: str = None):
-        self.client = openai.AsyncOpenAI(api_key=api_key or settings.openai_api_key)
+        self.client = AsyncOpenAI(api_key=api_key or settings.openai_api_key)
 
     async def handle_request(self, prompt: str) -> str:
         """Send a chat completion request to OpenAI and return the content string."""

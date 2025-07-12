@@ -6,18 +6,16 @@ Maintained for backward compatibility.
 """
 
 import logging
-import random
 
-from schemas.sentences import (
-    SentenceCreate,
+from src.services.sentence_service import SentenceService
+from src.schemas.sentences import (
     Pronoun,
+    Tense,
     DirectObject,
     IndirectPronoun,
     Negation,
 )
-from schemas.verbs import Tense
-from services.sentence_service import SentenceService
-from services.verb_service import VerbService
+from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
 
@@ -36,52 +34,28 @@ async def create_sentence(
     sentence_service = SentenceService()
     verb_service = VerbService()
 
-    if verb_infinitive == "":
+    if not verb_infinitive:
         verb = await verb_service.get_random_verb()
+        if not verb:
+            raise ValueError("No verbs available to generate a sentence.")
     else:
         verb = await verb_service.get_verb_by_infinitive(verb_infinitive)
+        if not verb:
+            raise ValueError(f"Verb '{verb_infinitive}' not found")
 
-    if not verb:
-        raise ValueError(f"Verb {verb_infinitive} not found")
-
-    # Save sentence using the service
-    sentence_create = SentenceCreate(
-        infinitive=verb_infinitive,
-        auxiliary=verb.auxiliary,
-        pronoun=pronoun,
-        tense=tense,
-        direct_object=direct_object,
-        indirect_pronoun=indirect_pronoun,
-        negation=negation,
-        content="",
-        translation="",
+    # The CLI passes strings; the service expects enums. We convert them here.
+    return await sentence_service.generate_sentence(
+        verb_id=verb.id,
+        pronoun=Pronoun(pronoun),
+        tense=Tense(tense),
+        direct_object=DirectObject(direct_object),
+        indirect_pronoun=IndirectPronoun(indirect_pronoun),
+        negation=Negation(negation),
         is_correct=is_correct,
     )
-
-    saved_sentence = await sentence_service.create_sentence(sentence_create)
-
-    return saved_sentence
 
 
 async def create_random_sentence(is_correct: bool = True):
-    """Create a random sentence - migrated to use Supabase services."""
-
-    # Invalid pronoun + imperative combinations are possible here:
-    verb_service = VerbService()
-    verb = await verb_service.get_random_verb()
-
-    return await create_sentence(
-        verb.infinitive,
-        random.choice([p for p in Pronoun]),
-        random.choice(
-            [t for t in Tense if t != Tense.IMPERATIVE]
-        ),  # Verb, pronoun, and tense remain fully random for now.
-        direct_object=random.choice(
-            [d for d in DirectObject]
-        ),  # Use correct enum values
-        indirect_pronoun=random.choice([i for i in IndirectPronoun]),
-        negation=Negation.NONE
-        if random.randint(0, 2) == 0
-        else random.choice([n for n in Negation if n != Negation.NONE]),
-        is_correct=is_correct,
-    )
+    """Create a random sentence by calling the SentenceService."""
+    sentence_service = SentenceService()
+    return await sentence_service.generate_random_sentence(is_correct=is_correct)

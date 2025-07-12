@@ -5,49 +5,63 @@ class VerbPromptGenerator:
         pass
 
     VERB_PROMPT = """
-You are a French verb conjugation expert.  Provide the conjugation of the French verb {infinitive} in the following format:
+You are a French verb conjugation expert. Your task is to provide a complete and valid JSON object representing the verb '{infinitive}' according to the `LLMVerbPayload` Pydantic schema. You MUST populate ALL fields, including the repeating fields in the `tenses` array.
 
-Tenses:
-- presént: named exactly as 'present'
-- passé composé: named exactly as 'passe_compose'
-- imparfait: named exactly as 'imparfait'
-- futur simple: named exactly as 'future_simple'
-- conditionnel présent: named exactly as 'conditional'
-- subjonctif présent: named exactly as 'subjunctive'
-- impératif présent: named exactly as 'imperative'
+Tenses must be named exactly as follows:
+- 'present'
+- 'passe_compose'
+- 'imparfait'
+- 'future_simple'
+- 'conditionnel'
+- 'subjunctive'
+- 'imperative'
+
+The JSON structure MUST be as follows. Do not deviate.
 
 {{
     "infinitive": "{infinitive}",
+    "target_language_code": "fra",
     "auxiliary": "être" or "avoir",
     "reflexive": true or false,
-    "past_participle": "the participe paseé of the verb",
-    "present_participle": "the present participle of the verb",
-    "is_irregular": true or false,
-    "translation": "the translation of the verb infinitive",
+    "translation": "English translation of the verb",
+    "past_participle": "The past participle of the verb",
+    "present_participle": "The present participle of the verb",
+    "classification": "third_group",
+    "is_irregular": true,
     "tenses": [
         {{
-            "tense": "",
-            "conjugations":
-            {{
-                "first_person_singular": "",
-                "second_person_singular": "",
-                "third_person_singular": "",
-                "first_person_plural": "",
-                "second_person_formal": "",
-                "third_person_plural": "",
-            }}
+            "infinitive": "{infinitive}",
+            "auxiliary": "être" or "avoir",
+            "reflexive": true or false,
+            "tense": "present",
+            "first_person_singular": "",
+            "second_person_singular": "",
+            "third_person_singular": "",
+            "first_person_plural": "",
+            "second_person_formal": "",
+            "third_person_plural": ""
         }},
+        {{
+            "infinitive": "{infinitive}",
+            "auxiliary": "être" or "avoir",
+            "reflexive": true or false,
+            "tense": "passe_compose",
+            "first_person_singular": "",
+            "second_person_singular": "",
+            "third_person_singular": "",
+            "first_person_plural": "",
+            "second_person_formal": "",
+            "third_person_plural": ""
+        }}
     ]
 }}
 
 Guidelines:
-- Get the conjugation for all tenses listed above if they exist for the verb {infinitive}.
-- If the verb is reflexive and the infinitive starts with 'se', set the reflexive property to true.
-- Do not include the reflexive pronoun in the conjugation.
-- Return the tense names exactly as they are listed above.
-- If the verb is irregular in French, set the is_irregular property to true.  Verbs etre, avoir, aller, venir, etc. are irregular.
-- For verbs with auxiliary 'être', do not include gender or number hints on the participe paseé.  No (e) or (s) or (es).
-- Return well-formed JSON.  Do not include any other text or comments.  Do not include trailing commas.
+- Provide conjugations for all tenses listed above.
+- The `classification` field MUST be one of 'first_group', 'second_group', or 'third_group'.
+- The `infinitive`, `auxiliary`, and `reflexive` fields MUST be repeated for each object in the `tenses` array.
+- For reflexive verbs (e.g., 'se laver'), set `reflexive` to true, but do not include the pronoun in the conjugations themselves.
+- Return only well-formed JSON. No extra text, comments, or trailing commas.
 """
 
     def generate_verb_prompt(self, verb_infinitive: str) -> str:

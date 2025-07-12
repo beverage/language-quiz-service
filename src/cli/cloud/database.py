@@ -6,7 +6,7 @@ import time
 
 from functools import partial
 
-from cli.utils.console import Color, Style
+from src.cli.utils.console import Color, Style
 
 
 async def get_rds_instance_status(rds, db_instance_identifier):

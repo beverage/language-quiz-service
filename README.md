@@ -31,12 +31,12 @@ A postgresql database is then required, however this is already configured in a 
 ```
 Better secrets management for both the OpenAI keys and database passwords will be coming shortly when the effort to cloud host this as an an API will be undertaken.
 
-Once running, you will need to pre-populate the database with a minimal verb set before any sentence or problem generation.  To do that, run the following:
+Once running, you will need to pre-populate the database with a minimal verb set before any sentence or problem generation.  To do that, run the following command, which executes the CLI application as a module:
+```bash
+poetry run python -m src.cli database init
 ```
-    poetry shell            # Optional - you can just use a 'poetry run' prefix to any further commands.
-    lqconsole database init
-```
-From there the application is ready to start generating problem data from the command line.  See the documentation below.
+
+From there the application is ready to start generating problem data from the command line. See the documentation below.
 
 ### Development Setup
 
@@ -49,6 +49,18 @@ make install-githooks
 This will set up the pre-commit hook, which runs `make lint-fix-unsafe` and `make format` on the files you are about to commit.
 
 ## Command Line Usage
+
+To run the command-line interface, execute the `src.cli` module directly with Python. All commands and subcommands follow this pattern.
+
+**Example: Get a random verb**
+```bash
+poetry run python -m src.cli verb random
+```
+
+**Example: Initialize the database**
+```bash
+poetry run python -m src.cli database init
+```
 
 ## Webserver
 

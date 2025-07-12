@@ -5,7 +5,7 @@ Migrated to use Supabase services instead of SQLAlchemy.
 Maintained for backward compatibility.
 """
 
-from clients.supabase import get_supabase_client
+from src.clients.supabase import get_supabase_client
 
 
 async def clear_database():

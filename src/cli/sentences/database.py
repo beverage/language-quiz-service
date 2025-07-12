@@ -5,9 +5,9 @@ Migrated to use Supabase services instead of SQLAlchemy.
 Maintained for backward compatibility.
 """
 
-from schemas.sentences import Pronoun, DirectObject, IndirectPronoun, Negation
-from schemas.verbs import Tense
-from services.sentence_service import SentenceService
+from src.schemas.sentences import Pronoun, DirectObject, IndirectPronoun, Negation
+from src.schemas.verbs import Tense
+from src.services.sentence_service import SentenceService
 
 
 async def get_random_sentence(

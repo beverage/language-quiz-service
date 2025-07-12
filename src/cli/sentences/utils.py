@@ -1,7 +1,8 @@
 import json
 
-from cli.utils.console import Answers, Color, Style
-from schemas.sentences import DirectObject, IndirectPronoun, Negation
+
+from src.cli.utils.console import Answers, Color, Style
+from src.schemas.sentences import DirectObject, IndirectPronoun, Negation
 
 
 def problem_formatter(sentences) -> str:
@@ -17,7 +18,7 @@ def problem_formatter(sentences) -> str:
                 sentence.content,
                 f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}"
                 if sentence.is_correct
-                else f"{Color.LIGHT_RED}({sentence.translation}){Style.RESET}",
+                else f"{Color.LIGHT_RED}({sentence.explanation}){Style.RESET}",
                 "\n",
             ]
         )

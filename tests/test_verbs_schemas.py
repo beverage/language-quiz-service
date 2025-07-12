@@ -15,12 +15,11 @@ from src.schemas.verbs import (
 class TestVerbCreate:
     """Test cases for the VerbCreate schema."""
 
-    def test_valid_verb_creation(self, sample_verb_data: dict):
+    def test_valid_verb_creation(self, sample_verb_create: VerbCreate):
         """Tests that a valid VerbCreate model can be created."""
-        verb = VerbCreate(**sample_verb_data)
-        assert verb.infinitive == sample_verb_data["infinitive"]
-        assert verb.translation == sample_verb_data["translation"]
-        assert verb.target_language_code == sample_verb_data["target_language_code"]
+        assert sample_verb_create.infinitive == "parler"
+        assert sample_verb_create.translation == "to speak"
+        assert sample_verb_create.target_language_code == "eng"
 
     def test_field_normalization(self, sample_verb_data: dict):
         """Tests that fields are properly stripped of whitespace."""

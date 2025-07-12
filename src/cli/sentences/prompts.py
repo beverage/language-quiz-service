@@ -1,4 +1,4 @@
-from schemas.sentence import DirectObject, IndirectPronoun, Negation
+from schemas.sentences import DirectObject, IndirectPronoun, Negation
 
 
 class SentencePromptGenerator:

@@ -1,7 +1,7 @@
 """Unit tests for the verb repository."""
 
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 
@@ -10,15 +10,57 @@ from src.schemas.verbs import VerbCreate, VerbUpdate
 from src.schemas.verbs import Verb
 
 
+@pytest.fixture
+def mock_supabase_client() -> MagicMock:
+    """Provides a mock Supabase client for testing."""
+    mock_client = MagicMock()
+
+    # Mock the chain of calls for select
+    select_mock = MagicMock()
+    select_mock.eq.return_value = select_mock
+    select_mock.limit.return_value = select_mock
+    select_mock.execute = AsyncMock()
+
+    # Mock the chain of calls for update
+    update_mock = MagicMock()
+    update_mock.eq.return_value = update_mock
+    update_mock.execute = AsyncMock()
+
+    # Mock the chain of calls for insert
+    insert_mock = MagicMock()
+    insert_mock.execute = AsyncMock()
+
+    # Mock the chain of calls for delete
+    delete_mock = MagicMock()
+    delete_mock.eq.return_value = delete_mock
+    delete_mock.execute = AsyncMock()
+
+    # Mock the rpc call
+    rpc_mock = MagicMock()
+    rpc_mock.execute = AsyncMock()
+
+    # Mock the table method to return a mock that has the chained methods
+    table_mock = MagicMock()
+    table_mock.select.return_value = select_mock
+    table_mock.update.return_value = update_mock
+    table_mock.insert.return_value = insert_mock
+    table_mock.delete.return_value = delete_mock
+
+    mock_client.table.return_value = table_mock
+    mock_client.rpc.return_value = rpc_mock
+    return mock_client
+
+
+@pytest.fixture
+def repository(mock_supabase_client: MagicMock) -> VerbRepository:
+    """Provides a VerbRepository instance with a mocked Supabase client."""
+    return VerbRepository(client=mock_supabase_client)
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 class TestVerbRepository:
     """Test cases for the VerbRepository."""
-
-    @pytest.fixture
-    def repository(self, mock_supabase_client: MagicMock) -> VerbRepository:
-        """Fixture to create a VerbRepository with a mock client."""
-        return VerbRepository(client=mock_supabase_client)
 
     async def test_create_verb_success(
         self,
@@ -36,7 +78,7 @@ class TestVerbRepository:
 
         assert created_verb is not None
         assert created_verb.infinitive == sample_db_verb.infinitive
-        repository.client.table.return_value.insert.assert_called_once_with(
+        mock_supabase_client.table.return_value.insert.assert_called_once_with(
             verb_create.model_dump()
         )
 
@@ -72,7 +114,7 @@ class TestVerbRepository:
 
         assert verb is not None
         assert verb.id == sample_db_verb.id
-        repository.client.table.return_value.select.return_value.eq.assert_called_once_with(
+        mock_supabase_client.table.return_value.select.return_value.eq.assert_called_once_with(
             "id", str(sample_db_verb.id)
         )
 
@@ -111,7 +153,7 @@ class TestVerbRepository:
         assert updated_verb is not None
         assert updated_verb.infinitive == "new infinitive"
         assert updated_verb.reflexive is True
-        repository.client.table.return_value.update.assert_called_once_with(
+        mock_supabase_client.table.return_value.update.assert_called_once_with(
             update_data.model_dump(exclude_unset=True)
         )
 
@@ -127,7 +169,7 @@ class TestVerbRepository:
         result = await repository.delete_verb(verb_id)
 
         assert result is True
-        repository.client.table.return_value.delete.return_value.eq.assert_called_once_with(
+        mock_supabase_client.table.return_value.delete.return_value.eq.assert_called_once_with(
             "id", str(verb_id)
         )
 

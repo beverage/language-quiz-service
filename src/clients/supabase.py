@@ -1,20 +1,20 @@
 """Supabase client configuration."""
 
-from supabase import create_client, Client
+from supabase import acreate_client, Client
 
-from ..core.config import settings
+from src.core.config import settings
 
 
-def get_supabase_client() -> Client:
+async def get_supabase_client() -> Client:
     """Get Supabase client with service role key for backend operations."""
-    return create_client(settings.supabase_url, settings.supabase_service_key)
+    return await acreate_client(settings.supabase_url, settings.supabase_service_key)
 
 
 async def test_supabase_connection() -> bool:
     """Test basic Supabase connectivity."""
     try:
-        client = get_supabase_client()
-        response = client.table("verbs").select("count", count="exact").execute()
+        client = await get_supabase_client()
+        response = await client.table("verbs").select("count", count="exact").execute()
         print(
             f"✅ Supabase connection successful. Verbs table has {response.count} rows."
         )

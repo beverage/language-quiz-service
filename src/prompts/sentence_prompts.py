@@ -1,4 +1,5 @@
-from schemas.sentences import DirectObject, IndirectPronoun, Negation, Sentence
+from src.schemas.sentences import DirectObject, IndirectPronoun, Negation, Sentence
+from src.schemas.verbs import Verb
 
 
 class SentencePromptGenerator:
@@ -16,6 +17,7 @@ You are a French grammar expert.  Construct a sentence in French with the follow
     "sentence": "",
     "translation": "",
     "is_correct": "true or false",
+    "explanation": "",
     "negation": "",
     "direct_object": "none, masculine, feminine, or plural",
     "indirect_pronoun": "none, masculine, feminine, or plural"
@@ -36,25 +38,26 @@ Format:
 - Return the sentence in the language of the sentence properties.
 - Return the translation in the language of the sentence properties.
 - Return the is_correct as a boolean.
+- Return the explanation as a string.  This should be a short explanation of why the sentence is correct or incorrect.
 - Return the negation as a string.
 - Return the direct_object as a string.  Either masculine, feminine, plural, or none.
 - Return the indirect_pronoun as a string.  Either masculine, feminine, plural, or none.
 - Return well-formed JSON.  Do not include any other text or comments.  Do not include trailing commas.
 """
 
-    def __sentence_properties(self, sentence: Sentence) -> str:
+    def __sentence_properties(self, sentence: Sentence, verb: Verb) -> str:
         return f"""The sentence uses {sentence.pronoun.value} as the subject.
 The sentence uses {sentence.tense.value} as the tense.
-The sentence uses {sentence.infinitive} as the verb.
-The sentence uses {sentence.auxiliary} as the auxiliary.
+The sentence uses {verb.infinitive} as the verb.
+The sentence uses {verb.auxiliary} as the auxiliary.
 """
 
-    def __compliment_object_direct(self, sentence: Sentence) -> str:
-        return f"""The sentance must contain a {sentence.direct_object.value} direct object before the verb if the verb {sentence.infinitive} allows it.
+    def __compliment_object_direct(self, sentence: Sentence, verb: Verb) -> str:
+        return f"""The sentance must contain a {sentence.direct_object.value} direct object before the verb if the verb {verb.infinitive} allows it.
     """
 
-    def __compliment_object_indirect(self, sentence: Sentence) -> str:
-        return f"""The sentence must contain an {sentence.indirect_pronoun.value} indirect pronoun before the verb if the verb {sentence.infinitive} allows it.
+    def __compliment_object_indirect(self, sentence: Sentence, verb: Verb) -> str:
+        return f"""The sentence must contain an {sentence.indirect_pronoun.value} indirect pronoun before the verb if the verb {verb.infinitive} allows it.
     """
 
     def __negation(self, sentence):
@@ -78,14 +81,16 @@ gender disagreements, incorrect object agreement, incorrect pronoun agreement, i
         else:
             return """The sentence will be grammatically correct."""
 
-    def generate_sentence_prompt(self, sentence: Sentence) -> str:
-        sentence_properties = [self.__sentence_properties(sentence)]
+    def generate_sentence_prompt(self, sentence: Sentence, verb: Verb) -> str:
+        sentence_properties = [self.__sentence_properties(sentence, verb)]
 
         if sentence.direct_object != DirectObject.NONE:
-            sentence_properties.append(self.__compliment_object_direct(sentence))
+            sentence_properties.append(self.__compliment_object_direct(sentence, verb))
 
         if sentence.indirect_pronoun != IndirectPronoun.NONE:
-            sentence_properties.append(self.__compliment_object_indirect(sentence))
+            sentence_properties.append(
+                self.__compliment_object_indirect(sentence, verb)
+            )
 
         if sentence.negation != Negation.NONE:
             sentence_properties.append(self.__negation(sentence))

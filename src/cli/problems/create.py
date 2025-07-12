@@ -9,10 +9,10 @@ import logging
 import random
 import traceback
 
-from cli.ai.client import AsyncChatGPTClient
-from cli.sentences.create import create_sentence
-from cli.sentences.utils import problem_formatter
-from schemas.sentences import DirectObject, IndirectPronoun, Negation
+from src.cli.ai.client import AsyncChatGPTClient
+from src.cli.sentences.create import create_sentence
+from src.cli.sentences.utils import problem_formatter
+from src.schemas.sentences import DirectObject, IndirectPronoun, Negation
 
 
 async def create_random_problem_with_delay(

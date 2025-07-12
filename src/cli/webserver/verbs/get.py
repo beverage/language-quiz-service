@@ -4,7 +4,7 @@ Webserver verb endpoints - MIGRATED.
 Migrated to use Supabase VerbService instead of SQLAlchemy.
 """
 
-from services.verb_service import VerbService
+from src.services.verb_service import VerbService
 
 
 async def get_verb_and_conjugations(infinitive: str):
