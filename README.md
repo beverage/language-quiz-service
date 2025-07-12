@@ -29,7 +29,7 @@ A postgresql database is then required, however this is already configured in a 
     # From the root directory of the repo:
     docker-compose up
 ```
-Better secrets management for both the OpenAI keys and database passwords will be coming shortly when the effort to cloud host this as an API will be undertaken.
+Better secrets management for both the OpenAI keys and database passwords will be coming shortly when the effort to cloud host this as an an API will be undertaken.
 
 Once running, you will need to pre-populate the database with a minimal verb set before any sentence or problem generation.  To do that, run the following:
 ```
@@ -37,6 +37,16 @@ Once running, you will need to pre-populate the database with a minimal verb set
     lqconsole database init
 ```
 From there the application is ready to start generating problem data from the command line.  See the documentation below.
+
+### Development Setup
+
+To ensure code quality and consistency, this project uses pre-commit Git hooks. These hooks automatically format and lint your code before each commit.
+
+To install the hooks, run the following command from the root of the repository:
+```bash
+make install-githooks
+```
+This will set up the pre-commit hook, which runs `make lint-fix-unsafe` and `make format` on the files you are about to commit.
 
 ## Command Line Usage
 

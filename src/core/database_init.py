@@ -74,7 +74,7 @@ async def init_auxiliaries(with_common_verbs: bool = False):
                     # Import here to avoid circular dependency
                     from cli.ai.client import AsyncChatGPTClient
 
-                    openai_client = AsyncChatGPTClient()
+                    AsyncChatGPTClient()
 
                     # Download verb with AI assistance
                     print(f"🤖 Processing '{verb_infinitive}' with OpenAI...")

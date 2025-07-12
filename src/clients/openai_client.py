@@ -1,5 +1,5 @@
 import openai
-from core.config import settings
+from ..core.config import settings
 
 
 class OpenAIClient:

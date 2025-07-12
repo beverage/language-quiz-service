@@ -1,0 +1,15 @@
+#!/bin/sh
+#
+# Pre-commit hook that runs unsafe linting fixes and formatting.
+
+echo "Running pre-commit hook: Fixing and formatting..."
+
+# Run unsafe linting fixes and formatting from the Makefile
+make lint-fix-unsafe
+make format
+
+# Add any changed files back to the commit
+# This ensures that any auto-fixes are included in the commit.
+git add .
+
+echo "Pre-commit hook finished." 

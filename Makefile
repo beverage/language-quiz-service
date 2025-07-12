@@ -35,8 +35,24 @@ format:
 
 # Testing target
 test:
-	@echo "Running tests with pytest..."
+	@echo "Running all tests..."
 	poetry run pytest
 
+.PHONY: test-unit
+test-unit:
+	@echo "Running unit tests..."
+	poetry run pytest -m unit
+
+.PHONY: test-integration
+test-integration:
+	@echo "Running integration tests..."
+	poetry run pytest -m integration
+
 # Run everything
-all: format lint test 
+all: format lint test
+
+# Git hooks installation
+.PHONY: install-githooks
+install-githooks:
+	@echo "Installing git hooks..."
+	@./scripts/install-githooks.sh 

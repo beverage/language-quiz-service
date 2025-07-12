@@ -12,12 +12,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class AuxiliaryType(str, Enum):
     """Auxiliary verb types for French verbs."""
+
     AVOIR = "avoir"
     ETRE = "être"
 
 
 class VerbClassification(str, Enum):
     """French verb group classifications."""
+
     FIRST_GROUP = "first_group"
     SECOND_GROUP = "second_group"
     THIRD_GROUP = "third_group"
@@ -25,6 +27,7 @@ class VerbClassification(str, Enum):
 
 class Tense(str, Enum):
     """French verb tenses."""
+
     PRESENT = "present"
     PASSE_COMPOSE = "passe_compose"
     IMPARFAIT = "imparfait"
@@ -36,57 +39,60 @@ class Tense(str, Enum):
 
 class VerbBase(BaseModel):
     """Base verb fields for create/update operations."""
+
     infinitive: str = Field(
         ...,
         description="Verb infinitive form",
         json_schema_extra={"example": "parler"},
-        min_length=1
+        min_length=1,
     )
     auxiliary: AuxiliaryType = Field(
         ...,
         description="Auxiliary verb (avoir or être)",
-        json_schema_extra={"example": "avoir"}
+        json_schema_extra={"example": "avoir"},
     )
     reflexive: bool = Field(
         default=False,
         description="Whether the verb is reflexive",
-        json_schema_extra={"example": False}
+        json_schema_extra={"example": False},
     )
     target_language_code: str = Field(
         ...,
         description="ISO 639-3 source language code",
-        json_schema_extra={"example": "eng"}
+        json_schema_extra={"example": "eng"},
     )
     translation: str = Field(
         ...,
         description="English translation of the verb",
         json_schema_extra={"example": "to speak"},
-        min_length=1
+        min_length=1,
     )
     past_participle: str = Field(
         ...,
         description="Past participle form",
         json_schema_extra={"example": "parlé"},
-        min_length=1
+        min_length=1,
     )
     present_participle: str = Field(
         ...,
         description="Present participle form",
         json_schema_extra={"example": "parlant"},
-        min_length=1
+        min_length=1,
     )
     classification: Optional[VerbClassification] = Field(
         None,
         description="French verb group classification",
-        json_schema_extra={"example": "first_group"}
+        json_schema_extra={"example": "first_group"},
     )
     is_irregular: bool = Field(
         default=False,
         description="Whether the verb has irregular conjugations",
-        json_schema_extra={"example": False}
+        json_schema_extra={"example": False},
     )
 
-    @field_validator("infinitive", "translation", "past_participle", "present_participle")
+    @field_validator(
+        "infinitive", "translation", "past_participle", "present_participle"
+    )
     @classmethod
     def text_must_not_be_empty(cls, v: str) -> str:
         if not v or not v.strip():
@@ -114,11 +120,13 @@ class VerbBase(BaseModel):
 
 class VerbCreate(VerbBase):
     """Schema for creating a new verb."""
+
     pass
 
 
 class VerbUpdate(BaseModel):
     """Schema for updating an existing verb."""
+
     infinitive: Optional[str] = Field(None, min_length=1)
     auxiliary: Optional[AuxiliaryType] = None
     reflexive: Optional[bool] = None
@@ -129,7 +137,9 @@ class VerbUpdate(BaseModel):
     classification: Optional[VerbClassification] = None
     is_irregular: Optional[bool] = None
 
-    @field_validator("infinitive", "translation", "past_participle", "present_participle")
+    @field_validator(
+        "infinitive", "translation", "past_participle", "present_participle"
+    )
     @classmethod
     def text_must_not_be_empty(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and (not v or not v.strip()):
@@ -141,7 +151,7 @@ class VerbUpdate(BaseModel):
     def validate_language_code(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        
+
         if not v:
             raise ValueError("Language code cannot be empty")
 
@@ -156,22 +166,18 @@ class VerbUpdate(BaseModel):
 
 class Verb(VerbBase):
     """Complete verb schema with database fields."""
+
     id: UUID = Field(
         ...,
         description="Unique verb identifier",
-        json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"}
+        json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"},
     )
-    created_at: datetime = Field(
-        ...,
-        description="Timestamp when verb was created"
-    )
+    created_at: datetime = Field(..., description="Timestamp when verb was created")
     updated_at: datetime = Field(
-        ...,
-        description="Timestamp when verb was last updated"
+        ..., description="Timestamp when verb was last updated"
     )
     last_used_at: Optional[datetime] = Field(
-        None,
-        description="Timestamp when verb was last used"
+        None, description="Timestamp when verb was last used"
     )
 
     model_config = ConfigDict(
@@ -190,64 +196,63 @@ class Verb(VerbBase):
                 "is_irregular": False,
                 "created_at": "2024-01-15T10:30:00Z",
                 "updated_at": "2024-01-15T10:30:00Z",
-                "last_used_at": None
+                "last_used_at": None,
             }
-        }
+        },
     )
 
 
 class ConjugationBase(BaseModel):
     """Base conjugation fields for create/update operations."""
+
     infinitive: str = Field(
         ...,
         description="Verb infinitive form",
         json_schema_extra={"example": "parler"},
-        min_length=1
+        min_length=1,
     )
     auxiliary: AuxiliaryType = Field(
         ...,
         description="Auxiliary verb (avoir or être)",
-        json_schema_extra={"example": "avoir"}
+        json_schema_extra={"example": "avoir"},
     )
     reflexive: bool = Field(
         default=False,
         description="Whether the verb is reflexive",
-        json_schema_extra={"example": False}
+        json_schema_extra={"example": False},
     )
     tense: Tense = Field(
-        ...,
-        description="Verb tense",
-        json_schema_extra={"example": "present"}
+        ..., description="Verb tense", json_schema_extra={"example": "present"}
     )
     first_person_singular: Optional[str] = Field(
         None,
         description="First person singular form (je)",
-        json_schema_extra={"example": "parle"}
+        json_schema_extra={"example": "parle"},
     )
     second_person_singular: Optional[str] = Field(
         None,
         description="Second person singular form (tu)",
-        json_schema_extra={"example": "parles"}
+        json_schema_extra={"example": "parles"},
     )
     third_person_singular: Optional[str] = Field(
         None,
         description="Third person singular form (il/elle)",
-        json_schema_extra={"example": "parle"}
+        json_schema_extra={"example": "parle"},
     )
     first_person_plural: Optional[str] = Field(
         None,
         description="First person plural form (nous)",
-        json_schema_extra={"example": "parlons"}
+        json_schema_extra={"example": "parlons"},
     )
     second_person_formal: Optional[str] = Field(
         None,
         description="Second person formal/plural form (vous)",
-        json_schema_extra={"example": "parlez"}
+        json_schema_extra={"example": "parlez"},
     )
     third_person_plural: Optional[str] = Field(
         None,
         description="Third person plural form (ils/elles)",
-        json_schema_extra={"example": "parlent"}
+        json_schema_extra={"example": "parlent"},
     )
 
     @field_validator("infinitive")
@@ -260,11 +265,13 @@ class ConjugationBase(BaseModel):
 
 class ConjugationCreate(ConjugationBase):
     """Schema for creating a new conjugation."""
+
     pass
 
 
 class ConjugationUpdate(BaseModel):
     """Schema for updating an existing conjugation."""
+
     infinitive: Optional[str] = Field(None, min_length=1)
     auxiliary: Optional[AuxiliaryType] = None
     reflexive: Optional[bool] = None
@@ -286,18 +293,17 @@ class ConjugationUpdate(BaseModel):
 
 class Conjugation(ConjugationBase):
     """Complete conjugation schema with database fields."""
+
     id: UUID = Field(
         ...,
         description="Unique conjugation identifier",
-        json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174001"}
+        json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174001"},
     )
     created_at: datetime = Field(
-        ...,
-        description="Timestamp when conjugation was created"
+        ..., description="Timestamp when conjugation was created"
     )
     updated_at: datetime = Field(
-        ...,
-        description="Timestamp when conjugation was last updated"
+        ..., description="Timestamp when conjugation was last updated"
     )
 
     model_config = ConfigDict(
@@ -316,17 +322,17 @@ class Conjugation(ConjugationBase):
                 "second_person_formal": "parlez",
                 "third_person_plural": "parlent",
                 "created_at": "2024-01-15T10:30:00Z",
-                "updated_at": "2024-01-15T10:30:00Z"
+                "updated_at": "2024-01-15T10:30:00Z",
             }
-        }
+        },
     )
 
 
 class VerbWithConjugations(Verb):
     """Verb schema with associated conjugations."""
+
     conjugations: list[Conjugation] = Field(
-        default_factory=list,
-        description="All conjugations for this verb"
+        default_factory=list, description="All conjugations for this verb"
     )
 
     model_config = ConfigDict(
@@ -360,9 +366,9 @@ class VerbWithConjugations(Verb):
                         "second_person_formal": "parlez",
                         "third_person_plural": "parlent",
                         "created_at": "2024-01-15T10:30:00Z",
-                        "updated_at": "2024-01-15T10:30:00Z"
+                        "updated_at": "2024-01-15T10:30:00Z",
                     }
-                ]
+                ],
             }
-        }
+        },
     )

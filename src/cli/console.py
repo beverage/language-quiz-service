@@ -175,6 +175,7 @@ async def sentence_get(quantity: int, **kwargs):
     result = await get_random_sentence(quantity, **kwargs)
     print(problem_formatter(result))
 
+
 # Migrated
 @sentence.command("new")
 @click.option("-q", "--quantity", required=False, default=1)
@@ -216,7 +217,6 @@ async def download(verb: str):
     click.echo(f"Downloading verb {verb}.")
     result = await download_verb(verb)
     print(object_as_dict(result))
-
 
 
 # Migrated

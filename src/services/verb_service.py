@@ -5,10 +5,10 @@ import logging
 from typing import List, Optional
 from uuid import UUID
 
-from clients.openai_client import OpenAIClient
-from repositories.verb_repository import VerbRepository
-from prompts.verb_prompts import VerbPromptGenerator
-from schemas.verbs import (
+from src.clients.openai_client import OpenAIClient
+from src.repositories.verb_repository import VerbRepository
+from src.prompts.verb_prompts import VerbPromptGenerator
+from src.schemas.verbs import (
     VerbCreate,
     VerbUpdate,
     Verb,
@@ -47,15 +47,15 @@ class VerbService:
         return await self.verb_repository.get_verb(verb_id)
 
     async def get_verb_by_infinitive(
-        self, 
+        self,
         infinitive: str,
         auxiliary: Optional[str] = None,
         reflexive: Optional[bool] = None,
-        target_language_code: str = "eng"
+        target_language_code: str = "eng",
     ) -> Optional[Verb]:
         """
         Get a verb by infinitive and optional parameters.
-        
+
         Since infinitive is no longer unique, additional parameters may be needed.
         If not specified, returns the first match found.
         """
@@ -63,7 +63,7 @@ class VerbService:
             infinitive=infinitive,
             auxiliary=auxiliary,
             reflexive=reflexive,
-            target_language_code=target_language_code
+            target_language_code=target_language_code,
         )
 
     async def get_verbs_by_infinitive(self, infinitive: str) -> List[Verb]:
@@ -71,17 +71,16 @@ class VerbService:
         return await self.verb_repository.get_verbs_by_infinitive(infinitive)
 
     async def get_all_verbs(
-        self, 
-        limit: int = 100,
-        target_language_code: Optional[str] = None
+        self, limit: int = 100, target_language_code: Optional[str] = None
     ) -> List[Verb]:
         """Get all verbs, optionally filtered by language."""
         return await self.verb_repository.get_all_verbs(
-            limit=limit,
-            target_language_code=target_language_code
+            limit=limit, target_language_code=target_language_code
         )
 
-    async def get_random_verb(self, target_language_code: str = "eng") -> Optional[Verb]:
+    async def get_random_verb(
+        self, target_language_code: str = "eng"
+    ) -> Optional[Verb]:
         """Get a random verb."""
         verb = await self.verb_repository.get_random_verb(target_language_code)
         if verb:
@@ -104,7 +103,7 @@ class VerbService:
         await self.verb_repository.delete_conjugations_by_verb(
             infinitive=verb.infinitive,
             auxiliary=verb.auxiliary.value,
-            reflexive=verb.reflexive
+            reflexive=verb.reflexive,
         )
 
         # Then delete the verb
@@ -113,16 +112,11 @@ class VerbService:
     # ===== CONJUGATION OPERATIONS =====
 
     async def get_conjugations(
-        self,
-        infinitive: str,
-        auxiliary: str,
-        reflexive: bool = False
+        self, infinitive: str, auxiliary: str, reflexive: bool = False
     ) -> List[Conjugation]:
         """Get all conjugations for a verb."""
         return await self.verb_repository.get_conjugations(
-            infinitive=infinitive,
-            auxiliary=auxiliary,
-            reflexive=reflexive
+            infinitive=infinitive, auxiliary=auxiliary, reflexive=reflexive
         )
 
     async def get_conjugations_by_verb_id(self, verb_id: UUID) -> List[Conjugation]:
@@ -130,11 +124,11 @@ class VerbService:
         verb = await self.get_verb(verb_id)
         if not verb:
             return []
-        
+
         return await self.get_conjugations(
             infinitive=verb.infinitive,
             auxiliary=verb.auxiliary.value,
-            reflexive=verb.reflexive
+            reflexive=verb.reflexive,
         )
 
     async def create_conjugation(self, conjugation: ConjugationCreate) -> Conjugation:
@@ -147,7 +141,7 @@ class VerbService:
         auxiliary: str,
         reflexive: bool,
         tense: Tense,
-        conjugation_data: ConjugationUpdate
+        conjugation_data: ConjugationUpdate,
     ) -> Optional[Conjugation]:
         """Update a conjugation by verb parameters and tense."""
         return await self.verb_repository.update_conjugation_by_verb_and_tense(
@@ -155,7 +149,7 @@ class VerbService:
             auxiliary=auxiliary,
             reflexive=reflexive,
             tense=tense,
-            conjugation=conjugation_data
+            conjugation=conjugation_data,
         )
 
     # ===== COMPOSITE OPERATIONS =====
@@ -165,7 +159,7 @@ class VerbService:
         infinitive: str,
         auxiliary: Optional[str] = None,
         reflexive: bool = False,
-        target_language_code: str = "eng"
+        target_language_code: str = "eng",
     ) -> Optional[VerbWithConjugations]:
         """Get a verb with all its conjugations."""
         # If auxiliary not specified, try to find any variant
@@ -176,12 +170,12 @@ class VerbService:
             # Use the first variant found
             verb = verbs[0]
             auxiliary = verb.auxiliary.value
-        
+
         return await self.verb_repository.get_verb_with_conjugations(
             infinitive=infinitive,
             auxiliary=auxiliary,
             reflexive=reflexive,
-            target_language_code=target_language_code
+            target_language_code=target_language_code,
         )
 
     async def search_verbs(
@@ -189,22 +183,24 @@ class VerbService:
         query: str,
         search_translation: bool = True,
         target_language_code: Optional[str] = None,
-        limit: int = 20
+        limit: int = 20,
     ) -> List[Verb]:
         """Search verbs by infinitive or translation."""
         return await self.verb_repository.search_verbs(
             query=query,
             search_translation=search_translation,
             target_language_code=target_language_code,
-            limit=limit
+            limit=limit,
         )
 
     # ===== AI INTEGRATION =====
 
-    async def download_verb(self, requested_verb: str, target_language_code: str = "eng") -> Verb:
+    async def download_verb(
+        self, requested_verb: str, target_language_code: str = "eng"
+    ) -> Verb:
         """
         Download a verb using AI integration.
-        
+
         This method fetches verb data from AI and creates/updates the verb and conjugations.
         """
         logger.info("Fetching verb %s", requested_verb)
@@ -217,7 +213,7 @@ class VerbService:
         # Get AI response
         response = await self.openai_client.handle_request(verb_prompt)
         logger.debug("✅ AI Response: %s", response)
-        
+
         try:
             response_json = json.loads(response)
         except json.JSONDecodeError as e:
@@ -234,9 +230,13 @@ class VerbService:
 
         # Validate required fields
         if not past_participle:
-            raise ValueError(f"AI response missing past_participle for verb: {infinitive}")
+            raise ValueError(
+                f"AI response missing past_participle for verb: {infinitive}"
+            )
         if not present_participle:
-            raise ValueError(f"AI response missing present_participle for verb: {infinitive}")
+            raise ValueError(
+                f"AI response missing present_participle for verb: {infinitive}"
+            )
 
         # Determine classification from AI response or auxiliary
         classification = response_json.get("classification")
@@ -254,20 +254,20 @@ class VerbService:
             infinitive=infinitive,
             auxiliary=auxiliary,
             reflexive=reflexive,
-            target_language_code=target_language_code
+            target_language_code=target_language_code,
         )
 
         if existing_verb:
             logger.info("Verb %s already exists, updating if needed", infinitive)
             verb = existing_verb
-            
+
             # Update verb if needed
             update_data = VerbUpdate(
                 translation=translation,
                 past_participle=past_participle,
                 present_participle=present_participle,
                 classification=VerbClassification(classification),
-                is_irregular=is_irregular
+                is_irregular=is_irregular,
             )
             updated_verb = await self.update_verb(verb.id, update_data)
             if updated_verb:
@@ -284,7 +284,7 @@ class VerbService:
                 past_participle=past_participle,
                 present_participle=present_participle,
                 classification=VerbClassification(classification),
-                is_irregular=is_irregular
+                is_irregular=is_irregular,
             )
             verb = await self.create_verb(verb_data)
 
@@ -294,25 +294,21 @@ class VerbService:
                 response_json["tenses"],
                 infinitive=infinitive,
                 auxiliary=auxiliary,
-                reflexive=reflexive
+                reflexive=reflexive,
             )
 
         # Update last used timestamp
         await self.verb_repository.update_last_used(verb.id)
-        
+
         return verb
 
     async def _process_ai_conjugations(
-        self,
-        ai_tenses: list,
-        infinitive: str,
-        auxiliary: str,
-        reflexive: bool
+        self, ai_tenses: list, infinitive: str, auxiliary: str, reflexive: bool
     ) -> None:
         """Process conjugations from AI response."""
         for tense_data in ai_tenses:
             tense_name = tense_data["tense"]
-            
+
             # Validate tense name
             try:
                 tense = Tense(tense_name)
@@ -341,18 +337,22 @@ class VerbService:
                 infinitive=infinitive,
                 auxiliary=auxiliary,
                 reflexive=reflexive,
-                tense=tense
+                tense=tense,
             )
 
             if existing_conjugation:
                 # Update existing conjugation
-                update_data = ConjugationUpdate(**conjugation_data.model_dump(exclude={'infinitive', 'auxiliary', 'reflexive', 'tense'}))
+                update_data = ConjugationUpdate(
+                    **conjugation_data.model_dump(
+                        exclude={"infinitive", "auxiliary", "reflexive", "tense"}
+                    )
+                )
                 await self.verb_repository.update_conjugation_by_verb_and_tense(
                     infinitive=infinitive,
                     auxiliary=auxiliary,
                     reflexive=reflexive,
                     tense=tense,
-                    conjugation=update_data
+                    conjugation=update_data,
                 )
                 logger.info("Updated conjugation: %s - %s", infinitive, tense_name)
             else:

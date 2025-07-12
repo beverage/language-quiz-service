@@ -3,14 +3,7 @@ name = "language-quiz-service"
 version = "0.0.1"
 description = ""
 authors = [ "Alex Beverage" ]
-packages = [
-  { include = "cli", from = "src" },
-  { include = "services", from = "src" },
-  { include = "schemas", from = "src" },
-  { include = "clients", from = "src" },
-  { include = "core", from = "src" },
-  { include = "repositories", from = "src" }
-]
+packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.13"
@@ -32,6 +25,8 @@ ruff = "^0.12.2"
 [tool.poetry.group.dev.dependencies]
 pylint = "^3.2.3"
 pytest = "^8.2.2"
+pytest-cov = "^5.0.0"
+pytest-asyncio = "^0.23.8"
 
 [tool.poetry.scripts]
 lqs = "cli.console:main"
@@ -41,5 +36,44 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
-log_cli = true
-log_cli_level = "INFO"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-fail-under=80",
+]
+markers = [
+    "unit: Pure unit tests with mocked dependencies - fast execution",
+    "integration: Integration tests with component interactions - mocked external services",
+    "functional: API functional tests that can be run with or without authentication",
+    "acceptance: End-to-end acceptance tests - full workflows",
+    "security: Security-focused tests - authentication, authorization, validation",
+]
+filterwarnings = [
+    # Ignore external dependency warnings we cannot control
+    "ignore:Please use `import python_multipart` instead:PendingDeprecationWarning:starlette.*",
+    "ignore:The 'app' shortcut is now deprecated.*:DeprecationWarning:httpx.*",
+]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+]
