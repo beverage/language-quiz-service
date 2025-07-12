@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from cli.ai.promptable import Promptable
 from cli.utils.prompt_enum import PromptEnum
-from schemas.sentence import DirectObject, IndirectPronoun, Negation
+from schemas.sentences import DirectObject, IndirectPronoun, Negation
 
 
 # How do we enforce the existence of a 'none' on our prompt enums?  We can do that in Python,

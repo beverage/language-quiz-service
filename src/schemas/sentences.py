@@ -1,8 +1,13 @@
 """Sentence-related schemas."""
 
+from datetime import datetime
+from typing import Optional
+from uuid import UUID
 from pydantic import BaseModel
-from enum import StrEnum
-from schemas.verbs import Tense
+from strenum import StrEnum
+
+# Import Tense from verb schemas (reusing existing type)
+from src.schemas.verbs import Tense
 
 
 class Pronoun(StrEnum):
@@ -49,18 +54,20 @@ class Negation(StrEnum):
 
 
 class SentenceBase(BaseModel):
-    """Base sentence schema."""
+    """Base sentence schema with core fields."""
 
-    infinitive: str
-    auxiliary: str
+    target_language_code: str = "en"
+    content: str
+    translation: str
+    verb_id: UUID
     pronoun: Pronoun
     tense: Tense
     direct_object: DirectObject
     indirect_pronoun: IndirectPronoun
     negation: Negation
-    content: str
-    translation: str
     is_correct: bool = True
+    explanation: Optional[str] = None
+    source: Optional[str] = None
 
 
 class SentenceCreate(SentenceBase):
@@ -69,7 +76,29 @@ class SentenceCreate(SentenceBase):
     pass
 
 
-class Sentence(SentenceBase):
-    """Complete sentence schema with ID."""
+class SentenceUpdate(BaseModel):
+    """Schema for updating a sentence."""
 
-    id: int
+    target_language_code: Optional[str] = None
+    content: Optional[str] = None
+    translation: Optional[str] = None
+    verb_id: Optional[UUID] = None
+    pronoun: Optional[Pronoun] = None
+    tense: Optional[Tense] = None
+    direct_object: Optional[DirectObject] = None
+    indirect_pronoun: Optional[IndirectPronoun] = None
+    negation: Optional[Negation] = None
+    is_correct: Optional[bool] = None
+    explanation: Optional[str] = None
+    source: Optional[str] = None
+
+
+class Sentence(SentenceBase):
+    """Complete sentence schema with ID and timestamps."""
+
+    id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True

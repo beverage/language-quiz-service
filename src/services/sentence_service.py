@@ -2,7 +2,7 @@ import logging
 
 from typing import List, Optional
 from repositories.sentence_repository import SentenceRepository
-from schemas.sentence import (
+from schemas.sentences import (
     SentenceCreate,
     Sentence,
     DirectObject,

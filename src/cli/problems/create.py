@@ -12,7 +12,7 @@ import traceback
 from cli.ai.client import AsyncChatGPTClient
 from cli.sentences.create import create_sentence
 from cli.sentences.utils import problem_formatter
-from schemas.sentence import DirectObject, IndirectPronoun, Negation
+from schemas.sentences import DirectObject, IndirectPronoun, Negation
 
 
 async def create_random_problem_with_delay(

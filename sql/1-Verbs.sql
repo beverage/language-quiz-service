@@ -7,7 +7,7 @@
 -- Enum types
 CREATE TYPE auxiliary_type AS ENUM ('avoir', 'être');
 CREATE TYPE verb_classification AS ENUM ('first_group', 'second_group', 'third_group');
-CREATE TYPE tense_type AS ENUM (
+CREATE TYPE tense AS ENUM (
     'present',
     'passe_compose', 
     'imparfait',
@@ -21,7 +21,7 @@ CREATE TYPE tense_type AS ENUM (
 CREATE TABLE verbs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     infinitive TEXT NOT NULL,
-    auxiliary auxiliary_type NOT NULL,
+    auxiliary auxiliary NOT NULL,
     reflexive BOOLEAN NOT NULL DEFAULT FALSE,
     target_language_code TEXT NOT NULL CHECK (target_language_code ~ '^[a-z]{3}$'),
     translation TEXT NOT NULL,
@@ -44,9 +44,9 @@ CREATE TABLE verbs (
 CREATE TABLE conjugations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     infinitive TEXT NOT NULL,
-    auxiliary auxiliary_type NOT NULL,
+    auxiliary auxiliary NOT NULL,
     reflexive BOOLEAN NOT NULL,
-    tense tense_type NOT NULL,
+    tense tense NOT NULL,
     first_person_singular TEXT,
     second_person_singular TEXT,
     third_person_singular TEXT,
@@ -102,7 +102,7 @@ CREATE OR REPLACE FUNCTION get_random_verb_simple(
 RETURNS TABLE (
     id UUID,
     infinitive TEXT,
-    auxiliary auxiliary_type,
+    auxiliary auxiliary,
     reflexive BOOLEAN,
     translation TEXT,
     past_participle TEXT,

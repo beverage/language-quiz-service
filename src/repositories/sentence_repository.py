@@ -4,7 +4,7 @@ import logging
 
 from typing import List, Optional
 from supabase import Client
-from ..schemas.sentence import Sentence, SentenceCreate
+from ..schemas.sentences import Sentence, SentenceCreate
 from ..clients.supabase import get_supabase_client
 
 logger = logging.getLogger(__name__)

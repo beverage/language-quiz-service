@@ -1,7 +1,7 @@
 import json
 
 from cli.utils.console import Answers, Color, Style
-from schemas.sentence import DirectObject, IndirectPronoun, Negation
+from schemas.sentences import DirectObject, IndirectPronoun, Negation
 
 
 def problem_formatter(sentences) -> str:

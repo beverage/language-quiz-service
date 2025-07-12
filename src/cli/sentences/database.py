@@ -5,7 +5,7 @@ Migrated to use Supabase services instead of SQLAlchemy.
 Maintained for backward compatibility.
 """
 
-from schemas.sentence import Pronoun, DirectObject, IndirectPronoun, Negation
+from schemas.sentences import Pronoun, DirectObject, IndirectPronoun, Negation
 from schemas.verbs import Tense
 from services.sentence_service import SentenceService
 
@@ -38,7 +38,7 @@ async def save_sentence(sentence):
     sentence_service = SentenceService()
 
     # Convert old sentence object to SentenceCreate if needed
-    from schemas.sentence import SentenceCreate
+    from schemas.sentences import SentenceCreate
 
     if hasattr(sentence, "__dict__"):
         # Convert from old model format

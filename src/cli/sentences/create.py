@@ -8,7 +8,7 @@ Maintained for backward compatibility.
 import logging
 import random
 
-from schemas.sentence import (
+from schemas.sentences import (
     SentenceCreate,
     Pronoun,
     DirectObject,
