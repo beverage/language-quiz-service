@@ -13,8 +13,8 @@ Tenses must be named exactly as follows:
 - 'imparfait'
 - 'future_simple'
 - 'conditionnel'
-- 'subjunctive'
-- 'imperative'
+- 'subjonctif'
+- 'imperatif'
 
 The JSON structure MUST be as follows. Do not deviate.
 
@@ -28,6 +28,8 @@ The JSON structure MUST be as follows. Do not deviate.
     "present_participle": "The present participle of the verb",
     "classification": "third_group",
     "is_irregular": true,
+    "can_have_cod": "true or false",
+    "can_have_coi": "true or false",
     "tenses": [
         {{
             "infinitive": "{infinitive}",
@@ -58,9 +60,16 @@ The JSON structure MUST be as follows. Do not deviate.
 
 Guidelines:
 - Provide conjugations for all tenses listed above.
+- Do not include the pronoun in the conjugations themselves.
 - The `classification` field MUST be one of 'first_group', 'second_group', or 'third_group'.
 - The `infinitive`, `auxiliary`, and `reflexive` fields MUST be repeated for each object in the `tenses` array.
 - For reflexive verbs (e.g., 'se laver'), set `reflexive` to true, but do not include the pronoun in the conjugations themselves.
+- The `can_have_cod` and `can_have_coi` fields MUST be true or false.
+- Set can_have_cod to true if the verb naturally allows a noun or pronoun to follow it without a preposition (i.e., a direct object). Example: Il mange une pomme → 'une pomme'
+is a COD. Do not set it to true if the object must be introduced by a preposition like à or de (e.g., parler à quelqu’un).
+- If the verb grammatically accepts an indirect object introduced by a preposition (usually à or de), and the object is required or licensed by the verb (not just an optional
+possessive or benefactive), set can_have_coi to true.
+- Do not set can_have_coi to true if the verb merely allows possessor datives, beneficiaries, or adjuncts that are not syntactically required by the verb.
 - Return only well-formed JSON. No extra text, comments, or trailing commas.
 """
 

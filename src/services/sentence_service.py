@@ -187,7 +187,9 @@ class SentenceService:
             else IndirectPronoun.NONE
         )
 
-        sentence_request.negation = Negation(response_json["negation"])
+        sentence_request.negation = Negation(
+            response_json.get("negation", Negation.NONE.value)
+        )
 
         logger.info(
             f"⬅️ Generated: COD: {sentence_request.direct_object.value}, "
@@ -211,7 +213,7 @@ class SentenceService:
 
         pronoun = random.choice(list(Pronoun))
         tense = random.choice(
-            [t for t in Tense if t != Tense.IMPERATIVE]
+            [t for t in Tense if t != Tense.IMPERATIF]
         )  # Avoid imperative for now
         direct_object = random.choice(list(DirectObject))
         indirect_pronoun = random.choice(list(IndirectPronoun))

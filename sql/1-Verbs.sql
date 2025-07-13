@@ -13,8 +13,8 @@ CREATE TYPE tense AS ENUM (
     'imparfait',
     'future_simple',
     'conditionnel',
-    'subjunctive',
-    'imperative'
+    'subjonctif',
+    'imperatif'
 );
 
 -- Verbs table
@@ -29,6 +29,8 @@ CREATE TABLE verbs (
     present_participle TEXT NOT NULL,
     classification verb_classification,
     is_irregular BOOLEAN NOT NULL DEFAULT FALSE,
+    can_have_cod BOOLEAN NOT NULL DEFAULT TRUE,
+    can_have_coi BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_used_at TIMESTAMP WITH TIME ZONE,
@@ -39,6 +41,9 @@ CREATE TABLE verbs (
     CHECK (present_participle != ''),
     UNIQUE(infinitive, auxiliary, reflexive, target_language_code, translation)
 );
+
+COMMENT ON COLUMN verbs.can_have_cod IS 'Whether this verb can take a direct object (COD) - useful for object pronoun problems';
+COMMENT ON COLUMN verbs.can_have_coi IS 'Whether this verb can take an indirect object (COI) - useful for object pronoun problems';
 
 -- Conjugations table
 CREATE TABLE conjugations (
@@ -70,6 +75,7 @@ CREATE INDEX idx_verbs_past_participle ON verbs(past_participle);
 CREATE INDEX idx_verbs_present_participle ON verbs(present_participle);
 CREATE INDEX idx_verbs_infinitive_language ON verbs(infinitive, target_language_code);
 CREATE INDEX idx_verbs_language_translation ON verbs(target_language_code, translation);
+CREATE INDEX idx_verbs_cod_coi_support ON verbs(can_have_cod, can_have_coi) 
 
 CREATE INDEX idx_conjugations_tense ON conjugations(tense);
 CREATE INDEX idx_conjugations_infinitive ON conjugations(infinitive);
@@ -108,6 +114,8 @@ RETURNS TABLE (
     past_participle TEXT,
     present_participle TEXT,
     target_language_code TEXT,
+    can_have_cod BOOLEAN,
+    can_have_coi BOOLEAN,
     created_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ
 ) AS $$
@@ -119,7 +127,7 @@ BEGIN
     rand_offset := floor(random() * tbl_count);
 
     RETURN QUERY
-    SELECT v.id, v.infinitive, v.auxiliary, v.reflexive, v.translation, v.past_participle, v.present_participle, v.target_language_code, v.created_at, v.updated_at
+    SELECT v.id, v.infinitive, v.auxiliary, v.reflexive, v.translation, v.past_participle, v.present_participle, v.target_language_code, v.can_have_cod, v.can_have_coi, v.created_at, v.updated_at
     FROM verbs v
     WHERE v.target_language_code = p_target_language
     OFFSET rand_offset

@@ -33,8 +33,8 @@ class Tense(str, Enum):
     IMPARFAIT = "imparfait"
     FUTURE_SIMPLE = "future_simple"
     CONDITIONNEL = "conditionnel"
-    SUBJUNCTIVE = "subjunctive"
-    IMPERATIVE = "imperative"
+    SUBJONCTIF = "subjonctif"
+    IMPERATIF = "imperatif"
 
 
 class VerbBase(BaseModel):
@@ -89,6 +89,16 @@ class VerbBase(BaseModel):
         description="Whether the verb has irregular conjugations",
         json_schema_extra={"example": False},
     )
+    can_have_cod: bool = Field(
+        default=True,
+        description="Whether the verb can have a direct object",
+        json_schema_extra={"example": True},
+    )
+    can_have_coi: bool = Field(
+        default=True,
+        description="Whether the verb can have an indirect object",
+        json_schema_extra={"example": True},
+    )
 
     @field_validator(
         "infinitive", "translation", "past_participle", "present_participle"
@@ -136,6 +146,8 @@ class VerbUpdate(BaseModel):
     present_participle: Optional[str] = Field(None, min_length=1)
     classification: Optional[VerbClassification] = None
     is_irregular: Optional[bool] = None
+    can_have_cod: Optional[bool] = None
+    can_have_coi: Optional[bool] = None
 
     @field_validator(
         "infinitive", "translation", "past_participle", "present_participle"

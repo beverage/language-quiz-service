@@ -38,6 +38,7 @@ Rules:
 
 Format:
 - Check all elisions are correct.  Examples: 'Je habite' -> 'J'habite', or 'Est-ce que il est là' -> 'Est-ce qu'il est là.'
+- Check all capitalization is correct.
 - Return the translation in {sentence.target_language_code}.
 - Return well-formed JSON.  Do not include any other text or comments.  Do not include trailing commas.
 """
@@ -104,3 +105,28 @@ gender disagreements, incorrect object agreement, incorrect pronoun agreement, i
         return self._get_sentence_prompt(
             sentence, sentence_properties="\n".join(sentence_properties)
         )
+
+    def generate_correctness_prompt(self, sentence: Sentence, verb: Verb) -> str:
+        return f"""
+You are a French grammar expert.  Review the following sentence, and if it is grammatical, idiomatical, and semantical correctness.
+
+{sentence.content}
+
+The sentence must have the following properties:
+- The sentence uses {sentence.pronoun.value} as the subject.
+- The sentence uses {sentence.tense.value} as the tense.
+- The sentence uses {verb.infinitive} as the verb.
+- The sentence uses {verb.auxiliary} as the auxiliary.
+
+Return the return the result as json with the following fields:
+- is_correct: true or false
+- explanation: if the sentence is incorrect, a short explanation of why the sentence is incorrect
+- actual_compliment_object_direct: none, masculine, feminine, or plural
+- actual_compliment_object_indirect: none, masculine, feminine, or plural
+- actual_negation: the actual negation of the object, or none
+- direct_object: the direct object of the sentence
+- indirect_pronoun: the indirect pronoun of the sentence
+
+Format:
+- Return well-formed JSON.  Do not include any other text or comments.  Do not include trailing commas.
+"""

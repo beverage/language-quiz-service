@@ -23,7 +23,7 @@ async def get_random_verb(database_session=None):
     return verb
 
 
-async def download_verb(requested_verb: str, target_language_code: str = "fra") -> None:
+async def download_verb(requested_verb: str, target_language_code: str = "eng") -> None:
     """
     Download a verb and its conjugations from the AI service and store it.
     """

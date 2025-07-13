@@ -265,7 +265,7 @@ class VerbRepository:
         infinitive: str,
         auxiliary: str,
         reflexive: bool = False,
-        target_language_code: str = "fra",
+        target_language_code: str = "eng",
     ) -> Optional[VerbWithConjugations]:
         """Get a verb with all its conjugations."""
         verb = await self.get_verb_by_infinitive(
