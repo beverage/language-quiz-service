@@ -23,10 +23,16 @@ from src.schemas.sentences import (
     IndirectPronoun,
     Negation,
 )
-from unittest.mock import MagicMock, AsyncMock
-from src.repositories.verb_repository import VerbRepository
-from src.repositories.sentence_repository import SentenceRepository
-from src.clients.openai_client import OpenAIClient
+
+
+@pytest.fixture(scope="function", autouse=True)
+def set_test_environment(monkeypatch):
+    """Sets up dummy environment variables for the entire test session."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test_api_key")
+    monkeypatch.setenv("SUPABASE_URL", "http://test.supabase.co")
+    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test_service_key")
+    monkeypatch.setenv("SUPABASE_ANON_KEY", "test_anon_key")
+    monkeypatch.setenv("SUPABASE_PROJECT_REF", "test_project_ref")
 
 
 @pytest.fixture
@@ -144,43 +150,3 @@ def sample_db_sentence(sample_sentence_data: dict) -> Sentence:
         updated_at=datetime.now(timezone.utc),
         **sample_sentence_data,
     )
-
-
-@pytest.fixture
-def mock_verb_repository() -> MagicMock:
-    """Provides a mock VerbRepository for service tests."""
-    mock = MagicMock(spec=VerbRepository)
-    mock.create_verb = AsyncMock()
-    mock.get_verb = AsyncMock()
-    mock.update_verb = AsyncMock()
-    mock.delete_verb = AsyncMock()
-    mock.get_verb_by_infinitive = AsyncMock()
-    mock.get_verbs_by_infinitive = AsyncMock()
-    mock.get_all_verbs = AsyncMock()
-    mock.get_random_verb = AsyncMock()
-    mock.update_last_used = AsyncMock()
-    mock.delete_conjugations_by_verb = AsyncMock()
-    mock.get_verb_with_conjugations = AsyncMock()
-    mock.upsert_verb = AsyncMock()
-    mock.upsert_conjugation = AsyncMock()
-    return mock
-
-
-@pytest.fixture
-def mock_sentence_repository() -> MagicMock:
-    """Provides a mock SentenceRepository for service tests."""
-    mock = MagicMock(spec=SentenceRepository)
-    mock.create_sentence = AsyncMock()
-    mock.get_sentence = AsyncMock()
-    mock.get_sentences = AsyncMock()
-    mock.update_sentence = AsyncMock()
-    mock.delete_sentence = AsyncMock()
-    return mock
-
-
-@pytest.fixture
-def mock_openai_client() -> MagicMock:
-    """Provides a mock OpenAIClient for testing."""
-    mock = MagicMock(spec=OpenAIClient)
-    mock.handle_request = AsyncMock()
-    return mock
