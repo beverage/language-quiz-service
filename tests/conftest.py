@@ -25,14 +25,7 @@ from src.schemas.sentences import (
 )
 
 
-@pytest.fixture(scope="function", autouse=True)
-def set_test_environment(monkeypatch):
-    """Sets up dummy environment variables for the entire test session."""
-    monkeypatch.setenv("OPENAI_API_KEY", "test_api_key")
-    monkeypatch.setenv("SUPABASE_URL", "http://test.supabase.co")
-    monkeypatch.setenv("SUPABASE_SERVICE_ROLE_KEY", "test_service_key")
-    monkeypatch.setenv("SUPABASE_ANON_KEY", "test_anon_key")
-    monkeypatch.setenv("SUPABASE_PROJECT_REF", "test_project_ref")
+# Environment variables are now handled via default values in Settings class
 
 
 @pytest.fixture
