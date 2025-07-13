@@ -20,7 +20,7 @@ from src.schemas.sentences import (
     Pronoun,
     Tense,
     DirectObject,
-    IndirectPronoun,
+    IndirectObject,
     Negation,
 )
 
@@ -122,7 +122,7 @@ def sample_sentence_data(sample_db_verb: Verb) -> dict:
         "pronoun": Pronoun.FIRST_PERSON,
         "tense": Tense.PRESENT,
         "direct_object": DirectObject.NONE,
-        "indirect_pronoun": IndirectPronoun.NONE,
+        "indirect_object": IndirectObject.NONE,
         "negation": Negation.NONE,
         "is_correct": True,
     }

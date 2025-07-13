@@ -30,8 +30,8 @@ class DirectObject(StrEnum):
     PLURAL = "plural"
 
 
-class IndirectPronoun(StrEnum):
-    """Indirect pronoun types."""
+class IndirectObject(StrEnum):
+    """Indirect object types."""
 
     NONE = "none"
     MASCULINE = "masculine"
@@ -63,7 +63,7 @@ class SentenceBase(BaseModel):
     pronoun: Pronoun
     tense: Tense
     direct_object: DirectObject
-    indirect_pronoun: IndirectPronoun
+    indirect_object: IndirectObject
     negation: Negation
     is_correct: bool = True
     explanation: Optional[str] = None
@@ -104,7 +104,7 @@ class SentenceUpdate(BaseModel):
     pronoun: Optional[Pronoun] = None
     tense: Optional[Tense] = None
     direct_object: Optional[DirectObject] = None
-    indirect_pronoun: Optional[IndirectPronoun] = None
+    indirect_object: Optional[IndirectObject] = None
     negation: Optional[Negation] = None
     is_correct: Optional[bool] = None
     explanation: Optional[str] = None

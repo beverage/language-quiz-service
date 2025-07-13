@@ -2,7 +2,7 @@
 
 import pytest
 from src.prompts.sentence_prompts import SentencePromptGenerator
-from src.schemas.sentences import Sentence, DirectObject, IndirectPronoun, Negation
+from src.schemas.sentences import Sentence, DirectObject, IndirectObject, Negation
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -19,7 +19,7 @@ def mock_sentence():
     sentence = MagicMock(spec=Sentence)
     sentence.is_correct = True
     sentence.direct_object = DirectObject.NONE
-    sentence.indirect_pronoun = IndirectPronoun.NONE
+    sentence.indirect_object = IndirectObject.NONE
     sentence.negation = Negation.NONE
     sentence.target_language_code = "eng"  # Add the missing attribute
     return sentence
@@ -47,7 +47,7 @@ async def test_correctness_prompt(
 
     # Test for incorrect sentence with indirect pronoun
     mock_sentence.direct_object = DirectObject.NONE
-    mock_sentence.indirect_pronoun = IndirectPronoun.PLURAL
+    mock_sentence.indirect_object = IndirectObject.PLURAL
     result = prompt_generator._SentencePromptGenerator__correctness(mock_sentence)
     assert "indirect pronoun should be incorrect" in result
 
@@ -101,8 +101,8 @@ async def test_generate_sentence_prompt_logic(
     mock_sentence.direct_object = (
         DirectObject.MASCULINE if has_cod else DirectObject.NONE
     )
-    mock_sentence.indirect_pronoun = (
-        IndirectPronoun.PLURAL if has_coi else IndirectPronoun.NONE
+    mock_sentence.indirect_object = (
+        IndirectObject.PLURAL if has_coi else IndirectObject.NONE
     )
     mock_sentence.negation = Negation.PAS if has_negation else Negation.NONE
     mock_sentence.is_correct = is_correct

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from src.cli.ai.promptable import Promptable
 from src.cli.utils.prompt_enum import PromptEnum
-from src.schemas.sentences import DirectObject, IndirectPronoun, Negation
+from src.schemas.sentences import DirectObject, IndirectObject, Negation
 
 
 # How do we enforce the existence of a 'none' on our prompt enums?  We can do that in Python,
@@ -53,10 +53,10 @@ class DirectObjectFeature(SentenceFeature):
             return f"The sentence must have an incorrect {self.feature.prompt} direct object before its verb."
 
 
-class IndirectPronounFeature(SentenceFeature):
+class IndirectObjectFeature(SentenceFeature):
     def __init__(
         self,
-        feature: PromptEnum = IndirectPronoun.NONE,
+        feature: PromptEnum = IndirectObject.NONE,
         incorrect: bool = False,
         is_random: bool = False,
     ):
@@ -99,7 +99,7 @@ class SentenceFeatures:
 @dataclass
 class SentenceFeaturesOld:
     direct_object: bool = False
-    indirect_pronoun: bool = False
+    indirect_object: bool = False
     reflexive: bool = (
         False  #   Not used yet - all verbs are explicitly reflexive or not.
     )
@@ -109,18 +109,18 @@ class SentenceFeaturesOld:
         sentence.direct_object = random.choice(
             [p for p in DirectObject if p is not DirectObject.NONE]
         )
-        sentence.indirect_pronoun = random.choice(
+        sentence.indirect_object = random.choice(
             [
                 p
-                for p in IndirectPronoun
-                if p is not IndirectPronoun.NONE
+                for p in IndirectObject
+                if p is not IndirectObject.NONE
                 and p.name is not sentence.direct_object.name
             ]
         )
         sentence.negation = random.choice(list(Negation))
 
         logging.debug(sentence.direct_object)
-        logging.debug(sentence.indirect_pronoun)
+        logging.debug(sentence.indirect_object)
         logging.debug(sentence.negation)
 
         return sentence

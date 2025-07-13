@@ -8,7 +8,7 @@ def sentence_options(f):
         "-cod", "--direct-object", type=str, required=False, default="none"
     )
     @asyncclick.option(
-        "-coi", "--indirect-pronoun", type=str, required=False, default="none"
+        "-coi", "--indirect-object", type=str, required=False, default="none"
     )
     @asyncclick.option("-neg", "--negation", type=str, required=False, default="none")
     @asyncclick.option("-c", "--is-correct", type=bool, required=False, default=True)

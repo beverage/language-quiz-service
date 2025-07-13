@@ -1,10 +1,10 @@
-from schemas.sentences import DirectObject, IndirectPronoun, Negation
+from schemas.sentences import Sentence, DirectObject, IndirectObject, Negation
 
 
 class SentencePromptGenerator:
     # pylint: disable=too-few-public-methods, line-too-long
 
-    def __complement_object_direct(self, sentence):
+    def __complement_object_direct(self, sentence: Sentence) -> str:
         if sentence.direct_object != DirectObject.NONE:
             return """
 The sentence must return a COD (direct object) of gender {sentence.direct_object} if it is possible to do with the verb {sentence.infinitive}.
@@ -14,15 +14,15 @@ The sentence must return a COD (direct object) of gender {sentence.direct_object
 The sentence must not contain a COD (direct object) unless the verb {sentence.infinitive} requires it.
 """
 
-    def __complement_pronoun_indirect(self, sentence):
-        if sentence.indirect_pronoun != IndirectPronoun.NONE:
+    def __complement_pronoun_indirect(self, sentence: Sentence) -> str:
+        if sentence.indirect_object != IndirectObject.NONE:
             return """
-The sentence must return a COI (indirect pronoun) of gender {sentence.indirect_pronoun} with the verb {sentence.infinitive} 
+The sentence must return a COI (indirect pronoun) of gender {sentence.indirect_object} with the verb {sentence.infinitive} 
 if possible to do with the verb {sentence.infinitive}.
 """
         else:
             return """
-The sentence must not contain a COI (indirect pronoun) unless the verb {sentence.infinitive} requires it.
+The sentence must not contain a COI (indirect object) unless the verb {sentence.infinitive} requires it.
 """
 
     def __pronoun_ordering(self):
@@ -31,7 +31,7 @@ If the sentence has a COD (direct object) and a COI (indirect pronoun), put them
 Switch them if necessary.
 """
 
-    def __negatedness(self, sentence):
+    def __negatedness(self, sentence: Sentence) -> str:
         if sentence.negation != Negation.NONE:
             return "  ".join(
                 [
@@ -42,7 +42,7 @@ Switch them if necessary.
         else:
             return "The sentence must not contain a negation."
 
-    def __verb_properties(self, sentence):
+    def __verb_properties(self, sentence: Sentence) -> str:
         return """
 The sentence has the verb infinitive {sentence.infinitive} in the {sentence.tense.value} tense, and may start 
 with a {sentence.pronoun.value} subject pronoun.
@@ -58,20 +58,20 @@ If the verb requires additional objects or infinitives afterwards, add some.  Th
 All prepositions match their indirect, or subordinate pronouns.
 """
 
-    def __sentence_correctness(self, sentence):
+    def __sentence_correctness(self, sentence: Sentence) -> str:
         if sentence.is_correct is False:
             if (
                 sentence.direct_object is DirectObject.NONE
-                and sentence.indirect_pronoun is IndirectPronoun.NONE
+                and sentence.indirect_object is IndirectObject.NONE
                 and sentence.negation is Negation.NONE
             ):
                 return "The sentence must contain an error in its pronoun or verb conjugation."
             else:
-                return "The sentence must contain an error in any of its direct objects, indirect pronouns, negations, or prepositions, ordering."
+                return "The sentence must contain an error in any of its direct objects, indirect objects, negations, or prepositions, ordering."
         else:
             return "The sentence should be correctly formed."
 
-    def __translation(self, sentence):
+    def __translation(self, sentence: Sentence) -> str:
         if sentence.is_correct:
             return "The response should include an English translation."
         else:
@@ -98,11 +98,11 @@ Otherwise set it to 'False'."""
         "is_correct": "",
         "negation": "",
         "direct_object": "",
-        "indirect_pronoun": ""
+        "indirect_object": ""
     }
     """
 
-    def __set_negation_field(self, sentence):
+    def __set_negation_field(self, sentence: Sentence) -> str:
         return "If the sentence contains a negation, set the 'negation' field in the response to that negation, without any 'ne', or 'n'' prefix.  If the negation is two words, use only the first word.  If the sentence is not negated, or 'False' is returned, set it to 'none'"
 
     def __set_object_type_field(self, object_type, object_name):
@@ -115,7 +115,7 @@ Otherwise set it to 'False'."""
         # TODO: we should not have an oddly specific rule around the word 'random'.  This is a hack to get around poor enum handling for now.
         return "The JSON must be properly formatted, with all properties and values in double quotes.  The sentence must not include the word 'random'."
 
-    def generate_sentence_prompt(self, sentence) -> str:
+    def generate_sentence_prompt(self, sentence: Sentence) -> str:
         return "\n".join(
             [
                 self.__complement_object_direct(sentence),
@@ -131,7 +131,7 @@ Otherwise set it to 'False'."""
                 self.__json_format(),
                 self.__set_negation_field(sentence),
                 self.__set_object_type_field("COD", "direct_object"),
-                self.__set_object_type_field("COI", "indirect_pronoun"),
+                self.__set_object_type_field("COI", "indirect_object"),
                 self.__correct_elisions(),
                 self.__extra_rules(),
             ]

@@ -2,7 +2,7 @@ import json
 
 
 from src.cli.utils.console import Answers, Color, Style
-from src.schemas.sentences import DirectObject, IndirectPronoun, Negation
+from src.schemas.sentences import DirectObject, IndirectObject, Negation
 
 
 def problem_formatter(sentences) -> str:
@@ -13,7 +13,7 @@ def problem_formatter(sentences) -> str:
             [
                 Answers.CORRECT if sentence.is_correct is True else Answers.INCORRECT,
                 f"{Color.LIGHT_GRAY}{'COD' if sentence.direct_object != DirectObject.NONE.value else '---'}{Style.RESET}",
-                f"{Color.LIGHT_GRAY}{'COI' if sentence.indirect_pronoun != IndirectPronoun.NONE.value else '---'}{Style.RESET}",
+                f"{Color.LIGHT_GRAY}{'COI' if sentence.indirect_object != IndirectObject.NONE.value else '---'}{Style.RESET}",
                 f"{Color.LIGHT_GRAY}{'NEG' if sentence.negation != Negation.NONE.value else '---'}{Style.RESET}",
                 sentence.content,
                 f"{Color.BRIGHT_BLUE}({sentence.translation}){Style.RESET}"

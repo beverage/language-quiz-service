@@ -24,8 +24,8 @@ CREATE TYPE direct_object AS ENUM (
     'plural'
 );
 
--- Indirect pronouns  
-CREATE TYPE indirect_pronoun AS ENUM (
+-- Indirect objects
+CREATE TYPE indirect_object AS ENUM (
     'none', 
     'masculine', 
     'feminine', 
@@ -87,7 +87,7 @@ CREATE TABLE sentences (
     pronoun                 pronoun NOT NULL,
     tense                   tense NOT NULL,
     direct_object           direct_object NOT NULL,
-    indirect_pronoun        indirect_pronoun NOT NULL, 
+    indirect_object         indirect_object NOT NULL, 
     negation                negation NOT NULL,
     
     -- Correctness tracking (simplified - detailed problem analysis at service level)
@@ -146,30 +146,3 @@ COMMENT ON COLUMN sentences.translation IS 'Translation in the target language (
 COMMENT ON COLUMN sentences.is_correct IS 'Basic correctness flag - detailed problem analysis in separate problem/quiz system';
 COMMENT ON COLUMN sentences.explanation IS 'Natural language explanation for incorrect sentences (from LLM)';
 COMMENT ON COLUMN sentences.source IS 'Origin of the sentence (ai_generated, manual, imported, etc.)';
-
--- Migration note: You'll need to migrate data from old sentences table:
-/*
-INSERT INTO sentences (
-    verb_id, content, translation, pronoun, tense, direct_object, 
-    indirect_pronoun, negation, is_correct, target_language_code, 
-    source
-)
-SELECT 
-    v.id as verb_id,
-    s.content,
-    s.translation, 
-    s.pronoun,
-    s.tense,
-    s.direct_object,
-    s.indirect_pronoun,
-    s.negation,
-    s.is_correct,
-    'eng' as target_language_code,    -- English translations (user's language) 
-    'migrated' as source
-FROM sentences_old s  -- Rename old table first
-JOIN verbs v ON v.infinitive = s.infinitive AND v.auxiliary = s.auxiliary;
-*/
-
--- TODO: Update verbs table to match this semantic convention:
--- Ensure verbs.target_language_code represents the user's language for verb translations
--- (should be consistent with phrases.target_language_code)

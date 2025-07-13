@@ -16,7 +16,7 @@ from src.schemas.sentences import (
     Pronoun,
     Tense,
     DirectObject,
-    IndirectPronoun,
+    IndirectObject,
     Negation,
 )
 from src.services.verb_service import VerbService
@@ -79,7 +79,7 @@ class SentenceService:
             [t for t in Tense if t != Tense.IMPERATIF]
         )  # Avoid imperative for now
         direct_object = random.choice(list(DirectObject))
-        indirect_pronoun = random.choice(list(IndirectPronoun))
+        indirect_object = random.choice(list(IndirectObject))
 
         # 70% chance of no negation, 30% chance of random negation
         if random.randint(1, 10) <= 7:
@@ -92,7 +92,7 @@ class SentenceService:
             pronoun=pronoun,
             tense=tense,
             direct_object=direct_object,
-            indirect_pronoun=indirect_pronoun,
+            indirect_object=indirect_object,
             negation=negation,
             is_correct=is_correct,
             target_language_code=target_language_code,
@@ -104,7 +104,7 @@ class SentenceService:
         pronoun: Pronoun = Pronoun.FIRST_PERSON,
         tense: Tense = Tense.PRESENT,
         direct_object: DirectObject = DirectObject.NONE,
-        indirect_pronoun: IndirectPronoun = IndirectPronoun.NONE,
+        indirect_object: IndirectObject = IndirectObject.NONE,
         negation: Negation = Negation.NONE,
         is_correct: bool = True,
         target_language_code: str = "eng",
@@ -119,7 +119,7 @@ class SentenceService:
 
         logger.info(
             f"➡️ Generating: {verb.infinitive}, {pronoun.value}, {tense.value}, "
-            f"COD: {direct_object.value}, COI: {indirect_pronoun.value}, NEG: {negation.value}"
+            f"COD: {direct_object.value}, COI: {indirect_object.value}, NEG: {negation.value}"
         )
 
         # Create the sentence structure for AI prompt
@@ -131,7 +131,7 @@ class SentenceService:
             pronoun=pronoun,
             tense=tense,
             direct_object=direct_object,
-            indirect_pronoun=indirect_pronoun,
+            indirect_object=indirect_object,
             negation=negation,
             is_correct=is_correct,
             explanation=None,  # Will be filled by AI if incorrect
@@ -163,10 +163,10 @@ class SentenceService:
             else DirectObject.NONE
         )
 
-        sentence_request.indirect_pronoun = (
-            IndirectPronoun(response_json["indirect_pronoun"])
+        sentence_request.indirect_object = (
+            IndirectObject(response_json["indirect_object"])
             if response_json.get("has_compliment_object_indirect")
-            else IndirectPronoun.NONE
+            else IndirectObject.NONE
         )
 
         sentence_request.negation = Negation(
@@ -175,7 +175,7 @@ class SentenceService:
 
         logger.info(
             f"⬅️ Generated: COD: {sentence_request.direct_object.value}, "
-            f"COI: {sentence_request.indirect_pronoun.value}, NEG: {sentence_request.negation.value}"
+            f"COI: {sentence_request.indirect_object.value}, NEG: {sentence_request.negation.value}"
         )
 
         # Persist to repository

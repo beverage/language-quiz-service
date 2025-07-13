@@ -12,7 +12,7 @@ import traceback
 from src.cli.ai.client import AsyncChatGPTClient
 from src.cli.sentences.create import create_sentence
 from src.cli.sentences.utils import problem_formatter
-from src.schemas.sentences import DirectObject, IndirectPronoun, Negation
+from src.schemas.sentences import DirectObject, IndirectObject, Negation
 
 
 async def create_random_problem_with_delay(
@@ -42,7 +42,7 @@ async def create_random_problem(
                 "",
                 "",  # Verb, pronoun, and tense remain fully random for now.
                 direct_object=DirectObject.NONE,  # Use correct enum values
-                indirect_pronoun=IndirectPronoun.NONE,
+                indirect_object=IndirectObject.NONE,
                 negation=Negation.NONE
                 if random.randint(0, 2) == 0
                 else random.choice([n for n in Negation if n != Negation.NONE]),

@@ -1,4 +1,4 @@
-from src.schemas.sentences import DirectObject, IndirectPronoun, Negation, Sentence
+from src.schemas.sentences import DirectObject, IndirectObject, Negation, Sentence
 from src.schemas.verbs import Verb
 
 
@@ -21,7 +21,7 @@ You are a French grammar expert.  Construct a sentence in French with the follow
     "explanation": "",
     "negation": {sentence.negation.value},
     "direct_object": {sentence.direct_object.value},
-    "indirect_pronoun": {sentence.indirect_pronoun.value}
+    "indirect_object": {sentence.indirect_object.value}
     "has_compliment_object_direct": "",
     "has_compliment_object_indirect": "",
 }}
@@ -59,7 +59,7 @@ replaces the actual direct object.
 
     def __compliment_object_indirect(self, sentence: Sentence, verb: Verb) -> str:
         return f"""
-The sentence must contain an {sentence.indirect_pronoun.value} compliment indirect object before the verb if the verb {verb.infinitive} allows it.
+The sentence must contain an {sentence.indirect_object.value} compliment indirect object before the verb if the verb {verb.infinitive} allows it.
 A compliment indirect object is an indirect object that is not the actual indirect object, comes before the verb, and is either lui, la, or leur.  It
 replaces the actual indirect object.
     """
@@ -78,7 +78,7 @@ gender disagreements, incorrect object agreement, incorrect pronoun agreement, i
             if sentence.direct_object != DirectObject.NONE:
                 prompt.append("The complement object should be incorrect.")
 
-            if sentence.indirect_pronoun != IndirectPronoun.NONE:
+            if sentence.indirect_object != IndirectObject.NONE:
                 prompt.append("The indirect pronoun should be incorrect.")
 
             return "\n".join(prompt)
@@ -91,7 +91,7 @@ gender disagreements, incorrect object agreement, incorrect pronoun agreement, i
         if sentence.direct_object != DirectObject.NONE:
             sentence_properties.append(self.__compliment_object_direct(sentence, verb))
 
-        if sentence.indirect_pronoun != IndirectPronoun.NONE:
+        if sentence.indirect_object != IndirectObject.NONE:
             sentence_properties.append(
                 self.__compliment_object_indirect(sentence, verb)
             )
@@ -125,7 +125,7 @@ Return the return the result as json with the following fields:
 - actual_compliment_object_indirect: none, masculine, feminine, or plural
 - actual_negation: the actual negation of the object, or none
 - direct_object: the direct object of the sentence
-- indirect_pronoun: the indirect pronoun of the sentence
+- indirect_object: the indirect object of the sentence
 
 Format:
 - Return well-formed JSON.  Do not include any other text or comments.  Do not include trailing commas.

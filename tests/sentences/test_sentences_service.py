@@ -8,7 +8,7 @@ from src.repositories.sentence_repository import SentenceRepository
 from src.services.sentence_service import SentenceService
 from src.schemas.sentences import (
     DirectObject,
-    IndirectPronoun,
+    IndirectObject,
     Negation,
     Pronoun,
     Sentence,
@@ -201,7 +201,7 @@ class TestSentenceService:
             "translation": "He never told it to them.",
             "is_correct": "true",  # Test string boolean
             "direct_object": "masculine",
-            "indirect_pronoun": "plural",
+            "indirect_object": "plural",
             "negation": "jamais",
             "has_compliment_object_direct": True,
             "has_compliment_object_indirect": True,
@@ -218,31 +218,31 @@ class TestSentenceService:
         assert isinstance(call_args, SentenceCreate)
         assert call_args.is_correct is True
         assert call_args.direct_object == DirectObject.MASCULINE
-        assert call_args.indirect_pronoun == IndirectPronoun.PLURAL
+        assert call_args.indirect_object == IndirectObject.PLURAL
         assert call_args.negation == Negation.JAMAIS
 
     @pytest.mark.parametrize(
-        "pronoun, tense, direct_object, indirect_pronoun, negation",
+        "pronoun, tense, direct_object, indirect_object, negation",
         [
             (
                 Pronoun.FIRST_PERSON,
                 Tense.PRESENT,
                 DirectObject.NONE,
-                IndirectPronoun.NONE,
+                IndirectObject.NONE,
                 Negation.NONE,
             ),
             (
                 Pronoun.SECOND_PERSON_PLURAL,
                 Tense.FUTURE_SIMPLE,
                 DirectObject.MASCULINE,
-                IndirectPronoun.NONE,
+                IndirectObject.NONE,
                 Negation.PAS,
             ),
             (
                 Pronoun.THIRD_PERSON,
                 Tense.PASSE_COMPOSE,
                 DirectObject.FEMININE,
-                IndirectPronoun.PLURAL,
+                IndirectObject.PLURAL,
                 Negation.JAMAIS,
             ),
         ],
@@ -258,7 +258,7 @@ class TestSentenceService:
         pronoun: Pronoun,
         tense: Tense,
         direct_object: DirectObject,
-        indirect_pronoun: IndirectPronoun,
+        indirect_object: IndirectObject,
         negation: Negation,
     ):
         """Test generating a sentence with different parameters."""
@@ -279,7 +279,7 @@ class TestSentenceService:
             pronoun=pronoun,
             tense=tense,
             direct_object=direct_object,
-            indirect_pronoun=indirect_pronoun,
+            indirect_object=indirect_object,
             negation=negation,
         )
 
@@ -363,7 +363,7 @@ class TestSentenceService:
                 Pronoun.FIRST_PERSON,
                 Tense.PRESENT,
                 DirectObject.NONE,
-                IndirectPronoun.NONE,
+                IndirectObject.NONE,
                 Negation.PAS,  # The chosen negation
             ]
 
@@ -399,7 +399,7 @@ class TestSentenceService:
                 Pronoun.FIRST_PERSON,
                 Tense.PRESENT,
                 DirectObject.NONE,
-                IndirectPronoun.NONE,
+                IndirectObject.NONE,
             ]
 
             await sentence_service.generate_random_sentence()

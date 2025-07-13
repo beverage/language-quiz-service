@@ -12,7 +12,7 @@ from src.schemas.sentences import (
     Pronoun,
     Tense,
     DirectObject,
-    IndirectPronoun,
+    IndirectObject,
     Negation,
 )
 from src.services.verb_service import VerbService
@@ -25,7 +25,7 @@ async def create_sentence(
     pronoun: Pronoun = Pronoun.FIRST_PERSON,
     tense: Tense = Tense.PRESENT,
     direct_object: DirectObject = DirectObject.NONE,
-    indirect_pronoun: IndirectPronoun = IndirectPronoun.NONE,
+    indirect_object: IndirectObject = IndirectObject.NONE,
     negation: Negation = Negation.NONE,
     is_correct: bool = True,
 ):
@@ -49,7 +49,7 @@ async def create_sentence(
         pronoun=Pronoun(pronoun),
         tense=Tense(tense),
         direct_object=DirectObject(direct_object),
-        indirect_pronoun=IndirectPronoun(indirect_pronoun),
+        indirect_object=IndirectObject(indirect_object),
         negation=Negation(negation),
         is_correct=is_correct,
     )
