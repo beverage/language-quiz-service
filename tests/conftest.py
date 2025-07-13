@@ -122,7 +122,7 @@ def sample_db_conjugation(sample_conjugation_create: ConjugationCreate) -> Conju
 def sample_sentence_data(sample_db_verb: Verb) -> dict:
     """Provides a dictionary of valid sentence data for testing."""
     return {
-        "target_language_code": "en",
+        "target_language_code": "eng",
         "content": "Je parle.",
         "translation": "I am speaking.",
         "verb_id": sample_db_verb.id,

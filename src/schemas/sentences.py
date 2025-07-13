@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 from uuid import UUID
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from strenum import StrEnum
 
 # Import Tense from verb schemas (reusing existing type)
@@ -56,7 +56,7 @@ class Negation(StrEnum):
 class SentenceBase(BaseModel):
     """Base sentence schema with core fields."""
 
-    target_language_code: str = "en"
+    target_language_code: str = "eng"
     content: str
     translation: str
     verb_id: UUID
@@ -68,6 +68,24 @@ class SentenceBase(BaseModel):
     is_correct: bool = True
     explanation: Optional[str] = None
     source: Optional[str] = None
+
+    @field_validator("target_language_code")
+    @classmethod
+    def validate_language_code(cls, v: str) -> str:
+        """Validate language code format: 3 chars (ISO 639-3)"""
+        if not v:
+            raise ValueError("Language code cannot be empty")
+
+        # Convert to lowercase for consistency
+        v = v.lower()
+
+        # Check for standard ISO 639-3 format (3 characters)
+        if len(v) == 3 and v.isalpha():
+            return v
+
+        raise ValueError(
+            "Language code must be 3 characters (ISO 639-3 format, e.g., 'eng')"
+        )
 
 
 class SentenceCreate(SentenceBase):
@@ -91,6 +109,23 @@ class SentenceUpdate(BaseModel):
     is_correct: Optional[bool] = None
     explanation: Optional[str] = None
     source: Optional[str] = None
+
+    @field_validator("target_language_code")
+    @classmethod
+    def validate_language_code(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+
+        if not v:
+            raise ValueError("Language code cannot be empty")
+
+        v = v.lower()
+        if len(v) == 3 and v.isalpha():
+            return v
+
+        raise ValueError(
+            "Language code must be 3 characters (ISO 639-3 format, e.g., 'eng')"
+        )
 
 
 class Sentence(SentenceBase):

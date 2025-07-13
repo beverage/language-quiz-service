@@ -76,7 +76,7 @@ CREATE TABLE sentences (
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     
     -- Language and content
-    target_language_code    CHAR(2) NOT NULL DEFAULT 'en',  -- User's native language (English, Spanish, etc.)
+    target_language_code    CHAR(3) NOT NULL DEFAULT 'eng', 
     content                 TEXT NOT NULL,                   -- French phrase
     translation             TEXT NOT NULL,                   -- Translation in user's language
     
@@ -164,7 +164,7 @@ SELECT
     s.indirect_pronoun,
     s.negation,
     s.is_correct,
-    'en' as target_language_code,    -- English translations (user's language) 
+    'eng' as target_language_code,    -- English translations (user's language) 
     'migrated' as source
 FROM sentences_old s  -- Rename old table first
 JOIN verbs v ON v.infinitive = s.infinitive AND v.auxiliary = s.auxiliary;

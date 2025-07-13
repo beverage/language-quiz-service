@@ -125,7 +125,7 @@ class SentenceService:
         indirect_pronoun: IndirectPronoun = IndirectPronoun.NONE,
         negation: Negation = Negation.NONE,
         is_correct: bool = True,
-        target_language_code: str = "en",
+        target_language_code: str = "eng",
     ) -> Sentence:
         """Generate a sentence using AI integration."""
         logger.info(f"Generating sentence for verb_id {verb_id}")
@@ -199,7 +199,7 @@ class SentenceService:
         return await repo.create_sentence(sentence_request)
 
     async def generate_random_sentence(
-        self, is_correct: bool = True, target_language_code: str = "en"
+        self, is_correct: bool = True, target_language_code: str = "eng"
     ) -> Sentence:
         """Generate a random sentence using a random verb."""
         # Get a random verb
