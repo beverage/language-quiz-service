@@ -136,3 +136,17 @@ class Sentence(SentenceBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CorrectnessValidationResponse(BaseModel):
+    """Response schema for sentence correctness validation."""
+
+    is_valid: bool
+    explanation: Optional[str] = None
+    actual_direct_object: DirectObject
+    actual_indirect_object: IndirectObject
+    actual_negation: Negation
+    direct_object_text: Optional[str] = None
+    indirect_object_text: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)

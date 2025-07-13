@@ -52,7 +52,7 @@ CREATE TYPE negation AS ENUM (
 -- NOTE: This will likely be moved to a separate problem/quiz system
 -- that references sentences via JSON structure
 /*
-CREATE TYPE phrase_problem_type AS ENUM (
+CREATE TYPE sentence_problem_type AS ENUM (
     'none',                    -- Correct phrase
     'conjugation',             -- Wrong verb conjugation  
     'pronoun_agreement',       -- Wrong pronoun agreement

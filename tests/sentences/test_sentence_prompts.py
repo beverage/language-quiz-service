@@ -1,143 +1,213 @@
-"""Unit tests for the SentencePromptGenerator."""
+"""Tests for sentence prompt generation functionality."""
 
 import pytest
-from src.prompts.sentence_prompts import SentencePromptGenerator
-from src.schemas.sentences import Sentence, DirectObject, IndirectObject, Negation
 from unittest.mock import MagicMock
-from unittest.mock import patch
+from src.prompts.sentence_prompts import SentencePromptGenerator
+from src.schemas.sentences import (
+    SentenceBase,
+    DirectObject,
+    IndirectObject,
+    Negation,
+    Pronoun,
+    Tense,
+)
+from src.schemas.verbs import Verb, AuxiliaryType, VerbClassification
+from uuid import UUID
 
 
 @pytest.fixture
 def prompt_generator():
-    """Fixture for the SentencePromptGenerator."""
+    """Fixture for SentencePromptGenerator."""
     return SentencePromptGenerator()
 
 
 @pytest.fixture
-def mock_sentence():
-    """Fixture for a mock Sentence object."""
-    sentence = MagicMock(spec=Sentence)
-    sentence.is_correct = True
-    sentence.direct_object = DirectObject.NONE
-    sentence.indirect_object = IndirectObject.NONE
-    sentence.negation = Negation.NONE
-    sentence.target_language_code = "eng"  # Add the missing attribute
-    return sentence
-
-
-@pytest.mark.asyncio
-async def test_correctness_prompt(
-    prompt_generator: SentencePromptGenerator, mock_sentence: MagicMock
-):
-    """Tests the __correctness private method."""
-    # Test for correct sentence
-    mock_sentence.is_correct = True
-    result = prompt_generator._SentencePromptGenerator__correctness(mock_sentence)
-    assert "grammatically correct" in result
-
-    # Test for incorrect sentence
-    mock_sentence.is_correct = False
-    result = prompt_generator._SentencePromptGenerator__correctness(mock_sentence)
-    assert "grammatical errors" in result
-
-    # Test for incorrect sentence with direct object
-    mock_sentence.direct_object = DirectObject.MASCULINE
-    result = prompt_generator._SentencePromptGenerator__correctness(mock_sentence)
-    assert "complement object should be incorrect" in result
-
-    # Test for incorrect sentence with indirect pronoun
-    mock_sentence.direct_object = DirectObject.NONE
-    mock_sentence.indirect_object = IndirectObject.PLURAL
-    result = prompt_generator._SentencePromptGenerator__correctness(mock_sentence)
-    assert "indirect pronoun should be incorrect" in result
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "has_cod, has_coi, has_negation, is_correct, expected_calls",
-    [
-        (False, False, False, True, ["__sentence_properties"]),
-        (
-            True,
-            False,
-            False,
-            True,
-            ["__sentence_properties", "__compliment_object_direct"],
-        ),
-        (
-            False,
-            True,
-            False,
-            True,
-            ["__sentence_properties", "__compliment_object_indirect"],
-        ),
-        (False, False, True, True, ["__sentence_properties", "__negation"]),
-        (False, False, False, False, ["__sentence_properties", "__correctness"]),
-        (
-            True,
-            True,
-            True,
-            False,
-            [
-                "__sentence_properties",
-                "__compliment_object_direct",
-                "__compliment_object_indirect",
-                "__negation",
-                "__correctness",
-            ],
-        ),
-    ],
-)
-async def test_generate_sentence_prompt_logic(
-    prompt_generator: SentencePromptGenerator,
-    mock_sentence: MagicMock,
-    has_cod,
-    has_coi,
-    has_negation,
-    is_correct,
-    expected_calls,
-):
-    """Tests the conditional logic of generate_sentence_prompt."""
-    mock_sentence.direct_object = (
-        DirectObject.MASCULINE if has_cod else DirectObject.NONE
+def sample_sentence_base():
+    """Fixture for a sample SentenceBase."""
+    return SentenceBase(
+        target_language_code="eng",
+        content="J'ai un livre.",
+        translation="I have a book.",
+        verb_id=UUID("12345678-1234-5678-1234-567812345678"),
+        pronoun=Pronoun.FIRST_PERSON,
+        tense=Tense.PRESENT,
+        direct_object=DirectObject.MASCULINE,
+        indirect_object=IndirectObject.NONE,
+        negation=Negation.NONE,
+        is_correct=True,
+        source="test",
     )
-    mock_sentence.indirect_object = (
-        IndirectObject.PLURAL if has_coi else IndirectObject.NONE
+
+
+@pytest.fixture
+def sample_verb():
+    """Fixture for a sample Verb."""
+    return Verb(
+        id=UUID("12345678-1234-5678-1234-567812345678"),
+        infinitive="avoir",
+        auxiliary=AuxiliaryType.AVOIR,
+        reflexive=False,
+        target_language_code="eng",
+        translation="to have",
+        past_participle="eu",
+        present_participle="ayant",
+        classification=VerbClassification.THIRD_GROUP,
+        is_irregular=True,
+        can_have_cod=True,
+        can_have_coi=False,
+        created_at="2023-01-01T00:00:00Z",
+        updated_at="2023-01-01T00:00:00Z",
+        last_used_at="2023-01-01T00:00:00Z",
     )
-    mock_sentence.negation = Negation.PAS if has_negation else Negation.NONE
-    mock_sentence.is_correct = is_correct
 
-    mock_verb = MagicMock()
 
-    with patch.object(
-        prompt_generator,
-        "_SentencePromptGenerator__sentence_properties",
-        return_value="",
-    ) as mock_sp, patch.object(
-        prompt_generator,
-        "_SentencePromptGenerator__compliment_object_direct",
-        return_value="",
-    ) as mock_cod, patch.object(
-        prompt_generator,
-        "_SentencePromptGenerator__compliment_object_indirect",
-        return_value="",
-    ) as mock_coi, patch.object(
-        prompt_generator, "_SentencePromptGenerator__negation", return_value=""
-    ) as mock_neg, patch.object(
-        prompt_generator, "_SentencePromptGenerator__correctness", return_value=""
-    ) as mock_corr:
-        prompt_generator.generate_sentence_prompt(mock_sentence, mock_verb)
+@pytest.mark.unit
+class TestSentencePromptGenerator:
+    """Test class for SentencePromptGenerator."""
 
-        all_mocks = {
-            "__sentence_properties": mock_sp,
-            "__compliment_object_direct": mock_cod,
-            "__compliment_object_indirect": mock_coi,
-            "__negation": mock_neg,
-            "__correctness": mock_corr,
-        }
+    def test_generate_sentence_prompt_includes_creativity_instructions(
+        self, prompt_generator: SentencePromptGenerator, sample_sentence_base: SentenceBase, sample_verb: Verb
+    ):
+        """Test that the sentence prompt includes creativity instructions."""
+        prompt = prompt_generator.generate_sentence_prompt(sample_sentence_base, sample_verb)
+        
+        # Check for creativity instructions
+        assert "CREATIVITY INSTRUCTIONS:" in prompt
+        assert "Create diverse, interesting sentences" in prompt
+        assert "varied vocabulary" in prompt
+        assert "contextually interesting and realistic" in prompt
 
-        for name, mock_func in all_mocks.items():
-            if name in expected_calls:
-                mock_func.assert_called_once()
-            else:
-                mock_func.assert_not_called()
+    def test_generate_sentence_prompt_includes_enum_value_instructions(
+        self, prompt_generator: SentencePromptGenerator, sample_sentence_base: SentenceBase, sample_verb: Verb
+    ):
+        """Test that the prompt includes clear instructions about enum values."""
+        prompt = prompt_generator.generate_sentence_prompt(sample_sentence_base, sample_verb)
+        
+        # Check for enum value instructions
+        assert '"direct_object": "none, masculine, feminine, or plural"' in prompt
+        assert '"indirect_object": "none, masculine, feminine, or plural"' in prompt
+        assert '"negation": "none, pas, jamais, rien, personne, plus, aucune, or encore"' in prompt
+        
+        # Check for field instructions
+        assert "Field Instructions:" in prompt
+        assert "Do NOT put actual object words" in prompt
+        assert "Do NOT use positive adverbs like" in prompt
+
+    def test_generate_sentence_prompt_correct_sentence_instructions(
+        self, prompt_generator: SentencePromptGenerator, sample_sentence_base: SentenceBase, sample_verb: Verb
+    ):
+        """Test that correct sentences get appropriate instructions."""
+        sample_sentence_base.is_correct = True
+        
+        prompt = prompt_generator.generate_sentence_prompt(sample_sentence_base, sample_verb)
+        
+        assert "grammatically correct" in prompt
+        assert "SUBTLE grammatical errors" not in prompt
+
+    def test_generate_sentence_prompt_incorrect_sentence_instructions(
+        self, prompt_generator: SentencePromptGenerator, sample_sentence_base: SentenceBase, sample_verb: Verb
+    ):
+        """Test that incorrect sentences get creativity-preserving instructions."""
+        sample_sentence_base.is_correct = False
+        
+        prompt = prompt_generator.generate_sentence_prompt(sample_sentence_base, sample_verb)
+        
+        assert "SUBTLE grammatical errors" in prompt
+        assert "maintaining the same level of creativity" in prompt
+        assert "just as elaborate, descriptive, and creative" in prompt
+        assert "Do not make the sentence shorter or simpler" in prompt
+
+    def test_generate_sentence_prompt_includes_verb_complements(
+        self, prompt_generator: SentencePromptGenerator, sample_sentence_base: SentenceBase, sample_verb: Verb
+    ):
+        """Test that the prompt includes instructions about verb complements."""
+        prompt = prompt_generator.generate_sentence_prompt(sample_sentence_base, sample_verb)
+        
+        assert "If the verb requires additional objects or infinitives afterwards, add some" in prompt
+
+    def test_generate_sentence_prompt_with_direct_object(
+        self, prompt_generator: SentencePromptGenerator, sample_sentence_base: SentenceBase, sample_verb: Verb
+    ):
+        """Test prompt generation when direct object is specified."""
+        sample_sentence_base.direct_object = DirectObject.FEMININE
+        
+        prompt = prompt_generator.generate_sentence_prompt(sample_sentence_base, sample_verb)
+        
+        assert "compliment direct object" in prompt
+        assert "feminine" in prompt
+
+    def test_generate_sentence_prompt_with_indirect_object(
+        self, prompt_generator: SentencePromptGenerator, sample_sentence_base: SentenceBase, sample_verb: Verb
+    ):
+        """Test prompt generation when indirect object is specified."""
+        sample_sentence_base.indirect_object = IndirectObject.PLURAL
+        
+        prompt = prompt_generator.generate_sentence_prompt(sample_sentence_base, sample_verb)
+        
+        assert "compliment indirect object" in prompt
+        assert "plural" in prompt
+
+    def test_generate_sentence_prompt_with_negation(
+        self, prompt_generator: SentencePromptGenerator, sample_sentence_base: SentenceBase, sample_verb: Verb
+    ):
+        """Test prompt generation when negation is specified."""
+        sample_sentence_base.negation = Negation.PAS
+        
+        prompt = prompt_generator.generate_sentence_prompt(sample_sentence_base, sample_verb)
+        
+        assert "The sentence must contain the negation pas" in prompt
+
+    def test_generate_correctness_prompt_structure(
+        self, prompt_generator: SentencePromptGenerator, sample_sentence_base: SentenceBase, sample_verb: Verb
+    ):
+        """Test that the correctness prompt has proper structure."""
+        prompt = prompt_generator.generate_correctness_prompt(sample_sentence_base, sample_verb)
+        
+        # Check for key elements
+        assert "French grammar expert" in prompt
+        assert "Review the following sentence" in prompt
+        assert "Return JSON with these fields:" in prompt
+        assert "is_valid" in prompt
+        assert "actual_direct_object" in prompt
+        assert "actual_indirect_object" in prompt
+        assert "actual_negation" in prompt
+
+    @pytest.mark.parametrize(
+        "direct_object, indirect_object, negation, is_correct",
+        [
+            (DirectObject.NONE, IndirectObject.NONE, Negation.NONE, True),
+            (DirectObject.MASCULINE, IndirectObject.NONE, Negation.NONE, True),
+            (DirectObject.NONE, IndirectObject.FEMININE, Negation.NONE, True),
+            (DirectObject.NONE, IndirectObject.NONE, Negation.PAS, True),
+            (DirectObject.PLURAL, IndirectObject.MASCULINE, Negation.JAMAIS, False),
+        ],
+    )
+    def test_generate_sentence_prompt_parameterized(
+        self,
+        prompt_generator: SentencePromptGenerator,
+        sample_sentence_base: SentenceBase,
+        sample_verb: Verb,
+        direct_object: DirectObject,
+        indirect_object: IndirectObject,
+        negation: Negation,
+        is_correct: bool,
+    ):
+        """Test prompt generation with various parameter combinations."""
+        sample_sentence_base.direct_object = direct_object
+        sample_sentence_base.indirect_object = indirect_object
+        sample_sentence_base.negation = negation
+        sample_sentence_base.is_correct = is_correct
+        
+        prompt = prompt_generator.generate_sentence_prompt(sample_sentence_base, sample_verb)
+        
+        # Basic structure checks
+        assert "French grammar expert" in prompt
+        assert "CREATIVITY INSTRUCTIONS:" in prompt
+        assert "Field Instructions:" in prompt
+        
+        # Correctness-specific checks
+        if is_correct:
+            assert "grammatically correct" in prompt
+        else:
+            assert "SUBTLE grammatical errors" in prompt
+            assert "maintaining the same level of creativity" in prompt 

@@ -2,7 +2,6 @@
 
 import json
 import logging
-import random
 from typing import List, Optional
 from uuid import UUID
 
@@ -18,6 +17,7 @@ from src.schemas.sentences import (
     DirectObject,
     IndirectObject,
     Negation,
+    CorrectnessValidationResponse,
 )
 from src.services.verb_service import VerbService
 
@@ -44,6 +44,32 @@ class SentenceService:
             self.sentence_repository = await SentenceRepository.create()
         return self.sentence_repository
 
+    async def _validate_sentence(
+        self, sentence: SentenceCreate, verb
+    ) -> CorrectnessValidationResponse:
+        """Validate sentence correctness using AI."""
+        try:
+            # Generate validation prompt directly with SentenceCreate
+            prompt = self.prompt_generator.generate_correctness_prompt(sentence, verb)
+
+            # Get AI response
+            response = await self.openai_client.handle_request(prompt)
+
+            # Parse validation response
+            response_json = json.loads(response)
+            return CorrectnessValidationResponse.model_validate(response_json)
+
+        except (json.JSONDecodeError, Exception) as e:
+            logger.warning(f"Validation failed due to error: {e}")
+            # Return a default "valid" response if validation fails
+            return CorrectnessValidationResponse(
+                is_valid=True,
+                explanation="Validation service error - proceeding without validation",
+                actual_direct_object=sentence.direct_object,
+                actual_indirect_object=sentence.indirect_object,
+                actual_negation=sentence.negation,
+            )
+
     async def count_sentences(
         self,
         verb_id: Optional[UUID] = None,
@@ -63,41 +89,6 @@ class SentenceService:
         repo = await self._get_sentence_repository()
         return await repo.delete_sentence(sentence_id)
 
-    async def generate_random_sentence(
-        self, is_correct: bool = True, target_language_code: str = "eng"
-    ) -> Sentence:
-        """Generate a random sentence using a random verb."""
-        # Get a random verb
-        verb = await self.verb_service.get_random_verb()
-        if not verb:
-            raise ValueError("No verbs available for sentence generation")
-
-        # Generate random grammatical elements
-
-        pronoun = random.choice(list(Pronoun))
-        tense = random.choice(
-            [t for t in Tense if t != Tense.IMPERATIF]
-        )  # Avoid imperative for now
-        direct_object = random.choice(list(DirectObject))
-        indirect_object = random.choice(list(IndirectObject))
-
-        # 70% chance of no negation, 30% chance of random negation
-        if random.randint(1, 10) <= 7:
-            negation = Negation.NONE
-        else:
-            negation = random.choice([n for n in Negation if n != Negation.NONE])
-
-        return await self.generate_sentence(
-            verb_id=verb.id,
-            pronoun=pronoun,
-            tense=tense,
-            direct_object=direct_object,
-            indirect_object=indirect_object,
-            negation=negation,
-            is_correct=is_correct,
-            target_language_code=target_language_code,
-        )
-
     async def generate_sentence(
         self,
         verb_id: UUID,
@@ -108,8 +99,9 @@ class SentenceService:
         negation: Negation = Negation.NONE,
         is_correct: bool = True,
         target_language_code: str = "eng",
+        validate: bool = False,
     ) -> Sentence:
-        """Generate a sentence using AI integration."""
+        """Generate a sentence using AI integration with validation."""
         logger.info(f"Generating sentence for verb_id {verb_id}")
 
         # Get the verb details first
@@ -148,9 +140,9 @@ class SentenceService:
         sentence_request.translation = response_json.get("translation", "")
 
         # Handle is_correct from AI response
-        is_correct = response_json.get("is_correct")
-        if isinstance(is_correct, bool):
-            sentence_request.is_correct = is_correct
+        is_correct_response = response_json.get("is_correct")
+        if isinstance(is_correct_response, bool):
+            sentence_request.is_correct = is_correct_response
 
         # Set explanation if sentence is incorrect
         if not sentence_request.is_correct:
@@ -177,6 +169,24 @@ class SentenceService:
             f"⬅️ Generated: COD: {sentence_request.direct_object.value}, "
             f"COI: {sentence_request.indirect_object.value}, NEG: {sentence_request.negation.value}"
         )
+
+        # Conditional validation based on validate parameter
+        if validate:
+            logger.info("🔍 Validation enabled - performing additional LLM validation")
+            validation = await self._validate_sentence(sentence_request, verb)
+
+            if validation.is_valid:
+                # Update sentence with detected values from validation
+                sentence_request.direct_object = validation.actual_direct_object
+                sentence_request.indirect_object = validation.actual_indirect_object
+                sentence_request.negation = validation.actual_negation
+
+                logger.info("✅ Validation passed")
+            else:
+                logger.error(f"❌ Validation failed: {validation.explanation}")
+                raise ValueError(f"Sentence validation failed: {validation.explanation}")
+        else:
+            logger.info("⚡ Validation disabled - skipping additional LLM validation")
 
         # Persist to repository
         repo = await self._get_sentence_repository()

@@ -12,6 +12,7 @@ def sentence_options(f):
     )
     @asyncclick.option("-neg", "--negation", type=str, required=False, default="none")
     @asyncclick.option("-c", "--is-correct", type=bool, required=False, default=True)
+    @asyncclick.option("--validate", is_flag=True, default=False, help="Enable LLM validation of generated sentences")
     @functools.wraps(f)
     def wrapper_common_options(*args, **kwargs):
         return f(*args, **kwargs)
