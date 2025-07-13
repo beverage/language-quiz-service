@@ -44,69 +44,6 @@ class SentenceService:
             self.sentence_repository = await SentenceRepository.create()
         return self.sentence_repository
 
-    async def create_sentence(self, sentence_data: SentenceCreate) -> Sentence:
-        """Create a new sentence."""
-        repo = await self._get_sentence_repository()
-        return await repo.create_sentence(sentence_data)
-
-    async def get_sentence(self, sentence_id: UUID) -> Optional[Sentence]:
-        """Get a sentence by ID."""
-        repo = await self._get_sentence_repository()
-        return await repo.get_sentence(sentence_id)
-
-    async def get_sentences(
-        self,
-        verb_id: Optional[UUID] = None,
-        is_correct: Optional[bool] = None,
-        tense: Optional[str] = None,
-        pronoun: Optional[str] = None,
-        target_language_code: Optional[str] = None,
-        limit: int = 50,
-    ) -> List[Sentence]:
-        """Get sentences with optional filters."""
-        repo = await self._get_sentence_repository()
-        return await repo.get_sentences(
-            verb_id=verb_id,
-            is_correct=is_correct,
-            tense=tense,
-            pronoun=pronoun,
-            target_language_code=target_language_code,
-            limit=limit,
-        )
-
-    async def get_sentences_by_verb(
-        self, verb_id: UUID, limit: int = 50
-    ) -> List[Sentence]:
-        """Get all sentences for a specific verb."""
-        repo = await self._get_sentence_repository()
-        return await repo.get_sentences_by_verb(verb_id, limit)
-
-    async def get_random_sentence(
-        self,
-        is_correct: Optional[bool] = None,
-        verb_id: Optional[UUID] = None,
-    ) -> Optional[Sentence]:
-        """Get a random sentence."""
-        repo = await self._get_sentence_repository()
-        return await repo.get_random_sentence(is_correct=is_correct, verb_id=verb_id)
-
-    async def update_sentence(
-        self, sentence_id: UUID, sentence_data: SentenceUpdate
-    ) -> Optional[Sentence]:
-        """Update a sentence."""
-        repo = await self._get_sentence_repository()
-        return await repo.update_sentence(sentence_id, sentence_data)
-
-    async def delete_sentence(self, sentence_id: UUID) -> bool:
-        """Delete a sentence."""
-        repo = await self._get_sentence_repository()
-        return await repo.delete_sentence(sentence_id)
-
-    async def get_all_sentences(self, limit: int = 100) -> List[Sentence]:
-        """Get all sentences."""
-        repo = await self._get_sentence_repository()
-        return await repo.get_all_sentences(limit)
-
     async def count_sentences(
         self,
         verb_id: Optional[UUID] = None,
@@ -115,6 +52,51 @@ class SentenceService:
         """Count sentences with optional filters."""
         repo = await self._get_sentence_repository()
         return await repo.count_sentences(verb_id=verb_id, is_correct=is_correct)
+
+    async def create_sentence(self, sentence_data: SentenceCreate) -> Sentence:
+        """Create a new sentence."""
+        repo = await self._get_sentence_repository()
+        return await repo.create_sentence(sentence_data)
+
+    async def delete_sentence(self, sentence_id: UUID) -> bool:
+        """Delete a sentence."""
+        repo = await self._get_sentence_repository()
+        return await repo.delete_sentence(sentence_id)
+
+    async def generate_random_sentence(
+        self, is_correct: bool = True, target_language_code: str = "eng"
+    ) -> Sentence:
+        """Generate a random sentence using a random verb."""
+        # Get a random verb
+        verb = await self.verb_service.get_random_verb()
+        if not verb:
+            raise ValueError("No verbs available for sentence generation")
+
+        # Generate random grammatical elements
+
+        pronoun = random.choice(list(Pronoun))
+        tense = random.choice(
+            [t for t in Tense if t != Tense.IMPERATIF]
+        )  # Avoid imperative for now
+        direct_object = random.choice(list(DirectObject))
+        indirect_pronoun = random.choice(list(IndirectPronoun))
+
+        # 70% chance of no negation, 30% chance of random negation
+        if random.randint(1, 10) <= 7:
+            negation = Negation.NONE
+        else:
+            negation = random.choice([n for n in Negation if n != Negation.NONE])
+
+        return await self.generate_sentence(
+            verb_id=verb.id,
+            pronoun=pronoun,
+            tense=tense,
+            direct_object=direct_object,
+            indirect_pronoun=indirect_pronoun,
+            negation=negation,
+            is_correct=is_correct,
+            target_language_code=target_language_code,
+        )
 
     async def generate_sentence(
         self,
@@ -200,37 +182,55 @@ class SentenceService:
         repo = await self._get_sentence_repository()
         return await repo.create_sentence(sentence_request)
 
-    async def generate_random_sentence(
-        self, is_correct: bool = True, target_language_code: str = "eng"
-    ) -> Sentence:
-        """Generate a random sentence using a random verb."""
-        # Get a random verb
-        verb = await self.verb_service.get_random_verb()
-        if not verb:
-            raise ValueError("No verbs available for sentence generation")
+    async def get_all_sentences(self, limit: int = 100) -> List[Sentence]:
+        """Get all sentences."""
+        repo = await self._get_sentence_repository()
+        return await repo.get_all_sentences(limit)
 
-        # Generate random grammatical elements
+    async def get_random_sentence(
+        self,
+        is_correct: Optional[bool] = None,
+        verb_id: Optional[UUID] = None,
+    ) -> Optional[Sentence]:
+        """Get a random sentence."""
+        repo = await self._get_sentence_repository()
+        return await repo.get_random_sentence(is_correct=is_correct, verb_id=verb_id)
 
-        pronoun = random.choice(list(Pronoun))
-        tense = random.choice(
-            [t for t in Tense if t != Tense.IMPERATIF]
-        )  # Avoid imperative for now
-        direct_object = random.choice(list(DirectObject))
-        indirect_pronoun = random.choice(list(IndirectPronoun))
+    async def get_sentence(self, sentence_id: UUID) -> Optional[Sentence]:
+        """Get a sentence by ID."""
+        repo = await self._get_sentence_repository()
+        return await repo.get_sentence(sentence_id)
 
-        # 70% chance of no negation, 30% chance of random negation
-        if random.randint(1, 10) <= 7:
-            negation = Negation.NONE
-        else:
-            negation = random.choice([n for n in Negation if n != Negation.NONE])
-
-        return await self.generate_sentence(
-            verb_id=verb.id,
-            pronoun=pronoun,
-            tense=tense,
-            direct_object=direct_object,
-            indirect_pronoun=indirect_pronoun,
-            negation=negation,
+    async def get_sentences(
+        self,
+        verb_id: Optional[UUID] = None,
+        is_correct: Optional[bool] = None,
+        tense: Optional[str] = None,
+        pronoun: Optional[str] = None,
+        target_language_code: Optional[str] = None,
+        limit: int = 50,
+    ) -> List[Sentence]:
+        """Get sentences with optional filters."""
+        repo = await self._get_sentence_repository()
+        return await repo.get_sentences(
+            verb_id=verb_id,
             is_correct=is_correct,
+            tense=tense,
+            pronoun=pronoun,
             target_language_code=target_language_code,
+            limit=limit,
         )
+
+    async def get_sentences_by_verb(
+        self, verb_id: UUID, limit: int = 50
+    ) -> List[Sentence]:
+        """Get all sentences for a specific verb."""
+        repo = await self._get_sentence_repository()
+        return await repo.get_sentences_by_verb(verb_id, limit)
+
+    async def update_sentence(
+        self, sentence_id: UUID, sentence_data: SentenceUpdate
+    ) -> Optional[Sentence]:
+        """Update a sentence."""
+        repo = await self._get_sentence_repository()
+        return await repo.update_sentence(sentence_id, sentence_data)

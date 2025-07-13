@@ -30,6 +30,41 @@ class VerbRepository:
             return Verb.model_validate(result.data[0])
         raise Exception("Failed to create verb")
 
+    async def delete_verb(self, verb_id: UUID) -> bool:
+        """Delete a verb."""
+        result = (
+            await self.client.table("verbs").delete().eq("id", str(verb_id)).execute()
+        )
+        return len(result.data) > 0
+
+    async def get_all_verbs(
+        self, limit: int = 100, target_language_code: Optional[str] = None
+    ) -> List[Verb]:
+        """Get all verbs, optionally filtered by language."""
+        query = self.client.table("verbs").select("*").limit(limit)
+
+        if target_language_code:
+            query = query.eq("target_language_code", target_language_code)
+
+        result = await query.execute()
+        return [Verb.model_validate(verb) for verb in result.data]
+
+    async def get_random_verb(
+        self, target_language_code: str = "eng"
+    ) -> Optional[Verb]:
+        """
+        Get a random verb using the database function.
+
+        Uses the get_random_verb_simple() function defined in the schema.
+        """
+        result = await self.client.rpc(
+            "get_random_verb_simple", {"p_target_language": target_language_code}
+        ).execute()
+
+        if result.data:
+            return Verb.model_validate(result.data[0])
+        return None
+
     async def get_verb(self, verb_id: UUID) -> Optional[Verb]:
         """Get a verb by ID."""
         result = (
@@ -80,185 +115,6 @@ class VerbRepository:
             .execute()
         )
         return [Verb.model_validate(verb) for verb in result.data]
-
-    async def get_all_verbs(
-        self, limit: int = 100, target_language_code: Optional[str] = None
-    ) -> List[Verb]:
-        """Get all verbs, optionally filtered by language."""
-        query = self.client.table("verbs").select("*").limit(limit)
-
-        if target_language_code:
-            query = query.eq("target_language_code", target_language_code)
-
-        result = await query.execute()
-        return [Verb.model_validate(verb) for verb in result.data]
-
-    async def get_random_verb(
-        self, target_language_code: str = "eng"
-    ) -> Optional[Verb]:
-        """
-        Get a random verb using the database function.
-
-        Uses the get_random_verb_simple() function defined in the schema.
-        """
-        result = await self.client.rpc(
-            "get_random_verb_simple", {"p_target_language": target_language_code}
-        ).execute()
-
-        if result.data:
-            return Verb.model_validate(result.data[0])
-        return None
-
-    async def update_verb(self, verb_id: UUID, verb: VerbUpdate) -> Optional[Verb]:
-        """Update a verb."""
-        verb_dict = verb.model_dump(exclude_unset=True)
-        result = (
-            await self.client.table("verbs")
-            .update(verb_dict)
-            .eq("id", str(verb_id))
-            .execute()
-        )
-
-        if result.data:
-            return Verb.model_validate(result.data[0])
-        return None
-
-    async def delete_verb(self, verb_id: UUID) -> bool:
-        """Delete a verb."""
-        result = (
-            await self.client.table("verbs").delete().eq("id", str(verb_id)).execute()
-        )
-        return len(result.data) > 0
-
-    async def get_conjugations(
-        self, infinitive: str, auxiliary: str, reflexive: bool = False
-    ) -> List[Conjugation]:
-        """
-        Get all conjugations for a verb identified by infinitive, auxiliary, and reflexive.
-
-        Updated to use the new schema's compound key approach.
-        """
-        result = (
-            await self.client.table("conjugations")
-            .select("*")
-            .eq("infinitive", infinitive)
-            .eq("auxiliary", auxiliary)
-            .eq("reflexive", reflexive)
-            .execute()
-        )
-        return [Conjugation.model_validate(conj) for conj in result.data]
-
-    async def get_conjugation_by_verb_and_tense(
-        self, infinitive: str, auxiliary: str, reflexive: bool, tense: Tense
-    ) -> Optional[Conjugation]:
-        """Get a specific conjugation by verb parameters and tense."""
-        result = (
-            await self.client.table("conjugations")
-            .select("*")
-            .eq("infinitive", infinitive)
-            .eq("auxiliary", auxiliary)
-            .eq("reflexive", reflexive)
-            .eq("tense", tense.value)
-            .execute()
-        )
-
-        if result.data:
-            return Conjugation.model_validate(result.data[0])
-        return None
-
-    async def get_conjugation(
-        self, infinitive: str, auxiliary: str, reflexive: bool, tense: Tense
-    ) -> Optional[Conjugation]:
-        """Get a specific conjugation by verb parameters and tense."""
-        result = (
-            await self.client.table("conjugations")
-            .select("*")
-            .eq("infinitive", infinitive)
-            .eq("auxiliary", auxiliary)
-            .eq("reflexive", reflexive)
-            .eq("tense", tense.value)
-            .execute()
-        )
-
-        if result.data:
-            return Conjugation.model_validate(result.data[0])
-        return None
-
-    async def upsert_verb(self, verb_data: VerbCreate) -> Verb:
-        """
-        Creates a new verb or updates an existing one based on the infinitive.
-        """
-        existing_verb = await self.get_verb_by_infinitive(
-            infinitive=verb_data.infinitive,
-            auxiliary=verb_data.auxiliary.value if verb_data.auxiliary else None,
-            reflexive=verb_data.reflexive,
-            target_language_code=verb_data.target_language_code,
-        )
-
-        if existing_verb:
-            update_data = VerbUpdate.model_validate(verb_data.model_dump())
-            updated_verb = await self.update_verb(existing_verb.id, update_data)
-            if updated_verb:
-                return updated_verb
-            return existing_verb  # Should not happen in normal flow
-
-        return await self.create_verb(verb_data)
-
-    async def create_conjugation(self, conjugation: ConjugationCreate) -> Conjugation:
-        """Create a new conjugation."""
-        conj_dict = conjugation.model_dump()
-
-        # Ensure tense is stored as string value
-        if hasattr(conj_dict["tense"], "value"):
-            conj_dict["tense"] = conj_dict["tense"].value
-
-        result = await self.client.table("conjugations").insert(conj_dict).execute()
-
-        if result.data:
-            return Conjugation.model_validate(result.data[0])
-        raise Exception("Failed to create conjugation")
-
-    async def update_conjugation_by_verb_and_tense(
-        self,
-        infinitive: str,
-        auxiliary: str,
-        reflexive: bool,
-        tense: Tense,
-        conjugation: ConjugationUpdate,
-    ) -> Optional[Conjugation]:
-        """Update a conjugation by verb parameters and tense."""
-        conj_dict = conjugation.model_dump(exclude_unset=True)
-
-        # Ensure tense is stored as string value if present
-        if "tense" in conj_dict and hasattr(conj_dict["tense"], "value"):
-            conj_dict["tense"] = conj_dict["tense"].value
-
-        result = (
-            await self.client.table("conjugations")
-            .update(conj_dict)
-            .eq("infinitive", infinitive)
-            .eq("auxiliary", auxiliary)
-            .eq("reflexive", reflexive)
-            .eq("tense", tense.value)
-            .execute()
-        )
-        if result.data:
-            return Conjugation.model_validate(result.data[0])
-        return None
-
-    async def delete_conjugations_by_verb(
-        self, infinitive: str, auxiliary: str, reflexive: bool
-    ) -> bool:
-        """Delete all conjugations for a given verb."""
-        result = (
-            await self.client.table("conjugations")
-            .delete()
-            .eq("infinitive", infinitive)
-            .eq("auxiliary", auxiliary)
-            .eq("reflexive", reflexive)
-            .execute()
-        )
-        return len(result.data) > 0
 
     async def get_verb_with_conjugations(
         self,
@@ -332,6 +188,150 @@ class VerbRepository:
             .execute()
         )
         return len(result.data) > 0
+
+    async def update_verb(self, verb_id: UUID, verb: VerbUpdate) -> Optional[Verb]:
+        """Update a verb."""
+        verb_dict = verb.model_dump(exclude_unset=True)
+        result = (
+            await self.client.table("verbs")
+            .update(verb_dict)
+            .eq("id", str(verb_id))
+            .execute()
+        )
+
+        if result.data:
+            return Verb.model_validate(result.data[0])
+        return None
+
+    async def upsert_verb(self, verb_data: VerbCreate) -> Verb:
+        """
+        Creates a new verb or updates an existing one based on the infinitive.
+        """
+        existing_verb = await self.get_verb_by_infinitive(
+            infinitive=verb_data.infinitive,
+            auxiliary=verb_data.auxiliary.value if verb_data.auxiliary else None,
+            reflexive=verb_data.reflexive,
+            target_language_code=verb_data.target_language_code,
+        )
+
+        if existing_verb:
+            update_data = VerbUpdate.model_validate(verb_data.model_dump())
+            updated_verb = await self.update_verb(existing_verb.id, update_data)
+            if updated_verb:
+                return updated_verb
+            return existing_verb  # Should not happen in normal flow
+
+        return await self.create_verb(verb_data)
+
+    async def create_conjugation(self, conjugation: ConjugationCreate) -> Conjugation:
+        """Create a new conjugation."""
+        conj_dict = conjugation.model_dump()
+
+        # Ensure tense is stored as string value
+        if hasattr(conj_dict["tense"], "value"):
+            conj_dict["tense"] = conj_dict["tense"].value
+
+        result = await self.client.table("conjugations").insert(conj_dict).execute()
+
+        if result.data:
+            return Conjugation.model_validate(result.data[0])
+        raise Exception("Failed to create conjugation")
+
+    async def delete_conjugations_by_verb(
+        self, infinitive: str, auxiliary: str, reflexive: bool
+    ) -> bool:
+        """Delete all conjugations for a given verb."""
+        result = (
+            await self.client.table("conjugations")
+            .delete()
+            .eq("infinitive", infinitive)
+            .eq("auxiliary", auxiliary)
+            .eq("reflexive", reflexive)
+            .execute()
+        )
+        return len(result.data) > 0
+
+    async def get_conjugation(
+        self, infinitive: str, auxiliary: str, reflexive: bool, tense: Tense
+    ) -> Optional[Conjugation]:
+        """Get a specific conjugation by verb parameters and tense."""
+        result = (
+            await self.client.table("conjugations")
+            .select("*")
+            .eq("infinitive", infinitive)
+            .eq("auxiliary", auxiliary)
+            .eq("reflexive", reflexive)
+            .eq("tense", tense.value)
+            .execute()
+        )
+
+        if result.data:
+            return Conjugation.model_validate(result.data[0])
+        return None
+
+    async def get_conjugation_by_verb_and_tense(
+        self, infinitive: str, auxiliary: str, reflexive: bool, tense: Tense
+    ) -> Optional[Conjugation]:
+        """Get a specific conjugation by verb parameters and tense."""
+        result = (
+            await self.client.table("conjugations")
+            .select("*")
+            .eq("infinitive", infinitive)
+            .eq("auxiliary", auxiliary)
+            .eq("reflexive", reflexive)
+            .eq("tense", tense.value)
+            .execute()
+        )
+
+        if result.data:
+            return Conjugation.model_validate(result.data[0])
+        return None
+
+    async def get_conjugations(
+        self, infinitive: str, auxiliary: str, reflexive: bool = False
+    ) -> List[Conjugation]:
+        """
+        Get all conjugations for a verb identified by infinitive, auxiliary, and reflexive.
+
+        Updated to use the new schema's compound key approach.
+        """
+        result = (
+            await self.client.table("conjugations")
+            .select("*")
+            .eq("infinitive", infinitive)
+            .eq("auxiliary", auxiliary)
+            .eq("reflexive", reflexive)
+            .execute()
+        )
+        return [Conjugation.model_validate(conj) for conj in result.data]
+
+    async def update_conjugation_by_verb_and_tense(
+        self,
+        infinitive: str,
+        auxiliary: str,
+        reflexive: bool,
+        tense: Tense,
+        conjugation: ConjugationUpdate,
+    ) -> Optional[Conjugation]:
+        """Update a conjugation by verb parameters and tense."""
+        conj_dict = conjugation.model_dump(exclude_unset=True)
+
+        # Ensure tense is stored as string value if present
+        if "tense" in conj_dict and hasattr(conj_dict["tense"], "value"):
+            conj_dict["tense"] = conj_dict["tense"].value
+
+        result = (
+            await self.client.table("conjugations")
+            .update(conj_dict)
+            .eq("infinitive", infinitive)
+            .eq("auxiliary", auxiliary)
+            .eq("reflexive", reflexive)
+            .eq("tense", tense.value)
+            .execute()
+        )
+        if result.data:
+            return Conjugation.model_validate(result.data[0])
+        return None
 
     async def upsert_conjugation(self, conjugation_data: ConjugationCreate) -> None:
         """Upsert a conjugation."""

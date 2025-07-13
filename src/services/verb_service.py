@@ -53,6 +53,44 @@ class VerbService:
         repo = await self._get_verb_repository()
         return await repo.create_verb(verb_data)
 
+    async def delete_verb(self, verb_id: UUID) -> bool:
+        """Delete a verb and all its conjugations."""
+        # First get the verb to know its parameters
+        repo = await self._get_verb_repository()
+        verb = await self.get_verb(verb_id)
+        if not verb:
+            return False
+
+        # Delete all conjugations for this verb first
+        await repo.delete_conjugations_by_verb(
+            infinitive=verb.infinitive,
+            auxiliary=verb.auxiliary.value,
+            reflexive=verb.reflexive,
+        )
+
+        # Then delete the verb
+        return await repo.delete_verb(verb_id)
+
+    async def get_all_verbs(
+        self, limit: int = 100, target_language_code: Optional[str] = None
+    ) -> List[Verb]:
+        """Get all verbs, optionally filtered by language."""
+        repo = await self._get_verb_repository()
+        return await repo.get_all_verbs(
+            limit=limit, target_language_code=target_language_code
+        )
+
+    async def get_random_verb(
+        self, target_language_code: str = "eng"
+    ) -> Optional[Verb]:
+        """Get a random verb."""
+        repo = await self._get_verb_repository()
+        verb = await repo.get_random_verb(target_language_code)
+        if verb:
+            # Update last used timestamp
+            await repo.update_last_used(verb.id)
+        return verb
+
     async def get_verb(self, verb_id: UUID) -> Optional[Verb]:
         """Get a verb by ID."""
         repo = await self._get_verb_repository()
@@ -84,50 +122,17 @@ class VerbService:
         repo = await self._get_verb_repository()
         return await repo.get_verbs_by_infinitive(infinitive)
 
-    async def get_all_verbs(
-        self, limit: int = 100, target_language_code: Optional[str] = None
-    ) -> List[Verb]:
-        """Get all verbs, optionally filtered by language."""
-        repo = await self._get_verb_repository()
-        return await repo.get_all_verbs(
-            limit=limit, target_language_code=target_language_code
-        )
-
-    async def get_random_verb(
-        self, target_language_code: str = "eng"
-    ) -> Optional[Verb]:
-        """Get a random verb."""
-        repo = await self._get_verb_repository()
-        verb = await repo.get_random_verb(target_language_code)
-        if verb:
-            # Update last used timestamp
-            await repo.update_last_used(verb.id)
-        return verb
-
     async def update_verb(self, verb_id: UUID, verb_data: VerbUpdate) -> Optional[Verb]:
         """Update a verb."""
         repo = await self._get_verb_repository()
         return await repo.update_verb(verb_id, verb_data)
 
-    async def delete_verb(self, verb_id: UUID) -> bool:
-        """Delete a verb and all its conjugations."""
-        # First get the verb to know its parameters
-        repo = await self._get_verb_repository()
-        verb = await self.get_verb(verb_id)
-        if not verb:
-            return False
-
-        # Delete all conjugations for this verb first
-        await repo.delete_conjugations_by_verb(
-            infinitive=verb.infinitive,
-            auxiliary=verb.auxiliary.value,
-            reflexive=verb.reflexive,
-        )
-
-        # Then delete the verb
-        return await repo.delete_verb(verb_id)
-
     # ===== CONJUGATION OPERATIONS =====
+
+    async def create_conjugation(self, conjugation: ConjugationCreate) -> Conjugation:
+        """Create a new conjugation."""
+        repo = await self._get_verb_repository()
+        return await repo.create_conjugation(conjugation)
 
     async def get_conjugations(
         self, infinitive: str, auxiliary: str, reflexive: bool = False
@@ -150,11 +155,6 @@ class VerbService:
             auxiliary=verb.auxiliary.value,
             reflexive=verb.reflexive,
         )
-
-    async def create_conjugation(self, conjugation: ConjugationCreate) -> Conjugation:
-        """Create a new conjugation."""
-        repo = await self._get_verb_repository()
-        return await repo.create_conjugation(conjugation)
 
     async def update_conjugation(
         self,
@@ -217,7 +217,7 @@ class VerbService:
             limit=limit,
         )
 
-    # ===== AI INTEGRATION =====
+    # ===== LLM INTEGRATION =====
 
     async def download_verb(
         self, requested_verb: str, target_language_code: str = "eng"

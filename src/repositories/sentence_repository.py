@@ -13,16 +13,32 @@ logger = logging.getLogger(__name__)
 
 
 class SentenceRepository:
-    def __init__(self, client: Client):
-        """Initialise the repository with a Supabase client."""
-        self.client = client
-
     @classmethod
     async def create(cls, client: Optional[Client] = None) -> "SentenceRepository":
         """Asynchronously create an instance of SentenceRepository."""
         if client is None:
             client = await get_supabase_client()
         return cls(client)
+
+    def __init__(self, client: Client):
+        """Initialise the repository with a Supabase client."""
+        self.client = client
+
+    async def count_sentences(
+        self,
+        verb_id: Optional[UUID] = None,
+        is_correct: Optional[bool] = None,
+    ) -> int:
+        """Count sentences with optional filters."""
+        query = self.client.table("sentences").select("id", count="exact")
+
+        if verb_id:
+            query = query.eq("verb_id", str(verb_id))
+        if is_correct is not None:
+            query = query.eq("is_correct", is_correct)
+
+        result = await query.execute()
+        return result.count or 0
 
     async def create_sentence(self, sentence: SentenceCreate) -> Sentence:
         """Create a new sentence."""
@@ -40,6 +56,43 @@ class SentenceRepository:
         if result.data:
             return Sentence.model_validate(result.data[0])
         raise Exception("Failed to create sentence")
+
+    async def delete_sentence(self, sentence_id: UUID) -> bool:
+        """Delete a sentence."""
+        result = (
+            await self.client.table("sentences")
+            .delete()
+            .eq("id", str(sentence_id))
+            .execute()
+        )
+        return len(result.data) > 0
+
+    async def get_all_sentences(self, limit: int = 100) -> List[Sentence]:
+        """Get all sentences."""
+        result = await self.client.table("sentences").select("*").limit(limit).execute()
+        return [Sentence.model_validate(sentence) for sentence in result.data]
+
+    async def get_random_sentence(
+        self,
+        is_correct: Optional[bool] = None,
+        verb_id: Optional[UUID] = None,
+    ) -> Optional[Sentence]:
+        """Get a random sentence with optional filters."""
+        # Note: Supabase doesn't have native random, this is a simple implementation
+        query = self.client.table("sentences").select("*")
+
+        if is_correct is not None:
+            query = query.eq("is_correct", is_correct)
+        if verb_id:
+            query = query.eq("verb_id", str(verb_id))
+
+        result = await query.limit(50).execute()
+
+        if result.data:
+            import random
+
+            return Sentence.model_validate(random.choice(result.data))
+        return None
 
     async def get_sentence(self, sentence_id: UUID) -> Optional[Sentence]:
         """Get a sentence by ID."""
@@ -87,28 +140,6 @@ class SentenceRepository:
         """Get all sentences for a specific verb."""
         return await self.get_sentences(verb_id=verb_id, limit=limit)
 
-    async def get_random_sentence(
-        self,
-        is_correct: Optional[bool] = None,
-        verb_id: Optional[UUID] = None,
-    ) -> Optional[Sentence]:
-        """Get a random sentence with optional filters."""
-        # Note: Supabase doesn't have native random, this is a simple implementation
-        query = self.client.table("sentences").select("*")
-
-        if is_correct is not None:
-            query = query.eq("is_correct", is_correct)
-        if verb_id:
-            query = query.eq("verb_id", str(verb_id))
-
-        result = await query.limit(50).execute()
-
-        if result.data:
-            import random
-
-            return Sentence.model_validate(random.choice(result.data))
-        return None
-
     async def update_sentence(
         self, sentence_id: UUID, sentence_data: SentenceUpdate
     ) -> Optional[Sentence]:
@@ -130,34 +161,3 @@ class SentenceRepository:
         if result.data:
             return Sentence.model_validate(result.data[0])
         return None
-
-    async def delete_sentence(self, sentence_id: UUID) -> bool:
-        """Delete a sentence."""
-        result = (
-            await self.client.table("sentences")
-            .delete()
-            .eq("id", str(sentence_id))
-            .execute()
-        )
-        return len(result.data) > 0
-
-    async def get_all_sentences(self, limit: int = 100) -> List[Sentence]:
-        """Get all sentences."""
-        result = await self.client.table("sentences").select("*").limit(limit).execute()
-        return [Sentence.model_validate(sentence) for sentence in result.data]
-
-    async def count_sentences(
-        self,
-        verb_id: Optional[UUID] = None,
-        is_correct: Optional[bool] = None,
-    ) -> int:
-        """Count sentences with optional filters."""
-        query = self.client.table("sentences").select("id", count="exact")
-
-        if verb_id:
-            query = query.eq("verb_id", str(verb_id))
-        if is_correct is not None:
-            query = query.eq("is_correct", is_correct)
-
-        result = await query.execute()
-        return result.count or 0
