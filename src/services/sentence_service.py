@@ -184,7 +184,9 @@ class SentenceService:
                 logger.info("✅ Validation passed")
             else:
                 logger.error(f"❌ Validation failed: {validation.explanation}")
-                raise ValueError(f"Sentence validation failed: {validation.explanation}")
+                raise ValueError(
+                    f"Sentence validation failed: {validation.explanation}"
+                )
         else:
             logger.info("⚡ Validation disabled - skipping additional LLM validation")
 

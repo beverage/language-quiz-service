@@ -315,23 +315,23 @@ class TestSentenceService:
         """Test that validation is disabled by default."""
         # Setup mocks
         mock_verb_service.get_verb.return_value = sample_db_verb
-        mock_openai_client.handle_request.return_value = json.dumps({
-            "sentence": "J'ai un livre.",
-            "translation": "I have a book.",
-            "is_correct": True,
-            "explanation": "",
-            "negation": "none",
-            "direct_object": "masculine",
-            "indirect_object": "none",
-            "has_compliment_object_direct": False,
-            "has_compliment_object_indirect": False,
-        })
+        mock_openai_client.handle_request.return_value = json.dumps(
+            {
+                "sentence": "J'ai un livre.",
+                "translation": "I have a book.",
+                "is_correct": True,
+                "explanation": "",
+                "negation": "none",
+                "direct_object": "masculine",
+                "indirect_object": "none",
+                "has_compliment_object_direct": False,
+                "has_compliment_object_indirect": False,
+            }
+        )
         mock_sentence_repository.create_sentence.return_value = sample_db_sentence
 
         # Call without validate parameter (should default to False)
-        result = await sentence_service.generate_sentence(
-            verb_id=sample_db_verb.id
-        )
+        result = await sentence_service.generate_sentence(verb_id=sample_db_verb.id)
 
         # Verify validation method was not called
         # (We can't directly test this without refactoring, but we can verify the result)
@@ -348,42 +348,44 @@ class TestSentenceService:
         sample_db_sentence: Sentence,
     ):
         """Test sentence generation with validation enabled when validation passes."""
-        from src.schemas.sentences import CorrectnessValidationResponse
-        
+
         # Setup mocks
         mock_verb_service.get_verb.return_value = sample_db_verb
-        
+
         # Mock the sentence generation response
         mock_openai_client.handle_request.side_effect = [
-            json.dumps({
-                "sentence": "J'ai un livre.",
-                "translation": "I have a book.",
-                "is_correct": True,
-                "explanation": "",
-                "negation": "none",
-                "direct_object": "masculine",
-                "indirect_object": "none",
-                "has_compliment_object_direct": False,
-                "has_compliment_object_indirect": False,
-            }),
+            json.dumps(
+                {
+                    "sentence": "J'ai un livre.",
+                    "translation": "I have a book.",
+                    "is_correct": True,
+                    "explanation": "",
+                    "negation": "none",
+                    "direct_object": "masculine",
+                    "indirect_object": "none",
+                    "has_compliment_object_direct": False,
+                    "has_compliment_object_indirect": False,
+                }
+            ),
             # Mock validation response
-            json.dumps({
-                "is_valid": True,
-                "explanation": None,
-                "actual_direct_object": "masculine",
-                "actual_indirect_object": "none",
-                "actual_negation": "none",
-                "direct_object_text": "un livre",
-                "indirect_object_text": None,
-            })
+            json.dumps(
+                {
+                    "is_valid": True,
+                    "explanation": None,
+                    "actual_direct_object": "masculine",
+                    "actual_indirect_object": "none",
+                    "actual_negation": "none",
+                    "direct_object_text": "un livre",
+                    "indirect_object_text": None,
+                }
+            ),
         ]
-        
+
         mock_sentence_repository.create_sentence.return_value = sample_db_sentence
 
         # Call with validation enabled
         result = await sentence_service.generate_sentence(
-            verb_id=sample_db_verb.id,
-            validate=True
+            verb_id=sample_db_verb.id, validate=True
         )
 
         # Verify validation was called (2 OpenAI calls: generation + validation)
@@ -402,37 +404,43 @@ class TestSentenceService:
         """Test sentence generation with validation enabled when validation fails."""
         # Setup mocks
         mock_verb_service.get_verb.return_value = sample_db_verb
-        
+
         # Mock the sentence generation response
         mock_openai_client.handle_request.side_effect = [
-            json.dumps({
-                "sentence": "J'ai un livre.",
-                "translation": "I have a book.",
-                "is_correct": True,
-                "explanation": "",
-                "negation": "none",
-                "direct_object": "masculine",
-                "indirect_object": "none",
-                "has_compliment_object_direct": False,
-                "has_compliment_object_indirect": False,
-            }),
+            json.dumps(
+                {
+                    "sentence": "J'ai un livre.",
+                    "translation": "I have a book.",
+                    "is_correct": True,
+                    "explanation": "",
+                    "negation": "none",
+                    "direct_object": "masculine",
+                    "indirect_object": "none",
+                    "has_compliment_object_direct": False,
+                    "has_compliment_object_indirect": False,
+                }
+            ),
             # Mock validation failure response
-            json.dumps({
-                "is_valid": False,
-                "explanation": "The sentence has incorrect verb conjugation.",
-                "actual_direct_object": "masculine",
-                "actual_indirect_object": "none",
-                "actual_negation": "none",
-                "direct_object_text": "un livre",
-                "indirect_object_text": None,
-            })
+            json.dumps(
+                {
+                    "is_valid": False,
+                    "explanation": "The sentence has incorrect verb conjugation.",
+                    "actual_direct_object": "masculine",
+                    "actual_indirect_object": "none",
+                    "actual_negation": "none",
+                    "direct_object_text": "un livre",
+                    "indirect_object_text": None,
+                }
+            ),
         ]
 
         # Call with validation enabled - should raise ValueError
-        with pytest.raises(ValueError, match="Sentence validation failed: The sentence has incorrect verb conjugation."):
+        with pytest.raises(
+            ValueError,
+            match="Sentence validation failed: The sentence has incorrect verb conjugation.",
+        ):
             await sentence_service.generate_sentence(
-                verb_id=sample_db_verb.id,
-                validate=True
+                verb_id=sample_db_verb.id, validate=True
             )
 
         # Verify validation was called but sentence was not saved
@@ -451,32 +459,8 @@ class TestSentenceService:
         """Test that validate parameter is properly handled in different scenarios."""
         # Setup mocks
         mock_verb_service.get_verb.return_value = sample_db_verb
-        mock_openai_client.handle_request.return_value = json.dumps({
-            "sentence": "J'ai un livre.",
-            "translation": "I have a book.",
-            "is_correct": True,
-            "explanation": "",
-            "negation": "none",
-            "direct_object": "masculine",
-            "indirect_object": "none",
-            "has_compliment_object_direct": False,
-            "has_compliment_object_indirect": False,
-        })
-        mock_sentence_repository.create_sentence.return_value = sample_db_sentence
-
-        # Test with validate=False explicitly
-        await sentence_service.generate_sentence(
-            verb_id=sample_db_verb.id,
-            validate=False
-        )
-        
-        # Should only call OpenAI once (no validation)
-        assert mock_openai_client.handle_request.call_count == 1
-        mock_openai_client.handle_request.reset_mock()
-
-        # Test with validate=True and successful validation
-        mock_openai_client.handle_request.side_effect = [
-            json.dumps({
+        mock_openai_client.handle_request.return_value = json.dumps(
+            {
                 "sentence": "J'ai un livre.",
                 "translation": "I have a book.",
                 "is_correct": True,
@@ -486,22 +470,50 @@ class TestSentenceService:
                 "indirect_object": "none",
                 "has_compliment_object_direct": False,
                 "has_compliment_object_indirect": False,
-            }),
-            json.dumps({
-                "is_valid": True,
-                "explanation": None,
-                "actual_direct_object": "masculine",
-                "actual_indirect_object": "none",
-                "actual_negation": "none",
-                "direct_object_text": "un livre",
-                "indirect_object_text": None,
-            })
+            }
+        )
+        mock_sentence_repository.create_sentence.return_value = sample_db_sentence
+
+        # Test with validate=False explicitly
+        await sentence_service.generate_sentence(
+            verb_id=sample_db_verb.id, validate=False
+        )
+
+        # Should only call OpenAI once (no validation)
+        assert mock_openai_client.handle_request.call_count == 1
+        mock_openai_client.handle_request.reset_mock()
+
+        # Test with validate=True and successful validation
+        mock_openai_client.handle_request.side_effect = [
+            json.dumps(
+                {
+                    "sentence": "J'ai un livre.",
+                    "translation": "I have a book.",
+                    "is_correct": True,
+                    "explanation": "",
+                    "negation": "none",
+                    "direct_object": "masculine",
+                    "indirect_object": "none",
+                    "has_compliment_object_direct": False,
+                    "has_compliment_object_indirect": False,
+                }
+            ),
+            json.dumps(
+                {
+                    "is_valid": True,
+                    "explanation": None,
+                    "actual_direct_object": "masculine",
+                    "actual_indirect_object": "none",
+                    "actual_negation": "none",
+                    "direct_object_text": "un livre",
+                    "indirect_object_text": None,
+                }
+            ),
         ]
 
         await sentence_service.generate_sentence(
-            verb_id=sample_db_verb.id,
-            validate=True
+            verb_id=sample_db_verb.id, validate=True
         )
-        
+
         # Should call OpenAI twice (generation + validation)
         assert mock_openai_client.handle_request.call_count == 2

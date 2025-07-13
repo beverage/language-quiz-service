@@ -16,9 +16,15 @@ from src.cli.database.clear import clear_database
 from src.cli.database.init import init_verbs
 from src.cli.database.utils import object_as_dict
 from src.cli.problems.create import (
-    create_random_problem_with_delay,
     create_random_problem,
+    create_random_problems_batch,
+    create_random_problem_with_delay,
+    list_problems,
+    search_problems_by_focus,
+    search_problems_by_topic,
+    get_problem_statistics,
 )
+from src.schemas.problems import GrammarProblemConstraints
 from src.cli.sentences.create import create_random_sentence, create_sentence
 from src.cli.sentences.database import get_random_sentence
 from src.cli.sentences.utils import problem_formatter
@@ -129,24 +135,132 @@ async def reset():
     click.echo("Resetting the database container.")
 
 
-# Not migrated
 @cli.group()
 async def problem():
+    """Problem generation and management commands."""
     pass
 
 
-# Not migrated
 @problem.command("random")
-async def problem_random():
-    results = await create_random_problem()
-    print(problem_formatter(results))
+@click.option("--count", "-c", default=1, help="Number of problems to generate")
+@click.option("--statements", "-s", default=4, help="Number of statements per problem")
+@click.option("--include-cod", is_flag=True, help="Force inclusion of direct objects")
+@click.option("--include-coi", is_flag=True, help="Force inclusion of indirect objects")
+@click.option("--include-negation", is_flag=True, help="Force inclusion of negation")
+@click.option(
+    "--tense", multiple=True, help="Limit to specific tenses (can specify multiple)"
+)
+async def problem_random(
+    count: int,
+    statements: int,
+    include_cod: bool,
+    include_coi: bool,
+    include_negation: bool,
+    tense: tuple,
+):
+    """Generate random grammar problems."""
+    try:
+        # Build constraints from CLI options
+        constraints = None
+        if any([include_cod, include_coi, include_negation, tense]):
+            constraints = GrammarProblemConstraints()
+
+            if include_cod:
+                constraints.includes_cod = True
+            if include_coi:
+                constraints.includes_coi = True
+            if include_negation:
+                constraints.includes_negation = True
+            if tense:
+                constraints.tenses_used = list(tense)
+
+        if count == 1:
+            # Single problem generation
+            await create_random_problem(
+                statement_count=statements, constraints=constraints, display=True
+            )
+        else:
+            # Batch generation
+            await create_random_problems_batch(
+                quantity=count,
+                statement_count=statements,
+                constraints=constraints,
+                display=True,
+            )
+
+    except Exception as ex:
+        click.echo(f"❌ Error generating problems: {ex}")
 
 
-# Not migrated
-@problem.command()
+@problem.command("list")
+@click.option(
+    "--type",
+    "problem_type",
+    type=click.Choice(["grammar", "functional", "vocabulary"]),
+    help="Filter by problem type",
+)
+@click.option("--topic", multiple=True, help="Filter by topic tags")
+@click.option("--limit", default=10, help="Number of problems to show")
+@click.option("--verbose", "-v", is_flag=True, help="Show full problem details")
+async def problem_list(problem_type: str, topic: tuple, limit: int, verbose: bool):
+    """List existing problems with filtering."""
+    try:
+        await list_problems(
+            problem_type=problem_type,
+            topic_tags=list(topic) if topic else None,
+            limit=limit,
+            verbose=verbose,
+        )
+    except Exception as ex:
+        click.echo(f"❌ Error listing problems: {ex}")
+
+
+@problem.command("search")
+@click.option(
+    "--focus", help="Search by grammatical focus (e.g., direct_objects, negation)"
+)
+@click.option("--topic", multiple=True, help="Search by topic tags")
+@click.option("--limit", default=10, help="Number of results to show")
+async def problem_search(focus: str, topic: tuple, limit: int):
+    """Search problems by various criteria."""
+    try:
+        if focus:
+            await search_problems_by_focus(focus, limit)
+        elif topic:
+            await search_problems_by_topic(list(topic), limit)
+        else:
+            click.echo(
+                "❌ Please specify at least one search criteria (--focus or --topic)"
+            )
+
+    except Exception as ex:
+        click.echo(f"❌ Error searching problems: {ex}")
+
+
+@problem.command("stats")
+async def problem_stats():
+    """Show problem statistics."""
+    try:
+        await get_problem_statistics()
+    except Exception as ex:
+        click.echo(f"❌ Error getting statistics: {ex}")
+
+
+# Keep the existing batch command but update it to use new system
+@problem.command("batch")
 @click.argument("quantity", default=10, type=click.INT)
 @click.option("--workers", default=10, type=click.INT)
-async def batch(quantity: int, workers: int):
+@click.option("--statements", "-s", default=4, help="Number of statements per problem")
+async def batch(quantity: int, workers: int, statements: int):
+    """Generate multiple problems in parallel."""
+    try:
+        results = await create_random_problems_batch(
+            quantity=quantity, statement_count=statements, workers=workers, display=True
+        )
+        print(f"{Style.BOLD}Generated {len(results)} problems{Style.RESET}")
+    except Exception as ex:
+        print(f"❌ Error: {ex}")
+        print(traceback.format_exc())
     try:
         results = await batch_operation(
             workers=workers,
@@ -164,7 +278,6 @@ async def sentence():
     pass
 
 
-# Migrated
 @sentence.command("get")
 @click.option("-q", "--quantity", required=False, default=1)
 @sentence_options
@@ -173,7 +286,6 @@ async def sentence_get(quantity: int, **kwargs):
     print(problem_formatter(result))
 
 
-# Migrated
 @sentence.command("new")
 @click.option("-q", "--quantity", required=False, default=1)
 @sentence_options
@@ -210,7 +322,6 @@ async def generate(quantity: int, **kwargs):
         print(f"{ex}: {traceback.format_exc()}")
 
 
-# Migrated
 @sentence.command("random")
 @click.option("-q", "--quantity", required=False, default=1)
 @random_options
@@ -263,7 +374,6 @@ async def verb():
     pass
 
 
-# Migrated
 @verb.command()
 @click.argument("verbs", nargs=-1, required=True)
 async def download(verbs):
@@ -298,7 +408,6 @@ async def download(verbs):
     #     print(object_as_dict(result))
 
 
-# Migrated
 @verb.command("get")
 @click.argument("verb")
 async def verb_get(verb: str):
@@ -307,7 +416,6 @@ async def verb_get(verb: str):
     pprint(object_as_dict(result))
 
 
-# Migrated
 @verb.command("random")
 async def verb_random():
     result = await get_random_verb()

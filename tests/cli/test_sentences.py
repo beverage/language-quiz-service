@@ -62,8 +62,8 @@ def sample_sentence():
 class TestCLISentences:
     """Test class for CLI sentence functionality."""
 
-    @patch('src.cli.sentences.create.SentenceService')
-    @patch('src.cli.sentences.create.VerbService')
+    @patch("src.cli.sentences.create.SentenceService")
+    @patch("src.cli.sentences.create.VerbService")
     async def test_create_sentence_validate_false_by_default(
         self,
         mock_verb_service_class: MagicMock,
@@ -77,7 +77,7 @@ class TestCLISentences:
         mock_sentence_service = AsyncMock()
         mock_verb_service_class.return_value = mock_verb_service
         mock_sentence_service_class.return_value = mock_sentence_service
-        
+
         mock_verb_service.get_verb_by_infinitive.return_value = sample_verb
         mock_sentence_service.generate_sentence.return_value = sample_sentence
 
@@ -95,11 +95,11 @@ class TestCLISentences:
         # Verify validate=False was passed (default)
         mock_sentence_service.generate_sentence.assert_called_once()
         call_args = mock_sentence_service.generate_sentence.call_args
-        assert call_args.kwargs['validate'] is False
+        assert call_args.kwargs["validate"] is False
         assert result == sample_sentence
 
-    @patch('src.cli.sentences.create.SentenceService')
-    @patch('src.cli.sentences.create.VerbService')
+    @patch("src.cli.sentences.create.SentenceService")
+    @patch("src.cli.sentences.create.VerbService")
     async def test_create_sentence_validate_true_passed_through(
         self,
         mock_verb_service_class: MagicMock,
@@ -113,7 +113,7 @@ class TestCLISentences:
         mock_sentence_service = AsyncMock()
         mock_verb_service_class.return_value = mock_verb_service
         mock_sentence_service_class.return_value = mock_sentence_service
-        
+
         mock_verb_service.get_verb_by_infinitive.return_value = sample_verb
         mock_sentence_service.generate_sentence.return_value = sample_sentence
 
@@ -132,11 +132,11 @@ class TestCLISentences:
         # Verify validate=True was passed through
         mock_sentence_service.generate_sentence.assert_called_once()
         call_args = mock_sentence_service.generate_sentence.call_args
-        assert call_args.kwargs['validate'] is True
+        assert call_args.kwargs["validate"] is True
         assert result == sample_sentence
 
-    @patch('src.cli.sentences.create.SentenceService')
-    @patch('src.cli.sentences.create.VerbService')
+    @patch("src.cli.sentences.create.SentenceService")
+    @patch("src.cli.sentences.create.VerbService")
     async def test_create_sentence_validation_failure_propagated(
         self,
         mock_verb_service_class: MagicMock,
@@ -149,9 +149,11 @@ class TestCLISentences:
         mock_sentence_service = AsyncMock()
         mock_verb_service_class.return_value = mock_verb_service
         mock_sentence_service_class.return_value = mock_sentence_service
-        
+
         mock_verb_service.get_verb_by_infinitive.return_value = sample_verb
-        mock_sentence_service.generate_sentence.side_effect = ValueError("Sentence validation failed: Test error")
+        mock_sentence_service.generate_sentence.side_effect = ValueError(
+            "Sentence validation failed: Test error"
+        )
 
         # Call create_sentence with validate=True - should raise ValueError
         with pytest.raises(ValueError, match="Sentence validation failed: Test error"):
@@ -163,10 +165,10 @@ class TestCLISentences:
         # Verify the service was called with validation enabled
         mock_sentence_service.generate_sentence.assert_called_once()
         call_args = mock_sentence_service.generate_sentence.call_args
-        assert call_args.kwargs['validate'] is True
+        assert call_args.kwargs["validate"] is True
 
-    @patch('src.cli.sentences.create.SentenceService')
-    @patch('src.cli.sentences.create.VerbService')
+    @patch("src.cli.sentences.create.SentenceService")
+    @patch("src.cli.sentences.create.VerbService")
     async def test_create_sentence_cod_coi_parameter_adjustment_with_validation(
         self,
         mock_verb_service_class: MagicMock,
@@ -193,12 +195,12 @@ class TestCLISentences:
             updated_at="2023-01-01T00:00:00Z",
             last_used_at="2023-01-01T00:00:00Z",
         )
-        
+
         mock_verb_service = AsyncMock()
         mock_sentence_service = AsyncMock()
         mock_verb_service_class.return_value = mock_verb_service
         mock_sentence_service_class.return_value = mock_sentence_service
-        
+
         mock_verb_service.get_verb_by_infinitive.return_value = verb_no_cod
         mock_sentence_service.generate_sentence.return_value = sample_sentence
 
@@ -212,6 +214,6 @@ class TestCLISentences:
         # Verify COD was adjusted to NONE and validation was enabled
         mock_sentence_service.generate_sentence.assert_called_once()
         call_args = mock_sentence_service.generate_sentence.call_args
-        assert call_args.kwargs['direct_object'] == DirectObject.NONE
-        assert call_args.kwargs['validate'] is True
-        assert result == sample_sentence 
+        assert call_args.kwargs["direct_object"] == DirectObject.NONE
+        assert call_args.kwargs["validate"] is True
+        assert result == sample_sentence
