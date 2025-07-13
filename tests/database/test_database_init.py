@@ -2,7 +2,13 @@
 
 import pytest
 from unittest.mock import patch, AsyncMock
-from src.cli.database.init import init_verbs, ETRE_VERBS, AVOIR_VERBS, PRONOMINAL_VERBS
+from src.cli.database.init import (
+    init_verbs,
+    ETRE_VERBS,
+    AVOIR_VERBS,
+    PRONOMINAL_VERBS,
+    COI_TEST_VERBS,
+)
 
 
 @pytest.mark.asyncio
@@ -16,11 +22,21 @@ async def test_init_verbs():
         mock_service_instance.download_verb.side_effect = [
             AsyncMock(),  # Naître
             Exception("Failed to download mourir"),  # Mourir
-        ] + [AsyncMock() for _ in range(len(AVOIR_VERBS) + len(PRONOMINAL_VERBS) - 1)]
+        ] + [
+            AsyncMock()
+            for _ in range(
+                len(AVOIR_VERBS) + len(PRONOMINAL_VERBS) + len(COI_TEST_VERBS) - 1
+            )
+        ]
 
         await init_verbs()
 
-        total_verbs = len(ETRE_VERBS) + len(AVOIR_VERBS) + len(PRONOMINAL_VERBS)
+        total_verbs = (
+            len(ETRE_VERBS)
+            + len(AVOIR_VERBS)
+            + len(PRONOMINAL_VERBS)
+            + len(COI_TEST_VERBS)
+        )
         assert mock_service_instance.download_verb.call_count == total_verbs
 
         # Check that a failure is handled gracefully

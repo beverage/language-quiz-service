@@ -23,17 +23,14 @@ async def get_random_verb(database_session=None):
     return verb
 
 
-async def download_verb(requested_verb: str, target_language_code: str = "eng") -> None:
+async def download_verb(requested_verb: str, target_language_code: str = "eng"):
     """
     Download a verb and its conjugations from the AI service and store it.
+    Returns the downloaded verb object.
     """
-    try:
-        service = VerbService()
-        verb = await service.download_verb(
-            requested_verb=requested_verb, target_language_code=target_language_code
-        )
-        console.print(f"✅ Verb '{verb.infinitive}' downloaded successfully.")
-    except ValueError as e:
-        console.print(f"❌ Error: {e}")
-    except Exception as e:
-        console.print(f"❌ An unexpected error occurred: {e}")
+    service = VerbService()
+    verb = await service.download_verb(
+        requested_verb=requested_verb, target_language_code=target_language_code
+    )
+    console.print(f"✅ Verb '{verb.infinitive}' downloaded successfully.")
+    return verb

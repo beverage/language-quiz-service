@@ -35,6 +35,9 @@ from src.cli.webserver.app import app
 async def cli(debug=False, debug_openai=False, debug_recovery=True):
     logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
 
+    # Suppress httpx logging to reduce noise
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
     if debug_openai:
         logging.getLogger("openai").setLevel(logging.DEBUG)
 
@@ -176,10 +179,33 @@ async def sentence_get(quantity: int, **kwargs):
 @sentence_options
 async def generate(quantity: int, **kwargs):
     try:
-        results = []
-        for _ in range(quantity):
-            results.append(await create_sentence(**kwargs))
-        print(problem_formatter(results))
+        if quantity == 1:
+            # Single sentence - no need for parallel execution
+            result = await create_sentence(**kwargs)
+            print(problem_formatter([result]))
+        else:
+            # Multiple sentences - use parallel execution
+            from src.cli.utils.queues import parallel_execute
+
+            # Create coroutines for parallel execution
+            tasks = [create_sentence(**kwargs) for _ in range(quantity)]
+
+            # Define error handler
+            def handle_error(error: Exception, task_index: int):
+                print(f"Warning: Failed to generate sentence {task_index + 1}: {error}")
+
+            # Execute in parallel with error handling
+            results = await parallel_execute(
+                tasks=tasks,
+                max_concurrent=10,
+                batch_delay=0.5,
+                error_handler=handle_error,
+            )
+
+            if results:
+                print(problem_formatter(results))
+            else:
+                print("No sentences were successfully generated.")
     except Exception as ex:
         print(f"{ex}: {traceback.format_exc()}")
 
@@ -190,10 +216,44 @@ async def generate(quantity: int, **kwargs):
 @random_options
 async def sentence_random(quantity: int, **kwargs):
     try:
-        results = []
-        for i in range(quantity):
-            results.append(await create_random_sentence(**kwargs))
-        print(problem_formatter(results))
+        if quantity == 1:
+            # Single sentence - no need for parallel execution
+            result = await create_random_sentence(**kwargs)
+            print(problem_formatter([result]))
+        else:
+            # Multiple sentences - use parallel execution (max 10 concurrent)
+            import asyncio
+
+            max_concurrent = min(10, quantity)
+
+            # Create coroutines for parallel execution
+            tasks = [create_random_sentence(**kwargs) for _ in range(quantity)]
+
+            # Execute in batches of max_concurrent with error handling
+            results = []
+            for i in range(0, len(tasks), max_concurrent):
+                batch = tasks[i : i + max_concurrent]
+                try:
+                    batch_results = await asyncio.gather(*batch, return_exceptions=True)
+
+                    # Filter out exceptions and collect successful results
+                    for result in batch_results:
+                        if isinstance(result, Exception):
+                            print(f"Warning: Failed to generate sentence: {result}")
+                        else:
+                            results.append(result)
+
+                    # Small delay between batches to avoid overwhelming the API
+                    if i + max_concurrent < len(tasks):
+                        await asyncio.sleep(0.5)
+
+                except Exception as ex:
+                    print(f"Batch failed: {ex}")
+
+            if results:
+                print(problem_formatter(results))
+            else:
+                print("No sentences were successfully generated.")
     except Exception as ex:
         print(f"str({ex}): {traceback.format_exc()}")
 
@@ -205,11 +265,37 @@ async def verb():
 
 # Migrated
 @verb.command()
-@click.argument("verb")
-async def download(verb: str):
-    click.echo(f"Downloading verb {verb}.")
-    result = await download_verb(verb)
-    print(object_as_dict(result))
+@click.argument("verbs", nargs=-1, required=True)
+async def download(verbs):
+    """Download one or more verbs. Use quotes for multi-word verbs like 'se sentir'."""
+    if not verbs:
+        click.echo("❌ Please provide at least one verb to download.")
+        return
+
+    click.echo(f"Downloading {len(verbs)} verb(s): {', '.join(verbs)}")
+
+    # Import here to avoid circular imports
+    from src.cli.utils.queues import parallel_execute
+
+    # Create tasks for parallel execution
+    tasks = [download_verb(verb) for verb in verbs]
+
+    # Define error handler
+    def handle_error(error: Exception, task_index: int):
+        verb_name = verbs[task_index]
+        click.echo(f"❌ Failed to download '{verb_name}': {error}")
+
+    # Execute in parallel with error handling
+    await parallel_execute(
+        tasks=tasks,
+        max_concurrent=5,  # Limit concurrent downloads to avoid overwhelming the API
+        batch_delay=0.5,
+        error_handler=handle_error,
+    )
+
+    # Print results for successful downloads
+    # for result in results:
+    #     print(object_as_dict(result))
 
 
 # Migrated

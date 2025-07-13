@@ -223,28 +223,74 @@ class VerbService:
         self, requested_verb: str, target_language_code: str = "eng"
     ) -> Verb:
         """
-        Download a verb using AI integration.
+        Download a verb using AI integration with two-phase approach.
 
-        This method fetches verb data from AI and creates/updates the verb and conjugations.
+        Phase 1: Get verb data without COD/COI flags
+        Phase 2: Use auxiliary to determine COD/COI flags
         """
         logger.info("Fetching verb %s", requested_verb)
 
-        # Generate AI prompt
+        # Phase 1: Generate main verb prompt (without COD/COI)
         verb_prompt = self.verb_prompt_generator.generate_verb_prompt(
             verb_infinitive=requested_verb, target_language_code=target_language_code
         )
 
-        # Get AI response
+        # Get AI response for main verb data
         response = await self.openai_client.handle_request(verb_prompt)
         logger.debug("✅ LLM Response: %s", response)
 
         repo = await self._get_verb_repository()
         try:
             response_json = json.loads(response)
-            llm_payload = LLMVerbPayload.model_validate(response_json)
+            # Create a temporary payload to extract infinitive and auxiliary
+            temp_payload = LLMVerbPayload.model_validate(response_json)
         except (json.JSONDecodeError, ValidationError) as e:
-            logger.error(f"Failed to decode or validate AI response: {e}")
+            logger.error(
+                f"Failed to decode or validate verb download response from the LLM: {e}"
+            )
             raise ValueError("Invalid response format from the LLM") from e
+
+        # Phase 2: Get COD/COI flags using the auxiliary from Phase 1
+        logger.info(
+            "Determining COD/COI flags for %s with auxiliary %s",
+            temp_payload.infinitive,
+            temp_payload.auxiliary,
+        )
+
+        objects_prompt = self.verb_prompt_generator.generate_objects_prompt(
+            verb_infinitive=temp_payload.infinitive, auxiliary=temp_payload.auxiliary
+        )
+
+        objects_response = await self.openai_client.handle_request(objects_prompt)
+        logger.info(
+            "✅ Objects Response (%s, %s): %s",
+            temp_payload.infinitive,
+            temp_payload.auxiliary,
+            objects_response,
+        )
+
+        try:
+            # Response is already cleaned by OpenAI client
+            objects_json = json.loads(objects_response)
+            can_have_cod = objects_json.get("can_have_cod", False)
+            can_have_coi = objects_json.get("can_have_coi", False)
+            # Handle both boolean and string responses
+            if isinstance(can_have_cod, str):
+                can_have_cod = can_have_cod.lower() == "true"
+            if isinstance(can_have_coi, str):
+                can_have_coi = can_have_coi.lower() == "true"
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.error(
+                f"Failed to decode or validate complimentobjects response from the LLM: {e}"
+            )
+            raise ValueError("Invalid response format from the LLM") from e
+
+        # Phase 3: Merge the results by updating the original response
+        response_json["can_have_cod"] = can_have_cod
+        response_json["can_have_coi"] = can_have_coi
+
+        # Create final payload with COD/COI flags
+        llm_payload = LLMVerbPayload.model_validate(response_json)
 
         verb = await self._upsert_verb(llm_payload, repo)
         await self._process_conjugations(verb, llm_payload.tenses, repo)

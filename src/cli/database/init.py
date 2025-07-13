@@ -5,6 +5,7 @@ from src.services.verb_service import VerbService
 logger = logging.getLogger(__name__)
 
 ETRE_VERBS = [
+    "être",
     "naître",
     "mourir",
     "monter",
@@ -90,13 +91,23 @@ PRONOMINAL_VERBS = [
     "s'asseoir",
 ]
 
+COI_TEST_VERBS = [
+    "appartenir",
+    "enseigner",
+    "expliquer",
+    "montrer",
+    "obéir",
+    "plaire",
+    "réfléchir",
+]
+
 
 async def init_verbs():
     """Seeds the database with a predefined list of French verbs in parallel."""
     verb_service = VerbService()
     logger.info("Starting to seed verbs into the database...")
 
-    all_verbs = ETRE_VERBS + AVOIR_VERBS + PRONOMINAL_VERBS
+    all_verbs = ETRE_VERBS + AVOIR_VERBS + PRONOMINAL_VERBS + COI_TEST_VERBS
 
     tasks = []
     for infinitive in all_verbs:
