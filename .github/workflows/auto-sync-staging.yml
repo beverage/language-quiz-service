@@ -1,0 +1,54 @@
+name: Auto-sync Staging with Main
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  sync-staging:
+    # Only run if PR was merged (not just closed) and came from staging
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'staging'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for proper merging
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Configure git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "Auto-sync Bot"
+    
+    - name: Sync staging with main
+      run: |
+        echo "🔄 Auto-syncing staging with main after PR merge..."
+        
+        # Switch to staging branch
+        git checkout staging
+        
+        # Merge main into staging to keep them in sync
+        git merge main --no-edit
+        
+        # Push the updated staging branch
+        git push origin staging
+        
+        echo "✅ Staging branch is now synced with main"
+        echo "This prevents crossing commit lines in git history"
+    
+    - name: Create sync confirmation comment
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.payload.pull_request.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '🔄 **Auto-sync completed!** \n\nStaging branch has been automatically synced with main to maintain clean parallel git history. ✨'
+          }); 
