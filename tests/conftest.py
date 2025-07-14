@@ -13,16 +13,19 @@ from src.schemas.verbs import (
     Verb,
     ConjugationCreate,
     Conjugation,
-)
-from src.schemas.sentences import (
-    Sentence,
-    SentenceCreate,
-    Pronoun,
     Tense,
+)
+from src.schemas.problems import ProblemType
+from src.schemas.sentences import (
+    SentenceCreate,
+    Sentence,
+    Pronoun,
     DirectObject,
     IndirectObject,
     Negation,
 )
+
+from unittest.mock import MagicMock, AsyncMock
 
 
 # Environment variables are now handled via default values in Settings class
@@ -143,3 +146,157 @@ def sample_db_sentence(sample_sentence_data: dict) -> Sentence:
         updated_at=datetime.now(timezone.utc),
         **sample_sentence_data,
     )
+
+
+class SupabaseMockBuilder:
+    """Builder for creating Supabase client mocks with fluent interface."""
+
+    def __init__(self):
+        self.mock_client = MagicMock()
+        self._table_mock = MagicMock()
+        self.mock_client.table.return_value = self._table_mock
+
+    def with_select_response(self, data, count=None):
+        """Configure a select operation response."""
+        mock_response = MagicMock()
+        mock_response.data = data
+        if count is not None:
+            mock_response.count = count
+
+        # Create a fresh chain mock for select operations
+        select_chain = MagicMock()
+        select_chain.eq.return_value = select_chain
+        select_chain.limit.return_value = select_chain
+        select_chain.range.return_value = select_chain
+        select_chain.order.return_value = select_chain
+        select_chain.gte.return_value = select_chain
+        select_chain.lte.return_value = select_chain
+        select_chain.contains.return_value = select_chain
+        select_chain.or_.return_value = select_chain
+        select_chain.execute = AsyncMock(return_value=mock_response)
+
+        self._table_mock.select.return_value = select_chain
+        return self
+
+    def with_insert_response(self, data):
+        """Configure an insert operation response."""
+        mock_response = MagicMock()
+        mock_response.data = data
+
+        insert_chain = MagicMock()
+        insert_chain.execute = AsyncMock(return_value=mock_response)
+
+        self._table_mock.insert.return_value = insert_chain
+        return self
+
+    def with_update_response(self, data):
+        """Configure an update operation response."""
+        mock_response = MagicMock()
+        mock_response.data = data
+
+        update_chain = MagicMock()
+        update_chain.eq.return_value = update_chain
+        update_chain.execute = AsyncMock(return_value=mock_response)
+
+        self._table_mock.update.return_value = update_chain
+        return self
+
+    def with_delete_response(self, data):
+        """Configure a delete operation response."""
+        mock_response = MagicMock()
+        mock_response.data = data
+
+        delete_chain = MagicMock()
+        delete_chain.eq.return_value = delete_chain
+        delete_chain.execute = AsyncMock(return_value=mock_response)
+
+        self._table_mock.delete.return_value = delete_chain
+        return self
+
+    def build(self):
+        """Return the configured mock client."""
+        return self.mock_client
+
+
+@pytest.fixture
+def supabase_mock_builder():
+    """Provides a builder for creating fresh Supabase mocks."""
+    return SupabaseMockBuilder
+
+
+@pytest.fixture
+def sample_problem_data():
+    """Sample problem data for testing."""
+    from datetime import datetime, timezone
+    from uuid import uuid4
+
+    return {
+        "id": uuid4(),
+        "problem_type": ProblemType.GRAMMAR,
+        "title": "Article Agreement",
+        "instructions": "Choose the correct sentence",
+        "correct_answer_index": 0,
+        "target_language_code": "eng",
+        "statements": [
+            {
+                "content": "Je mange une pomme.",
+                "is_correct": True,
+                "translation": "I eat an apple.",
+            },
+            {
+                "content": "Je mange un pomme.",
+                "is_correct": False,
+                "explanation": "Wrong article",
+            },
+        ],
+        "topic_tags": ["grammar", "articles"],
+        "source_statement_ids": [uuid4(), uuid4()],
+        "metadata": {"difficulty": "intermediate"},
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+
+
+@pytest.fixture
+def sample_problem_create_data():
+    """Sample problem create data for testing."""
+    from uuid import uuid4
+
+    return {
+        "problem_type": ProblemType.GRAMMAR,
+        "title": "Article Agreement",
+        "instructions": "Choose the correct sentence",
+        "correct_answer_index": 0,
+        "target_language_code": "eng",
+        "statements": [
+            {
+                "content": "Je mange une pomme.",
+                "is_correct": True,
+                "translation": "I eat an apple.",
+            },
+            {
+                "content": "Je mange un pomme.",
+                "is_correct": False,
+                "explanation": "Wrong article",
+            },
+        ],
+        "topic_tags": ["grammar", "articles"],
+        "source_statement_ids": [uuid4(), uuid4()],
+        "metadata": {"difficulty": "intermediate"},
+    }
+
+
+@pytest.fixture
+def sample_problem(sample_problem_data):
+    """Sample Problem instance for testing."""
+    from src.schemas.problems import Problem
+
+    return Problem(**sample_problem_data)
+
+
+@pytest.fixture
+def sample_problem_create(sample_problem_create_data):
+    """Sample ProblemCreate instance for testing."""
+    from src.schemas.problems import ProblemCreate
+
+    return ProblemCreate(**sample_problem_create_data)

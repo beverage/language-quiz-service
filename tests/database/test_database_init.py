@@ -1,7 +1,7 @@
 """Unit tests for the database initialization script."""
 
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 from src.cli.database.init import (
     init_verbs,
     ETRE_VERBS,
@@ -18,12 +18,16 @@ async def test_init_verbs():
         mock_service_instance = AsyncMock()
         mock_verb_service_class.return_value = mock_service_instance
 
+        # Create a mock verb object to return from successful downloads
+        mock_verb = MagicMock()
+        mock_verb.infinitive = "test"
+
         # Simulate some successes and some failures
         mock_service_instance.download_verb.side_effect = [
-            AsyncMock(),  # Naître
+            mock_verb,  # Naître
             Exception("Failed to download mourir"),  # Mourir
         ] + [
-            AsyncMock()
+            mock_verb
             for _ in range(
                 len(AVOIR_VERBS) + len(PRONOMINAL_VERBS) + len(COI_TEST_VERBS) - 1
             )

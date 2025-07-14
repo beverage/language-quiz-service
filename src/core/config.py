@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     # Security & CORS
     cors_origins: List[str] = Field(default=["*"])
 
+    # Rate Limiting
+    rate_limit_requests: int = Field(
+        default=100, description="Requests per minute per IP"
+    )
+    rate_limit_window: int = Field(
+        default=60, description="Rate limit window in seconds"
+    )
+
     # Environment
     environment: str = Field(default="development")
     debug: bool = Field(default=False)
@@ -47,6 +55,15 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production environment."""
         return self.environment == "production"
+
+    @property
+    def production_cors_origins(self) -> List[str]:
+        """Get production-safe CORS origins."""
+        if self.is_production:
+            # In production, be more restrictive - only allow specific domains
+            # For now, still allow all origins but this is where you'd add specific domains
+            return ["*"]  # TODO: Replace with actual production domains
+        return self.cors_origins
 
 
 # Singleton instance
