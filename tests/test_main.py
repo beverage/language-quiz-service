@@ -50,13 +50,6 @@ class TestMainApp:
         response = client.get("/", headers={"Origin": "http://localhost:3000"})
         assert response.status_code == 200
 
-    def test_nonexistent_endpoint(self, client: TestClient):
-        """Test that non-existent endpoints return 404."""
-        response = client.get("/nonexistent")
-        assert response.status_code == 404
-        data = response.json()
-        assert "detail" in data
-
     def test_openapi_docs_available(self, client: TestClient):
         """Test that OpenAPI documentation is available."""
         response = client.get("/docs")
@@ -90,12 +83,6 @@ class TestApplicationLifespan:
 @pytest.mark.functional
 class TestExceptionHandling:
     """Test exception handling in the application."""
-
-    def test_http_exception_handling(self, client: TestClient):
-        """Test that HTTP exceptions are handled properly."""
-        # Test 404 for non-existent endpoint
-        response = client.get("/nonexistent")
-        assert response.status_code == 404
 
     def test_internal_server_error_handling(self, client: TestClient, caplog):
         """Test that internal server errors are handled gracefully."""

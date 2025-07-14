@@ -13,8 +13,6 @@ A FastAPI-powered backend service for generating AI-driven language learning qui
 ![Example](docs/example.gif)
 > This example is highly rate-limited and with randomised features.  Also, as of a few weeks ago looks nothing like this anymore, and is much more accurate.  I'll have to make a new one.
 
-While the overall correctness for right answers has been verified, some of the answers are not always ideomatic (around 10% of the time) given that they are generated with no surrounding context. This is unavoidable for the time being.
-
 ## 🚀 Quick Start
 
 ### FastAPI Service (Recommended)
