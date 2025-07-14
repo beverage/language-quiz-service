@@ -3,13 +3,11 @@ Authentication middleware for API key validation.
 """
 
 import logging
-from datetime import datetime
 from typing import Optional, List
 from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.clients.supabase import get_supabase_client
-from src.schemas.api_keys import verify_api_key, check_ip_allowed
+from src.services.api_key_service import ApiKeyService
 from src.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -38,34 +36,13 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
                     detail="API key required. Provide X-API-Key header.",
                 )
 
-            # Validate API key and get key info
-            key_info = await self._validate_api_key(api_key)
+            # Validate API key and get key info (includes IP checking and usage tracking)
+            client_ip = self._get_client_ip(request)
+            key_info = await self._validate_api_key_with_ip(api_key, client_ip)
             if not key_info:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
                 )
-
-            # Check if key is active
-            if not key_info.get("is_active", False):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="API key is inactive",
-                )
-
-            # Check IP allowlist if configured
-            client_ip = self._get_client_ip(request)
-            allowed_ips = key_info.get("allowed_ips")
-            if not check_ip_allowed(client_ip, allowed_ips):
-                logger.warning(
-                    f"IP {client_ip} not allowed for API key {key_info.get('key_prefix')}"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Access denied: IP not in allowlist",
-                )
-
-            # Update usage tracking
-            await self._update_key_usage(key_info["id"])
 
             # Add key info to request state for downstream use
             request.state.api_key_info = key_info
@@ -130,56 +107,23 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
 
         return "unknown"
 
-    async def _validate_api_key(self, api_key: str) -> Optional[dict]:
-        """Validate API key against database and return key info if valid."""
+    async def _validate_api_key_with_ip(
+        self, api_key: str, client_ip: str
+    ) -> Optional[dict]:
+        """Validate API key against database with IP checking and return key info if valid."""
         try:
-            client = await get_supabase_client()
+            # Use the ApiKeyService for validation (handles IP checking and usage tracking)
+            service = ApiKeyService()
+            result = await service.authenticate_api_key(api_key, client_ip)
 
-            # Get all active keys to check against
-            result = (
-                await client.table("api_keys")
-                .select("*")
-                .eq("is_active", True)
-                .execute()
-            )
-
-            if not result.data:
-                return None
-
-            # Check each key hash
-            for key_data in result.data:
-                if verify_api_key(api_key, key_data["key_hash"]):
-                    return key_data
+            if result:
+                return result.model_dump()
 
             return None
 
         except Exception as e:
             logger.error(f"Error validating API key: {e}")
             return None
-
-    async def _update_key_usage(self, key_id: str) -> None:
-        """Update the last_used_at timestamp and increment usage_count."""
-        try:
-            client = await get_supabase_client()
-
-            # Use SQL to atomically increment usage_count and update timestamp
-            # This avoids race conditions and extra queries
-            result = await client.rpc(
-                "increment_api_key_usage", {"key_id": key_id}
-            ).execute()
-
-            # Fallback if RPC doesn't exist - will add this to SQL later
-            if not result.data:
-                await (
-                    client.table("api_keys")
-                    .update({"last_used_at": datetime.now(datetime.UTC).isoformat()})
-                    .eq("id", key_id)
-                    .execute()
-                )
-
-        except Exception as e:
-            # Don't fail the request if usage tracking fails
-            logger.warning(f"Failed to update key usage for {key_id}: {e}")
 
 
 async def get_current_api_key(request: Request) -> dict:

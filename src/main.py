@@ -17,6 +17,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .api import health
+from .api import api_keys
 from .core.config import get_settings
 from .core.auth import ApiKeyAuthMiddleware
 
@@ -73,6 +74,7 @@ app.add_middleware(ApiKeyAuthMiddleware)
 
 # Include API routers
 app.include_router(health.router)
+app.include_router(api_keys.router)
 
 
 @app.exception_handler(StarletteHTTPException)
