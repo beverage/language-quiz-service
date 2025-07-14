@@ -1,11 +1,17 @@
-[![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/pylint-dev/pylint) [![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
+[![Staging Deployment](https://github.com/beverage/LanguageQuizService/actions/workflows/staging.yml/badge.svg)](https://github.com/beverage/LanguageQuizService/actions/workflows/staging.yml)
+[![Production Deployment](https://github.com/beverage/LanguageQuizService/actions/workflows/production.yml/badge.svg)](https://github.com/beverage/LanguageQuizService/actions/workflows/production.yml)
+[![Coverage](https://codecov.io/gh/beverage/LanguageQuizService/branch/main/graph/badge.svg)](https://codecov.io/gh/beverage/language-quiz-service)
+[![linting: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.112+-green.svg)](https://fastapi.tiangolo.com)
+[![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
 
 # Language Quiz Service
 
 A FastAPI-powered backend service for generating AI-driven language learning quizzes and content. This service provides REST APIs for creating French language learning materials including verbs, sentences, and grammar problems.
 
 ![Example](docs/example.gif)
-> This example is highly rate-limited and with randomised features.
+> This example is highly rate-limited and with randomised features.  Also, as of a few weeks ago looks nothing like this anymore, and is much more accurate.  I'll have to make a new one.
 
 While the overall correctness for right answers has been verified, some of the answers are not always ideomatic (around 10% of the time) given that they are generated with no surrounding context. This is unavoidable for the time being.
 

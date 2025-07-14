@@ -34,4 +34,4 @@ ENV WEB_PORT=${WEB_PORT}
 
 EXPOSE ${WEB_PORT}
 
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${WEB_PORT}"]
