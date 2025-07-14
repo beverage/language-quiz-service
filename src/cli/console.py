@@ -2,7 +2,6 @@
 import asyncclick as click
 import logging
 import traceback
-import uvicorn
 from pprint import pprint
 
 from src.cli.cli.options import random_options, sentence_options
@@ -31,7 +30,6 @@ from src.cli.sentences.utils import problem_formatter
 from src.cli.verbs.get import download_verb, get_verb, get_random_verb
 from src.cli.utils.console import Style
 from src.cli.utils.queues import batch_operation
-from src.cli.webserver.app import app
 
 
 @click.group()
@@ -425,14 +423,17 @@ async def verb_random():
 
 @cli.group()
 async def webserver():
+    """Legacy webserver commands - use 'uvicorn src.main:app' instead."""
     pass
 
 
 @webserver.command()
 async def start():
-    config = uvicorn.Config(app, host="0.0.0.0", port=8000, log_level="info")
-    server = uvicorn.Server(config)
-    await server.serve()
+    """Legacy webserver start command - use 'uvicorn src.main:app --host 0.0.0.0 --port 8000' instead."""
+    click.echo(
+        "⚠️  Legacy webserver command - use 'uvicorn src.main:app --host 0.0.0.0 --port 8000' instead"
+    )
+    click.echo("   or 'make serve' for development")
 
 
 def main():

@@ -1,15 +1,32 @@
-.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test
+.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev build
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  lint-check    - Check code with ruff and pylint"
-	@echo "  lint-fix      - Fix linting issues with ruff"
+	@echo "  lint-check      - Check code with ruff and pylint"
+	@echo "  lint-fix        - Fix linting issues with ruff"
 	@echo "  lint-fix-unsafe - Fix linting issues with ruff (including unsafe fixes)"
-	@echo "  lint          - Run both lint-check and lint-fix"
-	@echo "  format        - Format code with ruff (excludes src/cli)"
-	@echo "  test          - Run tests with pytest"
-	@echo "  all           - Run format, lint, and test"
+	@echo "  lint            - Run both lint-check and lint-fix"
+	@echo "  format          - Format code with ruff (excludes src/cli)"
+	@echo "  test            - Run tests with pytest"
+	@echo "  serve           - Start FastAPI development server"
+	@echo "  dev             - Start FastAPI development server with auto-reload"
+	@echo "  build           - Build Docker container"
+	@echo "  all             - Run format, lint, and test"
+
+# FastAPI development targets
+serve:
+	@echo "Starting FastAPI server..."
+	poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000
+
+dev:
+	@echo "Starting FastAPI development server with auto-reload..."
+	poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Docker targets
+build:
+	@echo "Building Docker container..."
+	docker build -t language-quiz-service .
 
 # Linting targets
 lint-check:

@@ -1,71 +1,182 @@
 [![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/pylint-dev/pylint) [![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
 
-> For the time being this will no longer work as a standalone console application while it is being transformed into a backend service to power other applications.  A console application will remain as a client of said service, runnable locally, when it is completed.
-> 
-# OpenAI Language Quiz Generator
+# Language Quiz Service
 
-A tool to provide quizzing material for a variety of French language features, and provide feedback for its learners.  What is seen here is it in its command-line application form, but what is within can be consumed by client applications later after further refinement.
+A FastAPI-powered backend service for generating AI-driven language learning quizzes and content. This service provides REST APIs for creating French language learning materials including verbs, sentences, and grammar problems.
 
 ![Example](docs/example.gif)
 > This example is highly rate-limited and with randomised features.
 
-While the overall correctness for right answers has been verified, some of the answers are not always ideomatic (around 10% of the time) given that they are generated with no surrounding context.  This is unavoidable for the time being.
+While the overall correctness for right answers has been verified, some of the answers are not always ideomatic (around 10% of the time) given that they are generated with no surrounding context. This is unavoidable for the time being.
 
-## Getting started
+## 🚀 Quick Start
 
-Right now it is a simple Python app, installable from the command line via [Poetry](https://python-poetry.org/):
-```
-    pipx install poetry
-    pipx inject poetry poetry-plugin-shell
-    poetry install
-```
-This app will additiionally require a postgresql database, and an OpenAI API key in your environment.  (This will be configurable, and hidden later.)
-```
-    # It is probably better to put this into a dotfile:
-    export $OPENAI_API_KEY=...
-```
-A postgresql database is then required, however this is already configured in a docker-compose.yml:
-```
-    # From the root directory of the repo:
-    docker-compose up
-```
-Better secrets management for both the OpenAI keys and database passwords will be coming shortly when the effort to cloud host this as an an API will be undertaken.
+### FastAPI Service (Recommended)
 
-Once running, you will need to pre-populate the database with a minimal verb set before any sentence or problem generation.  To do that, run the following command, which executes the CLI application as a module:
+Start the FastAPI development server:
+```bash
+make dev
+```
+
+Or manually with uvicorn:
+```bash
+poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The service will be available at:
+- **API Documentation**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/health
+- **Alternative Docs**: http://localhost:8000/redoc
+
+### Docker Deployment
+
+```bash
+make build
+docker run -p 8000:8000 language-quiz-service
+```
+
+## 📋 Prerequisites
+
+### Dependencies
+Install via [Poetry](https://python-poetry.org/):
+```bash
+pipx install poetry
+pipx inject poetry poetry-plugin-shell
+poetry install
+```
+
+### Environment Variables
+Required environment variables:
+```bash
+# OpenAI API Key
+export OPENAI_API_KEY=your_openai_api_key
+
+# Supabase Configuration
+export SUPABASE_URL=your_supabase_url
+export SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+export SUPABASE_ANON_KEY=your_supabase_anon_key
+export SUPABASE_PROJECT_REF=your_supabase_project_ref
+
+# Optional: Server Configuration
+export WEB_HOST=0.0.0.0
+export WEB_PORT=8000
+```
+
+### Database Setup
+A PostgreSQL database is required. Use the provided docker-compose configuration:
+```bash
+docker-compose up
+```
+
+Initialize the database with essential verbs:
 ```bash
 poetry run python -m src.cli database init
 ```
 
-From there the application is ready to start generating problem data from the command line. See the documentation below.
+## 🖥️ Command Line Interface
 
-### Development Setup
+The CLI provides direct access to core functionality for development and testing:
 
-To ensure code quality and consistency, this project uses pre-commit Git hooks. These hooks automatically format and lint your code before each commit.
-
-To install the hooks, run the following command from the root of the repository:
+**Initialize the database:**
 ```bash
-make install-githooks
+poetry run python -m src.cli database init
 ```
-This will set up the pre-commit hook, which runs `make lint-fix-unsafe` and `make format` on the files you are about to commit.
 
-## Command Line Usage
+**Generate a random problem:**
+```bash
+poetry run python -m src.cli problem random --count 5
+```
 
-To run the command-line interface, execute the `src.cli` module directly with Python. All commands and subcommands follow this pattern.
-
-**Example: Get a random verb**
+**Get a random verb:**
 ```bash
 poetry run python -m src.cli verb random
 ```
 
-**Example: Initialize the database**
+**Generate sentences:**
 ```bash
-poetry run python -m src.cli database init
+poetry run python -m src.cli sentence new --quantity 3
 ```
 
-## Webserver
+**Legacy webserver commands:**
+```bash
+# These are now no-ops - use 'make dev' instead
+poetry run python -m src.cli webserver start
+```
 
-This project intends to back services behind a mobile app that already exists, so coming soon.
+## 🔧 Development
 
-## Examples
+### Code Quality
+Install pre-commit hooks:
+```bash
+make install-githooks
+```
 
-## Roadmap
+### Available Make Commands
+```bash
+make help          # Show all available commands
+make dev           # Start FastAPI with auto-reload
+make serve         # Start FastAPI server
+make build         # Build Docker container
+make test          # Run tests
+make lint          # Run linting
+make format        # Format code
+make all           # Run format, lint, and test
+```
+
+### Testing
+```bash
+make test           # All tests
+make test-unit      # Unit tests only
+make test-integration # Integration tests only
+```
+
+## 📡 API Endpoints
+
+### Health & Status
+- `GET /` - Service information
+- `GET /health` - Health check
+
+### Core Resources
+- `GET /api/v1/problems/random` - Generate random grammar problem
+- `GET /api/v1/sentences/random` - Generate random sentence
+- `GET /api/v1/verbs/random` - Get random verb
+
+*Full API documentation available at `/docs` when running the service.*
+
+## 🏗️ Architecture
+
+The service follows a clean architecture pattern:
+
+```
+src/
+├── main.py              # FastAPI application entry point
+├── api/                 # REST API endpoints
+├── services/            # Business logic layer
+├── repositories/        # Data access layer
+├── schemas/             # Pydantic models
+├── core/                # Configuration and utilities
+├── clients/             # External service clients
+└── cli/                 # Command-line interface (legacy)
+```
+
+## 🚀 Deployment
+
+### Production
+```bash
+# Build and run with Docker
+make build
+docker run -p 8000:8000 --env-file .env language-quiz-service
+```
+
+### Environment Configuration
+- **Development**: Auto-reload enabled, debug logging
+- **Production**: Optimized for performance, structured logging
+
+## 📈 Roadmap
+
+- [ ] REST API endpoints for all CLI functionality
+- [ ] Authentication and authorization
+- [ ] Rate limiting and caching
+- [ ] Metrics and monitoring
+- [ ] Multi-language support expansion
+- [ ] Advanced grammar rule validation
