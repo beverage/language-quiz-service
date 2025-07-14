@@ -18,6 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .api import health
 from .core.config import get_settings
+from .core.auth import ApiKeyAuthMiddleware
 
 # Configure logging
 logging.basicConfig(
@@ -66,6 +67,9 @@ app.add_middleware(
     else ["*"],
     allow_headers=["*"],
 )
+
+# Add API key authentication middleware
+app.add_middleware(ApiKeyAuthMiddleware)
 
 # Include API routers
 app.include_router(health.router)

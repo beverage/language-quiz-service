@@ -22,6 +22,7 @@ uvicorn = "^0.30.3"
 boto3 = "^1.38.22"
 rich = "^14.0.0"
 slowapi = "^0.1.9"
+bcrypt = "^4.3.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
@@ -60,6 +61,11 @@ filterwarnings = [
     # Ignore external dependency warnings we cannot control
     "ignore:Please use `import python_multipart` instead:PendingDeprecationWarning:starlette.*",
     "ignore:The 'app' shortcut is now deprecated.*:DeprecationWarning:httpx.*",
+    # Ignore Supabase library deprecation warnings (will be fixed in future library versions)
+    "ignore:The 'timeout' parameter is deprecated.*:DeprecationWarning:supabase.*",
+    "ignore:The 'verify' parameter is deprecated.*:DeprecationWarning:supabase.*",
+    # Ignore async mock warnings from test infrastructure
+    "ignore:coroutine 'AsyncMockMixin._execute_mock_call' was never awaited:RuntimeWarning",
 ]
 asyncio_mode = "auto"
 pythonpath = "."
