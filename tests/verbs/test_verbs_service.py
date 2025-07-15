@@ -9,6 +9,7 @@ import json
 import uuid
 from datetime import datetime
 from src.schemas.verbs import VerbCreate, VerbUpdate
+from tests.verbs.fixtures import sample_verb_create
 
 
 def to_json_serializable(obj):

@@ -35,22 +35,14 @@ class ProblemRepository:
 
     async def create_problem(self, problem: ProblemCreate) -> Problem:
         """Create a new problem."""
-        problem_dict = problem.model_dump()
-
-        # Convert enums and UUIDs to string values for storage
-        for key, value in problem_dict.items():
-            if hasattr(value, "value"):
-                problem_dict[key] = value.value
-            elif isinstance(value, UUID):
-                problem_dict[key] = str(value)
-            elif isinstance(value, list) and value and isinstance(value[0], UUID):
-                # Handle UUID arrays (like source_statement_ids)
-                problem_dict[key] = [str(uuid_val) for uuid_val in value]
+        problem_dict = problem.model_dump(
+            mode="json"
+        )  # Use mode="json" to serialize enums correctly
 
         result = await self.client.table("problems").insert(problem_dict).execute()
 
         if result.data:
-            return Problem.model_validate(result.data[0])
+            return Problem.model_validate(self._prepare_problem_data(result.data[0]))
         raise Exception("Failed to create problem")
 
     async def get_problem(self, problem_id: UUID) -> Optional[Problem]:
@@ -63,7 +55,7 @@ class ProblemRepository:
         )
 
         if result.data:
-            return Problem.model_validate(result.data[0])
+            return Problem.model_validate(self._prepare_problem_data(result.data[0]))
         return None
 
     async def get_problems(
@@ -96,7 +88,9 @@ class ProblemRepository:
         result = await query.execute()
 
         problems = (
-            [Problem.model_validate(p) for p in result.data] if result.data else []
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
         )
         total_count = result.count or 0
 
@@ -131,16 +125,9 @@ class ProblemRepository:
         self, problem_id: UUID, problem_data: ProblemUpdate
     ) -> Optional[Problem]:
         """Update a problem."""
-        update_dict = problem_data.model_dump(exclude_unset=True)
-
-        # Convert enums and UUIDs to string values for storage
-        for key, value in update_dict.items():
-            if hasattr(value, "value"):
-                update_dict[key] = value.value
-            elif isinstance(value, UUID):
-                update_dict[key] = str(value)
-            elif isinstance(value, list) and value and isinstance(value[0], UUID):
-                update_dict[key] = [str(uuid_val) for uuid_val in value]
+        update_dict = problem_data.model_dump(
+            exclude_unset=True, mode="json"
+        )  # Use mode="json" for enum serialization
 
         result = (
             await self.client.table("problems")
@@ -150,7 +137,7 @@ class ProblemRepository:
         )
 
         if result.data:
-            return Problem.model_validate(result.data[0])
+            return Problem.model_validate(self._prepare_problem_data(result.data[0]))
         return None
 
     async def delete_problem(self, problem_id: UUID) -> bool:
@@ -163,6 +150,13 @@ class ProblemRepository:
         )
         return len(result.data) > 0
 
+    def _prepare_problem_data(self, problem_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare problem data from database for model validation."""
+        # Handle null metadata from database
+        if problem_data.get("metadata") is None:
+            problem_data["metadata"] = {}
+        return problem_data
+
     async def get_problems_by_type(
         self, problem_type: ProblemType, limit: int = 50
     ) -> List[Problem]:
@@ -174,7 +168,11 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
     async def get_problems_by_topic_tags(
         self, topic_tags: List[str], limit: int = 50
@@ -188,7 +186,11 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
     async def get_problems_using_statement(
         self, statement_id: UUID, limit: int = 50
@@ -201,7 +203,11 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
     async def search_problems_by_metadata(
         self, metadata_query: Dict[str, Any], limit: int = 50
@@ -214,7 +220,11 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
     async def get_random_problem(
         self,
@@ -236,7 +246,9 @@ class ProblemRepository:
         if result.data:
             import random
 
-            return Problem.model_validate(random.choice(result.data))
+            return Problem.model_validate(
+                self._prepare_problem_data(random.choice(result.data))
+            )
         return None
 
     async def count_problems(
@@ -316,7 +328,11 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
     async def get_recent_problems(self, limit: int = 10) -> List[Problem]:
         """Get the most recently created problems."""
@@ -327,4 +343,8 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )

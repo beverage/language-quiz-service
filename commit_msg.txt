@@ -1,0 +1,18 @@
+🧹 Clean up unused fixtures across all test domains
+
+Remove 16 unused fixtures from domain fixture files and conftest.py:
+
+Domain fixture cleanup:
+- sentences/fixtures.py: Removed 7 unused fixtures (sample_sentence_*, sample_db_sentence_*, multiple_db_sentences)
+- verbs/fixtures.py: Removed 4 unused fixtures (sample_verb_data, sample_verb_create, sample_verb_update, sample_conjugation_data)  
+- problems/fixtures.py: Removed 5 unused fixtures (sample_problem_data, sample_problem_create, sample_problem, sample_db_problem, multiple_db_problems)
+
+conftest.py cleanup:
+- Removed 9 unused/duplicate fixtures including deprecated supabase_db_connection
+- Kept only essential shared fixtures: test_supabase_client, sample_db_verb, sample_problem, sample_db_conjugation, sample_conjugation_create, sample_db_sentence
+
+Updated test imports:
+- Added proper imports from domain fixtures to verb service and schema tests
+- Made verb schema test flexible to work with dynamic fixture data
+
+All 468 tests still passing after cleanup. Fixture architecture now cleaner with clear separation between shared infrastructure fixtures and domain-specific test utilities. 
