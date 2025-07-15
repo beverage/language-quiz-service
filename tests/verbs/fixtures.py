@@ -8,11 +8,14 @@ from typing import Dict, Any
 from random import choice
 from faker import Faker
 from uuid import uuid4
+from datetime import datetime, timezone
 
 from src.schemas.verbs import (
     VerbCreate,
     VerbClassification,
     Tense,
+    Verb,
+    AuxiliaryType,
 )
 from src.repositories.verb_repository import VerbRepository
 
@@ -70,6 +73,29 @@ def sample_verb_data() -> Dict[str, Any]:
 def sample_verb_create() -> VerbCreate:
     """Provide a sample VerbCreate instance for testing."""
     return VerbCreate(**generate_random_verb_data())
+
+
+@pytest.fixture
+def sample_verb():
+    """Create a sample Verb model instance for testing."""
+    return Verb(
+        id=uuid4(),
+        infinitive="parler",
+        auxiliary=AuxiliaryType.AVOIR,
+        reflexive=False,
+        target_language_code="fra",
+        translation="to speak",
+        past_participle="parlé",
+        present_participle="parlant",
+        classification=VerbClassification.FIRST_GROUP,
+        is_irregular=False,
+        can_have_cod=True,
+        can_have_coi=False,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        last_used_at=None,
+        usage_count=0,
+    )
 
 
 @pytest.fixture

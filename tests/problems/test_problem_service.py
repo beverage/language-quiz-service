@@ -18,6 +18,9 @@ from src.schemas.verbs import AuxiliaryType, VerbClassification
 # Import fixtures from problems domain
 from tests.problems.fixtures import problem_repository, generate_random_problem_data
 
+# Import verb fixtures from verbs domain
+from tests.verbs.fixtures import sample_verb
+
 
 @pytest.fixture
 def sample_problem_create():
@@ -263,12 +266,12 @@ class TestProblemService:
 class TestProblemServiceParameterGeneration:
     """Test parameter generation methods."""
 
-    def test_generate_grammatical_parameters_basic(self, sample_db_verb):
+    def test_generate_grammatical_parameters_basic(self, sample_verb):
         """Test basic grammatical parameter generation."""
         service = ProblemService()
         constraints = GrammarProblemConstraints()
 
-        params = service._generate_grammatical_parameters(sample_db_verb, constraints)
+        params = service._generate_grammatical_parameters(sample_verb, constraints)
 
         # Should have all required parameters
         assert "pronoun" in params
@@ -284,7 +287,7 @@ class TestProblemServiceParameterGeneration:
         assert isinstance(params["indirect_object"], IndirectObject)
         assert isinstance(params["negation"], Negation)
 
-    def test_generate_grammatical_parameters_with_constraints(self, sample_db_verb):
+    def test_generate_grammatical_parameters_with_constraints(self, sample_verb):
         """Test parameter generation with constraints."""
         service = ProblemService()
         constraints = GrammarProblemConstraints(
@@ -293,12 +296,12 @@ class TestProblemServiceParameterGeneration:
             includes_cod=True,
         )
 
-        params = service._generate_grammatical_parameters(sample_db_verb, constraints)
+        params = service._generate_grammatical_parameters(sample_verb, constraints)
 
         # Should respect tense constraints
         assert params["tense"] in [Tense.PRESENT, Tense.PASSE_COMPOSE]
 
-    def test_vary_parameters_for_correct_statement(self, sample_db_verb):
+    def test_vary_parameters_for_correct_statement(self, sample_verb):
         """Test parameter variation for correct statements."""
         service = ProblemService()
         base_params = {
@@ -311,11 +314,11 @@ class TestProblemServiceParameterGeneration:
 
         # Correct statement should use base parameters
         params = service._vary_parameters_for_statement(
-            base_params, 0, True, sample_db_verb
+            base_params, 0, True, sample_verb
         )
         assert params == base_params
 
-    def test_vary_parameters_for_incorrect_statement(self, sample_db_verb):
+    def test_vary_parameters_for_incorrect_statement(self, sample_verb):
         """Test parameter variation for incorrect statements."""
         service = ProblemService()
         base_params = {
@@ -328,14 +331,14 @@ class TestProblemServiceParameterGeneration:
 
         # Incorrect statement should have some variation
         params = service._vary_parameters_for_statement(
-            base_params, 1, False, sample_db_verb
+            base_params, 1, False, sample_verb
         )
 
         # Should still be a valid parameter set
         assert isinstance(params, dict)
         assert all(key in params for key in base_params.keys())
 
-    def test_derive_topic_tags_basic(self, sample_db_verb):
+    def test_derive_topic_tags_basic(self, sample_verb):
         """Test basic topic tag derivation."""
         service = ProblemService()
         constraints = GrammarProblemConstraints()
@@ -346,13 +349,13 @@ class TestProblemServiceParameterGeneration:
             "includes_negation": False,
         }
 
-        tags = service._derive_topic_tags(sample_db_verb, constraints, metadata)
+        tags = service._derive_topic_tags(sample_verb, constraints, metadata)
 
         # Should always include basic grammar tags
         assert "basic_conjugation" in tags
         assert "basic_grammar" in tags
 
-    def test_derive_grammar_metadata(self, sample_db_verb):
+    def test_derive_grammar_metadata(self, sample_verb):
         """Test metadata derivation from sentences."""
         service = ProblemService()
 
@@ -363,7 +366,7 @@ class TestProblemServiceParameterGeneration:
             id=uuid4(),
             content="Je le mange.",
             translation="I eat it.",
-            verb_id=sample_db_verb.id,
+            verb_id=sample_verb.id,
             pronoun=Pronoun.FIRST_PERSON,
             tense=Tense.PRESENT,
             direct_object=DirectObject.MASCULINE,
@@ -377,14 +380,14 @@ class TestProblemServiceParameterGeneration:
 
         constraints = GrammarProblemConstraints()
         metadata = service._derive_grammar_metadata(
-            [sentence], sample_db_verb, constraints
+            [sentence], sample_verb, constraints
         )
 
         assert "grammatical_focus" in metadata
         assert metadata["includes_cod"] is True
         assert metadata["includes_coi"] is False
         assert metadata["includes_negation"] is False
-        assert sample_db_verb.infinitive in metadata["verb_infinitives"]
+        assert sample_verb.infinitive in metadata["verb_infinitives"]
 
 
 class TestProblemServiceIntegration:
