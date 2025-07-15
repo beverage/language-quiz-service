@@ -89,46 +89,81 @@ def sample_sentence_with_custom_data():
 
 
 @pytest.fixture
-async def sample_db_sentence(supabase_db_connection):
+async def sample_db_sentence(sentence_repository, verb_repository):
     """Provide a sentence created in the local Supabase database."""
-    from tests.sentences.db_helpers import create_sentence
+    from tests.verbs.fixtures import generate_random_verb_data
+    from src.schemas.verbs import VerbCreate
 
-    sentence_data = generate_random_sentence_data()
-    return await create_sentence(supabase_db_connection, **sentence_data)
+    # Create a verb first using verb repository
+    verb_data = generate_random_verb_data()
+    verb_create = VerbCreate(**verb_data)
+    verb = await verb_repository.create_verb(verb_create)
+
+    # Create sentence using sentence repository
+    sentence_data = generate_random_sentence_data(verb_id=verb.id)
+    sentence_create = SentenceCreate(**sentence_data)
+    return await sentence_repository.create_sentence(sentence_create)
 
 
 @pytest.fixture
-async def sample_db_sentence_with_known_verb(supabase_db_connection):
+async def sample_db_sentence_with_known_verb(sentence_repository, verb_repository):
     """Provide a sentence with a known verb for predictable testing."""
-    from tests.verbs.db_helpers import create_verb
-    from tests.sentences.db_helpers import create_sentence
+    from src.schemas.verbs import VerbCreate, VerbClassification, AuxiliaryType
 
-    # Create a known verb first
-    verb = await create_verb(
-        supabase_db_connection, infinitive="parler", target_language_code="fra"
-    )
+    # Create a known verb first using verb repository
+    known_verb_data = {
+        "infinitive": f"parler_{uuid4().hex[:8]}",  # Make unique
+        "auxiliary": AuxiliaryType.AVOIR,
+        "reflexive": False,
+        "target_language_code": "fra",
+        "translation": "to speak",
+        "past_participle": "parlé",
+        "present_participle": "parlant",
+        "classification": VerbClassification.FIRST_GROUP,
+        "is_irregular": False,
+        "can_have_cod": True,
+        "can_have_coi": False,
+    }
+    verb_create = VerbCreate(**known_verb_data)
+    verb = await verb_repository.create_verb(verb_create)
 
-    # Create sentence with this verb
-    return await create_sentence(
-        supabase_db_connection, verb_id=verb.id, target_language_code="eng"
+    # Create sentence with this verb using sentence repository
+    sentence_data = generate_random_sentence_data(
+        verb_id=verb.id, target_language_code="eng"
     )
+    sentence_create = SentenceCreate(**sentence_data)
+    return await sentence_repository.create_sentence(sentence_create)
 
 
 @pytest.fixture
-async def multiple_db_sentences(supabase_db_connection):
+async def multiple_db_sentences(sentence_repository, verb_repository):
     """Create multiple sentences in the database for testing."""
-    from tests.verbs.db_helpers import create_verb
-    from tests.sentences.db_helpers import create_sentence
+    from tests.verbs.fixtures import generate_random_verb_data
+    from src.schemas.verbs import VerbCreate
 
     sentences = []
-    # Create a shared verb for some sentences
-    verb = await create_verb(supabase_db_connection)
+    # Create a shared verb for some sentences using verb repository
+    verb_data = generate_random_verb_data()
+    verb_create = VerbCreate(**verb_data)
+    shared_verb = await verb_repository.create_verb(verb_create)
 
     for i in range(5):
-        sentence = await create_sentence(
-            supabase_db_connection,
-            verb_id=verb.id if i < 3 else None,  # First 3 share a verb
+        if i < 3:
+            # First 3 sentences share the same verb
+            verb_id = shared_verb.id
+        else:
+            # Create individual verbs for the last 2 sentences
+            individual_verb_data = generate_random_verb_data()
+            individual_verb_create = VerbCreate(**individual_verb_data)
+            individual_verb = await verb_repository.create_verb(individual_verb_create)
+            verb_id = individual_verb.id
+
+        sentence_data = generate_random_sentence_data(
+            verb_id=verb_id,
             content=f"Test sentence {i} {fake.word()}",  # Unique content
         )
+        sentence_create = SentenceCreate(**sentence_data)
+        sentence = await sentence_repository.create_sentence(sentence_create)
         sentences.append(sentence)
+
     return sentences
