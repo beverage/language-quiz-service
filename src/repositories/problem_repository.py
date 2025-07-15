@@ -100,10 +100,11 @@ class ProblemRepository:
         self, filters: ProblemFilters
     ) -> Tuple[List[ProblemSummary], int]:
         """Get lightweight problem summaries for list views."""
-        # Select only fields needed for summary
+        # PostgREST approach: First get basic fields, then compute statement_count in Python
+        # This avoids the PostgREST function call issue
         select_fields = """
             id, problem_type, title, instructions, correct_answer_index, 
-            topic_tags, created_at, jsonb_array_length(statements) as statement_count
+            topic_tags, created_at, statements
         """
 
         query = self.client.table("problems").select(select_fields, count="exact")
@@ -115,8 +116,22 @@ class ProblemRepository:
         summaries = []
         if result.data:
             for p in result.data:
-                # ProblemSummary expects statement_count as a field
-                summary_data = {**p, "statement_count": p.get("statement_count", 0)}
+                # Calculate statement_count in Python from the JSONB data
+                statement_count = (
+                    len(p.get("statements", [])) if p.get("statements") else 0
+                )
+
+                # Create summary data without the statements field (not needed for summary)
+                summary_data = {
+                    "id": p["id"],
+                    "problem_type": p["problem_type"],
+                    "title": p["title"],
+                    "instructions": p["instructions"],
+                    "correct_answer_index": p["correct_answer_index"],
+                    "topic_tags": p["topic_tags"],
+                    "created_at": p["created_at"],
+                    "statement_count": statement_count,
+                }
                 summaries.append(ProblemSummary.model_validate(summary_data))
 
         return summaries, result.count or 0

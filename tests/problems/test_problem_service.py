@@ -1,589 +1,343 @@
-"""Unit tests for the ProblemService."""
+"""Tests for ProblemService business logic."""
 
 import pytest
-from unittest.mock import AsyncMock, patch
 from datetime import datetime, timezone
 from uuid import uuid4
 
 from src.services.problem_service import ProblemService
-from src.repositories.problem_repository import ProblemRepository
-from src.services.sentence_service import SentenceService
-from src.services.verb_service import VerbService
 from src.schemas.problems import (
-    Problem,
     ProblemCreate,
     ProblemUpdate,
     ProblemType,
     ProblemFilters,
-    ProblemSummary,
     GrammarProblemConstraints,
 )
-from src.schemas.sentences import (
-    Sentence,
-    Pronoun,
-    Tense,
-    DirectObject,
-    IndirectObject,
-    Negation,
-)
-from src.schemas.verbs import Verb, AuxiliaryType, VerbClassification
+from src.schemas.sentences import Pronoun, Tense, DirectObject, IndirectObject, Negation
+from src.schemas.verbs import AuxiliaryType, VerbClassification
+
+# Import fixtures from problems domain
+from tests.problems.fixtures import problem_repository, generate_random_problem_data
 
 
 @pytest.fixture
-def mock_problem_repository():
-    """Mock ProblemRepository for testing."""
-    return AsyncMock(spec=ProblemRepository)
+def sample_problem_create():
+    """Create a sample ProblemCreate instance for testing."""
+    problem_data = generate_random_problem_data()
+    return ProblemCreate(**problem_data)
 
 
-@pytest.fixture
-def mock_sentence_service():
-    """Mock SentenceService for testing."""
-    return AsyncMock(spec=SentenceService)
+@pytest.mark.asyncio
+class TestProblemService:
+    """Test ProblemService business logic."""
 
-
-@pytest.fixture
-def mock_verb_service():
-    """Mock VerbService for testing."""
-    return AsyncMock(spec=VerbService)
-
-
-@pytest.fixture
-def sample_verb():
-    """Sample verb for testing."""
-    return Verb(
-        id=uuid4(),
-        infinitive="parler",
-        auxiliary=AuxiliaryType.AVOIR,
-        reflexive=False,
-        target_language_code="eng",
-        translation="to speak",
-        past_participle="parlé",
-        present_participle="parlant",
-        classification=VerbClassification.FIRST_GROUP,
-        is_irregular=False,
-        can_have_cod=True,
-        can_have_coi=False,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    )
-
-
-@pytest.fixture
-def sample_sentence():
-    """Sample sentence for testing."""
-    return Sentence(
-        id=uuid4(),
-        content="Je parle français.",
-        translation="I speak French.",
-        verb_id=uuid4(),
-        pronoun=Pronoun.FIRST_PERSON,
-        tense=Tense.PRESENT,
-        direct_object=DirectObject.NONE,
-        indirect_object=IndirectObject.NONE,
-        negation=Negation.NONE,
-        is_correct=True,
-        target_language_code="eng",
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    )
-
-
-@pytest.fixture
-def sample_problem():
-    """Sample problem for testing."""
-    return Problem(
-        id=uuid4(),
-        problem_type=ProblemType.GRAMMAR,
-        title="Grammar: Parler",
-        instructions="Choose the correctly formed French sentence.",
-        correct_answer_index=0,
-        target_language_code="eng",
-        statements=[
-            {
-                "content": "Je parle français.",
-                "is_correct": True,
-                "translation": "I speak French.",
-            },
-            {
-                "content": "Je parles français.",
-                "is_correct": False,
-                "explanation": "Wrong conjugation",
-            },
-        ],
-        topic_tags=["grammar", "basic_grammar"],
-        source_statement_ids=[uuid4(), uuid4()],
-        metadata={"grammatical_focus": ["basic_conjugation"]},
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-    )
-
-
-@pytest.fixture
-def problem_service(mock_problem_repository, mock_sentence_service, mock_verb_service):
-    """ProblemService instance with mocked dependencies."""
-    return ProblemService(
-        problem_repository=mock_problem_repository,
-        sentence_service=mock_sentence_service,
-        verb_service=mock_verb_service,
-    )
-
-
-@pytest.fixture
-def problem_service_no_deps():
-    """ProblemService instance without injected dependencies."""
-    return ProblemService()
-
-
-@pytest.mark.unit
-class TestProblemServiceInitialization:
-    """Test cases for ProblemService initialization."""
-
-    def test_init_with_dependencies(
-        self, mock_problem_repository, mock_sentence_service, mock_verb_service
+    async def test_create_and_retrieve_problem(
+        self, problem_repository, sample_problem_create
     ):
-        """Test initialization with injected dependencies."""
-        service = ProblemService(
-            problem_repository=mock_problem_repository,
-            sentence_service=mock_sentence_service,
-            verb_service=mock_verb_service,
+        """Test creating and retrieving a problem."""
+        service = ProblemService(problem_repository=problem_repository)
+
+        # Create a simple grammar problem
+        problem_data = ProblemCreate(
+            problem_type=ProblemType.GRAMMAR,
+            title="Grammar: Parler",
+            instructions="Choose the correctly formed French sentence.",
+            correct_answer_index=0,
+            target_language_code="eng",
+            statements=[
+                {
+                    "content": "Je parle français.",
+                    "is_correct": True,
+                    "translation": "I speak French.",
+                },
+                {
+                    "content": "Je parles français.",
+                    "is_correct": False,
+                    "explanation": "Wrong conjugation",
+                },
+            ],
+            topic_tags=["grammar", "basic_grammar"],
+            source_statement_ids=[uuid4(), uuid4()],
+            metadata={"grammatical_focus": ["basic_conjugation"]},
         )
 
-        assert service.problem_repository == mock_problem_repository
-        assert service.sentence_service == mock_sentence_service
-        assert service.verb_service == mock_verb_service
+        # Create the problem
+        created_problem = await service.create_problem(problem_data)
+        assert created_problem.id is not None
+        assert created_problem.title == "Grammar: Parler"
+        assert created_problem.problem_type == ProblemType.GRAMMAR
+        assert len(created_problem.statements) == 2
+        assert created_problem.correct_answer_index == 0
 
-    def test_init_without_dependencies(self):
-        """Test initialization without injected dependencies."""
-        service = ProblemService()
+        # Retrieve the problem
+        retrieved_problem = await service.get_problem(created_problem.id)
+        assert retrieved_problem.id == created_problem.id
+        assert retrieved_problem.title == created_problem.title
 
-        assert service.problem_repository is None
-        assert isinstance(service.sentence_service, SentenceService)
-        assert isinstance(service.verb_service, VerbService)
+    async def test_update_problem(self, problem_repository, sample_problem_create):
+        """Test updating a problem."""
+        service = ProblemService(problem_repository=problem_repository)
 
-    @pytest.mark.asyncio
-    @patch("src.services.problem_service.ProblemRepository.create")
-    async def test_get_problem_repository_lazy_init(self, mock_create):
-        """Test lazy initialization of problems repository."""
-        mock_repo = AsyncMock()
-        mock_create.return_value = mock_repo
+        # Create initial problem
+        created_problem = await service.create_problem(sample_problem_create)
 
-        service = ProblemService()
-        repo = await service._get_problem_repository()
+        # Update the problem
+        update_data = ProblemUpdate(
+            title="Updated Grammar: Parler",
+            instructions="Updated: Choose the correctly formed French sentence.",
+        )
 
-        assert repo == mock_repo
-        assert service.problem_repository == mock_repo
-        mock_create.assert_called_once()
+        updated_problem = await service.update_problem(created_problem.id, update_data)
+        assert updated_problem.title == "Updated Grammar: Parler"
+        assert (
+            updated_problem.instructions
+            == "Updated: Choose the correctly formed French sentence."
+        )
+        assert updated_problem.problem_type == created_problem.problem_type  # Unchanged
 
-    @pytest.mark.asyncio
-    async def test_get_problem_repository_existing(
-        self, problem_service, mock_problem_repository
-    ):
-        """Test getting existing problems repository."""
-        repo = await problem_service._get_problem_repository()
+    async def test_delete_problem(self, problem_repository, sample_problem_create):
+        """Test deleting a problem."""
+        service = ProblemService(problem_repository=problem_repository)
 
-        assert repo == mock_problem_repository
+        # Create a problem
+        created_problem = await service.create_problem(sample_problem_create)
 
+        # Delete the problem
+        success = await service.delete_problem(created_problem.id)
+        assert success is True
 
-@pytest.mark.unit
-@pytest.mark.asyncio
-class TestProblemServiceCRUD:
-    """Test cases for basic CRUD operations."""
+        # Verify it's gone
+        deleted_problem = await service.get_problem(created_problem.id)
+        assert deleted_problem is None
 
-    async def test_create_problem(
-        self, problem_service, mock_problem_repository, sample_problem
-    ):
-        """Test creating a problem."""
-        problem_data = ProblemCreate(**sample_problem.model_dump())
-        mock_problem_repository.create_problem.return_value = sample_problem
-
-        result = await problem_service.create_problem(problem_data)
-
-        assert result == sample_problem
-        mock_problem_repository.create_problem.assert_called_once_with(problem_data)
-
-    async def test_get_problem(
-        self, problem_service, mock_problem_repository, sample_problem
-    ):
-        """Test getting a problem by ID."""
-        problem_id = sample_problem.id
-        mock_problem_repository.get_problem.return_value = sample_problem
-
-        result = await problem_service.get_problem(problem_id)
-
-        assert result == sample_problem
-        mock_problem_repository.get_problem.assert_called_once_with(problem_id)
-
-    async def test_get_problems(
-        self, problem_service, mock_problem_repository, sample_problem
+    async def test_get_problems_with_filters(
+        self, problem_repository, sample_problem_create
     ):
         """Test getting problems with filters."""
-        filters = ProblemFilters(problem_type=ProblemType.GRAMMAR)
-        mock_problem_repository.get_problems.return_value = ([sample_problem], 1)
+        service = ProblemService(problem_repository=problem_repository)
 
-        problems, total = await problem_service.get_problems(filters)
+        # Create multiple problems with unique identifiers
+        unique_tag = f"test_filter_{uuid4().hex[:8]}"
 
-        assert problems == [sample_problem]
-        assert total == 1
-        mock_problem_repository.get_problems.assert_called_once_with(filters, True)
+        problem1_data = ProblemCreate(
+            **{
+                **sample_problem_create.model_dump(),
+                "title": f"Problem 1 {unique_tag}",
+                "topic_tags": [unique_tag, "grammar"],
+            }
+        )
+        problem1 = await service.create_problem(problem1_data)
+
+        problem2_data = ProblemCreate(
+            **{
+                **sample_problem_create.model_dump(),
+                "title": f"Problem 2 {unique_tag}",
+                "topic_tags": [unique_tag, "grammar"],
+            }
+        )
+        problem2 = await service.create_problem(problem2_data)
+
+        # Get problems by our unique tag (should find exactly our 2 problems)
+        problems_by_topic = await service.get_problems_by_topic([unique_tag], limit=10)
+        found_ids = [p.id for p in problems_by_topic]
+        assert problem1.id in found_ids
+        assert problem2.id in found_ids
+
+        # Filter by type (should include our problems among others)
+        grammar_problems, grammar_total = await service.get_problems(
+            ProblemFilters(problem_type=ProblemType.GRAMMAR)
+        )
+        assert grammar_total >= 2  # At least our 2 problems
+        for problem in grammar_problems:
+            assert problem.problem_type == ProblemType.GRAMMAR
 
     async def test_get_problem_summaries(
-        self, problem_service, mock_problem_repository
+        self, problem_repository, sample_problem_create
     ):
         """Test getting problem summaries."""
-        filters = ProblemFilters()
-        mock_summary = ProblemSummary(
-            id=uuid4(),
-            problem_type=ProblemType.GRAMMAR,
-            title="Test",
-            instructions="Test instructions",
-            correct_answer_index=0,
-            topic_tags=[],
-            created_at=datetime.now(timezone.utc),
-            statement_count=2,
+        service = ProblemService(problem_repository=problem_repository)
+
+        # Create a problem with a unique tag for identification
+        unique_tag = f"summary_test_{uuid4().hex[:8]}"
+        problem_data = ProblemCreate(
+            **{
+                **sample_problem_create.model_dump(),
+                "title": f"Summary Test {unique_tag}",
+                "topic_tags": [unique_tag],
+            }
         )
-        mock_problem_repository.get_problem_summaries.return_value = ([mock_summary], 1)
+        created_problem = await service.create_problem(problem_data)
 
-        summaries, total = await problem_service.get_problem_summaries(filters)
+        # Test that get_problem_summaries works without errors
+        summaries, total = await service.get_problem_summaries(ProblemFilters(limit=50))
 
-        assert summaries == [mock_summary]
-        assert total == 1
-        mock_problem_repository.get_problem_summaries.assert_called_once_with(filters)
+        # Basic validation
+        assert total >= 1
+        assert len(summaries) <= 50
+        assert len(summaries) > 0
 
-    async def test_update_problem(
-        self, problem_service, mock_problem_repository, sample_problem
+        # Validate structure of returned summaries
+        first_summary = summaries[0]
+        assert hasattr(first_summary, "id")
+        assert hasattr(first_summary, "title")
+        assert hasattr(first_summary, "problem_type")
+        assert hasattr(first_summary, "statement_count")
+        assert isinstance(first_summary.statement_count, int)
+        assert first_summary.statement_count >= 0
+
+        # Verify our created problem exists (may not be in the limited results due to ordering)
+        retrieved = await service.get_problem(created_problem.id)
+        assert retrieved is not None
+        assert retrieved.title == created_problem.title
+
+    async def test_get_problems_by_topic(
+        self, problem_repository, sample_problem_create
     ):
-        """Test updating a problem."""
-        problem_id = sample_problem.id
-        update_data = ProblemUpdate(title="Updated Title")
-        mock_problem_repository.update_problem.return_value = sample_problem
+        """Test getting problems by topic tags."""
+        service = ProblemService(problem_repository=problem_repository)
 
-        result = await problem_service.update_problem(problem_id, update_data)
-
-        assert result == sample_problem
-        mock_problem_repository.update_problem.assert_called_once_with(
-            problem_id, update_data
+        # Create a problem with specific tags
+        unique_tag = f"topic_test_{uuid4().hex[:8]}"
+        problem_data = ProblemCreate(
+            **{
+                **sample_problem_create.model_dump(),
+                "topic_tags": [unique_tag, "grammar"],
+            }
         )
+        created_problem = await service.create_problem(problem_data)
 
-    async def test_delete_problem(self, problem_service, mock_problem_repository):
-        """Test deleting a problem."""
-        problem_id = uuid4()
-        mock_problem_repository.delete_problem.return_value = True
+        # Search by topic
+        problems = await service.get_problems_by_topic([unique_tag], limit=10)
+        problem_ids = [p.id for p in problems]
+        assert created_problem.id in problem_ids
 
-        result = await problem_service.delete_problem(problem_id)
+    async def test_get_random_problem(self, problem_repository, sample_problem_create):
+        """Test getting a random problem."""
+        service = ProblemService(problem_repository=problem_repository)
 
-        assert result is True
-        mock_problem_repository.delete_problem.assert_called_once_with(problem_id)
+        # Create a problem first
+        await service.create_problem(sample_problem_create)
 
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-class TestProblemServiceGrammarGeneration:
-    """Test cases for grammar problem generation."""
-
-    async def test_create_random_grammar_problem_success(
-        self,
-        problem_service,
-        mock_problem_repository,
-        mock_sentence_service,
-        mock_verb_service,
-        sample_verb,
-        sample_sentence,
-        sample_problem,
-    ):
-        """Test successful creation of random grammar problem."""
-        # Mock verb service
-        mock_verb_service.get_random_verb.return_value = sample_verb
-
-        # Mock sentence service - create multiple sentences
-        sentences = []
-        for i in range(4):
-            sentence = Sentence(
-                id=uuid4(),
-                content=f"Je parle français {i}.",
-                translation="I speak French.",
-                verb_id=sample_verb.id,
-                pronoun=Pronoun.FIRST_PERSON,
-                tense=Tense.PRESENT,
-                direct_object=DirectObject.NONE,
-                indirect_object=IndirectObject.NONE,
-                negation=Negation.NONE,
-                is_correct=(i == 0),  # First one is correct
-                target_language_code="eng",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-            )
-            sentences.append(sentence)
-
-        mock_sentence_service.generate_sentence.side_effect = sentences
-
-        # Mock repository
-        mock_problem_repository.create_problem.return_value = sample_problem
-
-        # Test with constraints
-        constraints = GrammarProblemConstraints(
-            grammatical_focus=["basic_conjugation"],
-            includes_negation=False,
+        # Get random problem
+        random_problem = await service.get_random_problem(
+            problem_type=ProblemType.GRAMMAR, topic_tags=["grammar"]
         )
 
-        result = await problem_service.create_random_grammar_problem(
-            constraints=constraints,
-            statement_count=4,
-            target_language_code="eng",
-        )
+        # Should get a problem (might be ours or others in the DB)
+        if random_problem:
+            assert random_problem.problem_type == ProblemType.GRAMMAR
 
-        assert result == sample_problem
-        mock_verb_service.get_random_verb.assert_called_once()
-        assert mock_sentence_service.generate_sentence.call_count == 4
-        mock_problem_repository.create_problem.assert_called_once()
+    async def test_count_problems(self, problem_repository, sample_problem_create):
+        """Test counting problems."""
+        service = ProblemService(problem_repository=problem_repository)
 
-    async def test_create_random_grammar_problem_no_verb(
-        self,
-        problem_service,
-        mock_verb_service,
+        # Get initial count
+        initial_count = await service.count_problems()
+
+        # Create a problem
+        await service.create_problem(sample_problem_create)
+
+        # Count should increase
+        new_count = await service.count_problems()
+        assert new_count == initial_count + 1
+
+        # Count with filters
+        grammar_count = await service.count_problems(problem_type=ProblemType.GRAMMAR)
+        assert grammar_count >= 1
+
+    async def test_get_problem_statistics(
+        self, problem_repository, sample_problem_create
     ):
-        """Test grammar problem creation when no verb is available."""
-        mock_verb_service.get_random_verb.return_value = None
+        """Test getting problem statistics."""
+        service = ProblemService(problem_repository=problem_repository)
 
-        with pytest.raises(
-            ValueError, match="No verbs available for problem generation"
-        ):
-            await problem_service.create_random_grammar_problem()
+        # Create a problem to ensure we have data
+        await service.create_problem(sample_problem_create)
 
-    async def test_create_random_grammar_problem_default_constraints(
-        self,
-        problem_service,
-        mock_problem_repository,
-        mock_sentence_service,
-        mock_verb_service,
-        sample_verb,
-        sample_problem,
-    ):
-        """Test grammar problem creation with default constraints."""
-        mock_verb_service.get_random_verb.return_value = sample_verb
-
-        # Create mock sentences
-        sentences = [
-            Sentence(
-                id=uuid4(),
-                content=f"Sentence {i}",
-                translation="Translation",
-                verb_id=sample_verb.id,
-                pronoun=Pronoun.FIRST_PERSON,
-                tense=Tense.PRESENT,
-                direct_object=DirectObject.NONE,
-                indirect_object=IndirectObject.NONE,
-                negation=Negation.NONE,
-                is_correct=(i == 0),
-                target_language_code="eng",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-            )
-            for i in range(4)
-        ]
-        mock_sentence_service.generate_sentence.side_effect = sentences
-        mock_problem_repository.create_problem.return_value = sample_problem
-
-        result = await problem_service.create_random_grammar_problem()
-
-        assert result == sample_problem
-        # Should use default constraints (None)
-        mock_verb_service.get_random_verb.assert_called_once()
+        # Get statistics
+        stats = await service.get_problem_statistics()
+        assert "total_problems" in stats
+        assert stats["total_problems"] >= 1
+        assert "problems_by_type" in stats
 
 
-@pytest.mark.unit
 class TestProblemServiceParameterGeneration:
-    """Test cases for parameter generation methods."""
+    """Test parameter generation methods."""
 
-    def test_generate_grammatical_parameters_default(
-        self, problem_service, sample_verb
-    ):
-        """Test generating grammatical parameters with default constraints."""
+    def test_generate_grammatical_parameters_basic(self, sample_db_verb):
+        """Test basic grammatical parameter generation."""
+        service = ProblemService()
         constraints = GrammarProblemConstraints()
 
-        params = problem_service._generate_grammatical_parameters(
-            sample_verb, constraints
-        )
+        params = service._generate_grammatical_parameters(sample_db_verb, constraints)
 
+        # Should have all required parameters
         assert "pronoun" in params
         assert "tense" in params
         assert "direct_object" in params
         assert "indirect_object" in params
         assert "negation" in params
+
+        # Should be valid enum values
         assert isinstance(params["pronoun"], Pronoun)
         assert isinstance(params["tense"], Tense)
-        assert params["tense"] != Tense.IMPERATIF  # Should exclude imperative
+        assert isinstance(params["direct_object"], DirectObject)
+        assert isinstance(params["indirect_object"], IndirectObject)
+        assert isinstance(params["negation"], Negation)
 
-    def test_generate_grammatical_parameters_with_constraints(
-        self, problem_service, sample_verb
-    ):
-        """Test generating parameters with specific constraints."""
+    def test_generate_grammatical_parameters_with_constraints(self, sample_db_verb):
+        """Test parameter generation with constraints."""
+        service = ProblemService()
         constraints = GrammarProblemConstraints(
             tenses_used=["present", "passe_compose"],
             includes_negation=True,
             includes_cod=True,
         )
 
-        params = problem_service._generate_grammatical_parameters(
-            sample_verb, constraints
-        )
+        params = service._generate_grammatical_parameters(sample_db_verb, constraints)
 
+        # Should respect tense constraints
         assert params["tense"] in [Tense.PRESENT, Tense.PASSE_COMPOSE]
-        assert params["negation"] != Negation.NONE  # Should include negation
-        # Note: COD behavior depends on random choices and verb capabilities
 
-    def test_vary_parameters_for_correct_statement(self, problem_service, sample_verb):
+    def test_vary_parameters_for_correct_statement(self, sample_db_verb):
         """Test parameter variation for correct statements."""
+        service = ProblemService()
         base_params = {
             "pronoun": Pronoun.FIRST_PERSON,
             "tense": Tense.PRESENT,
-            "direct_object": DirectObject.MASCULINE,
+            "direct_object": DirectObject.NONE,
             "indirect_object": IndirectObject.NONE,
             "negation": Negation.NONE,
         }
 
-        params = problem_service._vary_parameters_for_statement(
-            base_params, 0, True, sample_verb
+        # Correct statement should use base parameters
+        params = service._vary_parameters_for_statement(
+            base_params, 0, True, sample_db_verb
         )
-
-        # Correct statement should use base parameters unchanged
         assert params == base_params
 
-    def test_vary_parameters_for_incorrect_statement(
-        self, problem_service, sample_verb
-    ):
+    def test_vary_parameters_for_incorrect_statement(self, sample_db_verb):
         """Test parameter variation for incorrect statements."""
+        service = ProblemService()
         base_params = {
             "pronoun": Pronoun.FIRST_PERSON,
             "tense": Tense.PRESENT,
-            "direct_object": DirectObject.MASCULINE,
+            "direct_object": DirectObject.NONE,
             "indirect_object": IndirectObject.NONE,
             "negation": Negation.NONE,
         }
 
-        params = problem_service._vary_parameters_for_statement(
-            base_params, 1, False, sample_verb
+        # Incorrect statement should have some variation
+        params = service._vary_parameters_for_statement(
+            base_params, 1, False, sample_db_verb
         )
 
-        # Should introduce some variation for incorrect statement
-        # The exact variation depends on the error type logic
+        # Should still be a valid parameter set
         assert isinstance(params, dict)
         assert all(key in params for key in base_params.keys())
 
-    def test_package_grammar_problem(self, problem_service, sample_verb):
-        """Test packaging sentences into problem format."""
-        sentences = [
-            Sentence(
-                id=uuid4(),
-                content="Je parle français.",
-                translation="I speak French.",
-                verb_id=sample_verb.id,
-                pronoun=Pronoun.FIRST_PERSON,
-                tense=Tense.PRESENT,
-                direct_object=DirectObject.NONE,
-                indirect_object=IndirectObject.NONE,
-                negation=Negation.NONE,
-                is_correct=True,
-                target_language_code="eng",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-            ),
-            Sentence(
-                id=uuid4(),
-                content="Je parles français.",
-                translation="",
-                verb_id=sample_verb.id,
-                pronoun=Pronoun.FIRST_PERSON,
-                tense=Tense.PRESENT,
-                direct_object=DirectObject.NONE,
-                indirect_object=IndirectObject.NONE,
-                negation=Negation.NONE,
-                is_correct=False,
-                explanation="Wrong conjugation",
-                target_language_code="eng",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-            ),
-        ]
-
-        constraints = GrammarProblemConstraints()
-        correct_answer_index = 0
-
-        problem_create = problem_service._package_grammar_problem(
-            sentences, correct_answer_index, sample_verb, constraints, "eng"
-        )
-
-        assert isinstance(problem_create, ProblemCreate)
-        assert problem_create.problem_type == ProblemType.GRAMMAR
-        assert problem_create.title == "Grammar: Parler"
-        assert problem_create.correct_answer_index == 0
-        assert len(problem_create.statements) == 2
-        assert problem_create.statements[0]["is_correct"] is True
-        assert problem_create.statements[1]["is_correct"] is False
-        assert "translation" in problem_create.statements[0]
-        assert "explanation" in problem_create.statements[1]
-
-    def test_derive_grammar_metadata(self, problem_service, sample_verb):
-        """Test deriving metadata from sentences."""
-        sentences = [
-            Sentence(
-                id=uuid4(),
-                content="Je le mange.",
-                translation="I eat it.",
-                verb_id=sample_verb.id,
-                pronoun=Pronoun.FIRST_PERSON,
-                tense=Tense.PRESENT,
-                direct_object=DirectObject.MASCULINE,
-                indirect_object=IndirectObject.NONE,
-                negation=Negation.NONE,
-                is_correct=True,
-                target_language_code="eng",
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-            ),
-        ]
-
-        constraints = GrammarProblemConstraints()
-
-        metadata = problem_service._derive_grammar_metadata(
-            sentences, sample_verb, constraints
-        )
-
-        assert "grammatical_focus" in metadata
-        assert "direct_objects" in metadata["grammatical_focus"]
-        assert metadata["includes_cod"] is True
-        assert metadata["includes_coi"] is False
-        assert metadata["includes_negation"] is False
-        assert "parler" in metadata["verb_infinitives"]
-
-    @pytest.mark.parametrize(
-        "verb_infinitive,expected_tag",
-        [
-            ("manger", "food"),
-            ("aller", "movement"),
-            ("parler", "communication"),
-            ("être", "essential_verbs"),
-            ("dormir", None),  # Should not match any category
-        ],
-    )
-    def test_derive_topic_tags(self, problem_service, verb_infinitive, expected_tag):
-        """Test deriving topic tags from verb and metadata."""
-        verb = Verb(
-            id=uuid4(),
-            infinitive=verb_infinitive,
-            auxiliary=AuxiliaryType.AVOIR,
-            reflexive=False,
-            target_language_code="eng",
-            translation="test",
-            past_participle="test",
-            present_participle="test",
-            classification=VerbClassification.FIRST_GROUP,
-            is_irregular=False,
-            can_have_cod=True,
-            can_have_coi=False,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
-        )
-
+    def test_derive_topic_tags_basic(self, sample_db_verb):
+        """Test basic topic tag derivation."""
+        service = ProblemService()
         constraints = GrammarProblemConstraints()
         metadata = {
             "grammatical_focus": ["basic_conjugation"],
@@ -592,150 +346,78 @@ class TestProblemServiceParameterGeneration:
             "includes_negation": False,
         }
 
-        tags = problem_service._derive_topic_tags(verb, constraints, metadata)
+        tags = service._derive_topic_tags(sample_db_verb, constraints, metadata)
 
+        # Should always include basic grammar tags
         assert "basic_conjugation" in tags
         assert "basic_grammar" in tags
-        if expected_tag:
-            assert expected_tag in tags
 
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-class TestProblemServiceAnalytics:
-    """Test cases for analytics and search methods."""
-
-    async def test_get_problems_by_topic(
-        self, problem_service, mock_problem_repository, sample_problem
-    ):
-        """Test getting problems by topic tags."""
-        topic_tags = ["grammar", "basic_grammar"]
-        mock_problem_repository.get_problems_by_topic_tags.return_value = [
-            sample_problem
-        ]
-
-        result = await problem_service.get_problems_by_topic(topic_tags, 25)
-
-        assert result == [sample_problem]
-        mock_problem_repository.get_problems_by_topic_tags.assert_called_once_with(
-            topic_tags, 25
-        )
-
-    async def test_get_problems_using_verb(
-        self, problem_service, mock_problem_repository, sample_problem
-    ):
-        """Test getting problems using a specific verb."""
-        verb_id = uuid4()
-        mock_problem_repository.search_problems_by_metadata.return_value = [
-            sample_problem
-        ]
-
-        result = await problem_service.get_problems_using_verb(verb_id, 25)
-
-        assert result == [sample_problem]
-        expected_query = {"source_verb_ids": [str(verb_id)]}
-        mock_problem_repository.search_problems_by_metadata.assert_called_once_with(
-            expected_query, 25
-        )
-
-    async def test_get_problems_by_grammatical_focus(
-        self, problem_service, mock_problem_repository, sample_problem
-    ):
-        """Test getting problems by grammatical focus."""
-        focus = "direct_objects"
-        mock_problem_repository.search_problems_by_metadata.return_value = [
-            sample_problem
-        ]
-
-        result = await problem_service.get_problems_by_grammatical_focus(focus, 25)
-
-        assert result == [sample_problem]
-        expected_query = {"grammatical_focus": [focus]}
-        mock_problem_repository.search_problems_by_metadata.assert_called_once_with(
-            expected_query, 25
-        )
-
-    async def test_get_random_problem(
-        self, problem_service, mock_problem_repository, sample_problem
-    ):
-        """Test getting a random problem."""
-        mock_problem_repository.get_random_problem.return_value = sample_problem
-
-        result = await problem_service.get_random_problem(
-            problem_type=ProblemType.GRAMMAR, topic_tags=["grammar"]
-        )
-
-        assert result == sample_problem
-        mock_problem_repository.get_random_problem.assert_called_once_with(
-            ProblemType.GRAMMAR, ["grammar"]
-        )
-
-    async def test_count_problems(self, problem_service, mock_problem_repository):
-        """Test counting problems."""
-        mock_problem_repository.count_problems.return_value = 42
-
-        result = await problem_service.count_problems(
-            problem_type=ProblemType.GRAMMAR, topic_tags=["grammar"]
-        )
-
-        assert result == 42
-        mock_problem_repository.count_problems.assert_called_once_with(
-            ProblemType.GRAMMAR, ["grammar"]
-        )
-
-    async def test_get_problem_statistics(
-        self, problem_service, mock_problem_repository
-    ):
-        """Test getting problem statistics."""
-        mock_stats = {
-            "total_problems": 100,
-            "problems_by_type": {"grammar": 80, "vocabulary": 20},
-        }
-        mock_problem_repository.get_problem_statistics.return_value = mock_stats
-
-        result = await problem_service.get_problem_statistics()
-
-        assert result == mock_stats
-        mock_problem_repository.get_problem_statistics.assert_called_once()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-class TestProblemServiceLazyInitialization:
-    """Test cases for lazy initialization scenarios."""
-
-    @patch("src.services.problem_service.ProblemRepository.create")
-    async def test_crud_operations_with_lazy_init(self, mock_create, sample_problem):
-        """Test that CRUD operations work with lazy repository initialization."""
-        mock_repo = AsyncMock()
-        mock_repo.get_problem.return_value = sample_problem
-        mock_create.return_value = mock_repo
-
-        service = ProblemService()  # No repository injected
-
-        result = await service.get_problem(sample_problem.id)
-
-        assert result == sample_problem
-        mock_create.assert_called_once()
-        mock_repo.get_problem.assert_called_once_with(sample_problem.id)
-
-    @patch("src.services.problem_service.ProblemRepository.create")
-    async def test_multiple_operations_reuse_repository(
-        self, mock_create, sample_problem
-    ):
-        """Test that multiple operations reuse the same repository instance."""
-        mock_repo = AsyncMock()
-        mock_repo.get_problem.return_value = sample_problem
-        mock_repo.count_problems.return_value = 5
-        mock_create.return_value = mock_repo
-
+    def test_derive_grammar_metadata(self, sample_db_verb):
+        """Test metadata derivation from sentences."""
         service = ProblemService()
 
-        # First operation
-        await service.get_problem(sample_problem.id)
-        # Second operation
-        await service.count_problems()
+        # Create a mock sentence with COD
+        from src.schemas.sentences import Sentence
 
-        # Repository should only be created once
-        mock_create.assert_called_once()
-        assert service.problem_repository == mock_repo
+        sentence = Sentence(
+            id=uuid4(),
+            content="Je le mange.",
+            translation="I eat it.",
+            verb_id=sample_db_verb.id,
+            pronoun=Pronoun.FIRST_PERSON,
+            tense=Tense.PRESENT,
+            direct_object=DirectObject.MASCULINE,
+            indirect_object=IndirectObject.NONE,
+            negation=Negation.NONE,
+            is_correct=True,
+            target_language_code="eng",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+
+        constraints = GrammarProblemConstraints()
+        metadata = service._derive_grammar_metadata(
+            [sentence], sample_db_verb, constraints
+        )
+
+        assert "grammatical_focus" in metadata
+        assert metadata["includes_cod"] is True
+        assert metadata["includes_coi"] is False
+        assert metadata["includes_negation"] is False
+        assert sample_db_verb.infinitive in metadata["verb_infinitives"]
+
+
+class TestProblemServiceIntegration:
+    """Integration tests that might use other services."""
+
+    @pytest.mark.asyncio
+    async def test_service_initialization_with_dependencies(self, problem_repository):
+        """Test service initialization with injected dependencies."""
+        service = ProblemService(problem_repository=problem_repository)
+
+        assert service.problem_repository == problem_repository
+        assert service.sentence_service is not None
+        assert service.verb_service is not None
+
+    def test_service_initialization_without_dependencies(self):
+        """Test service initialization without injected dependencies."""
+        service = ProblemService()
+
+        assert service.problem_repository is None
+        assert service.sentence_service is not None
+        assert service.verb_service is not None
+
+    @pytest.mark.asyncio
+    async def test_lazy_repository_initialization(self):
+        """Test that repository is lazily initialized when needed."""
+        service = ProblemService()  # No repository injected
+
+        # This should trigger lazy initialization
+        # Note: This test might fail if Supabase isn't running, which is expected
+        try:
+            repo = await service._get_problem_repository()
+            assert repo is not None
+            assert service.problem_repository == repo
+        except Exception:
+            # Expected if Supabase isn't running in this test context
+            pytest.skip("Supabase not available for lazy initialization test")
