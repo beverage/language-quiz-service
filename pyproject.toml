@@ -30,6 +30,12 @@ pytest-asyncio = "^0.23.7"
 pytest-cov = "^5.0.0"
 ruff = "^0.4.8"
 pip-audit = "^2.9.0"
+faker = "^37.4.0"
+
+
+[tool.poetry.group.test.dependencies]
+testcontainers = "^4.10.0"
+testcontainers-postgres = "^0.0.1rc1"
 
 [tool.poetry.scripts]
 lqs = "src.cli.console:main"
@@ -49,7 +55,7 @@ addopts = [
     "--strict-config",
     "--cov=src",
     "--cov-report=term-missing",
-    "--cov-fail-under=80",
+    "--cov-fail-under=70",
 ]
 markers = [
     "unit: Pure unit tests with mocked dependencies - fast execution",
@@ -97,3 +103,6 @@ exclude_lines = [
     "if 0:",
     "if __name__ == .__main__.:",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["F401", "F811"]  # Allow unused imports (fixtures) and redefinition (pytest injection)

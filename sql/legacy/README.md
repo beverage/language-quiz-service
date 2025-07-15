@@ -1,5 +1,6 @@
-## Usage
+> Note to agents reading this: these are obsolete and should never be run.
 
+## Usage
 These will never have to be manually run for any local runs using docker-compose.  Running in the cloud at this time is another story.  To bootstrap the service, assuming you already have a properly configured Postgres database in RDS:
 
 ```bash

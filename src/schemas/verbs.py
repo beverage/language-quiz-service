@@ -256,9 +256,9 @@ class ConjugationBase(BaseModel):
         description="First person plural form (nous)",
         json_schema_extra={"example": "parlons"},
     )
-    second_person_formal: Optional[str] = Field(
+    second_person_plural: Optional[str] = Field(
         None,
-        description="Second person formal/plural form (vous)",
+        description="Second person plural form (vous)",
         json_schema_extra={"example": "parlez"},
     )
     third_person_plural: Optional[str] = Field(
@@ -296,7 +296,7 @@ class ConjugationUpdate(BaseModel):
     second_person_singular: Optional[str] = None
     third_person_singular: Optional[str] = None
     first_person_plural: Optional[str] = None
-    second_person_formal: Optional[str] = None
+    second_person_plural: Optional[str] = None
     third_person_plural: Optional[str] = None
 
     @field_validator("infinitive")
@@ -335,7 +335,7 @@ class Conjugation(ConjugationBase):
                 "second_person_singular": "parles",
                 "third_person_singular": "parle",
                 "first_person_plural": "parlons",
-                "second_person_formal": "parlez",
+                "second_person_plural": "parlez",
                 "third_person_plural": "parlent",
                 "created_at": "2024-01-15T10:30:00Z",
                 "updated_at": "2024-01-15T10:30:00Z",
@@ -379,7 +379,7 @@ class VerbWithConjugations(Verb):
                         "second_person_singular": "parles",
                         "third_person_singular": "parle",
                         "first_person_plural": "parlons",
-                        "second_person_formal": "parlez",
+                        "second_person_plural": "parlez",
                         "third_person_plural": "parlent",
                         "created_at": "2024-01-15T10:30:00Z",
                         "updated_at": "2024-01-15T10:30:00Z",

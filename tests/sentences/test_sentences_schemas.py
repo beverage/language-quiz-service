@@ -6,20 +6,25 @@ from pydantic import ValidationError
 from src.schemas.sentences import (
     SentenceCreate,
     SentenceUpdate,
-    Pronoun,
     Negation,
 )
+from tests.sentences.fixtures import generate_random_sentence_data
 
 
 @pytest.mark.unit
 class TestSentenceCreate:
     """Test cases for the SentenceCreate schema."""
 
+    @pytest.fixture
+    def sample_sentence_data(self):
+        """Provide sample sentence data dictionary for testing."""
+        return generate_random_sentence_data()
+
     def test_valid_sentence_creation(self, sample_sentence_data: dict):
         """Tests that a valid SentenceCreate model can be created."""
         sentence = SentenceCreate(**sample_sentence_data)
         assert sentence.content == sample_sentence_data["content"]
-        assert sentence.pronoun == Pronoun.FIRST_PERSON
+        assert sentence.pronoun.value == sample_sentence_data["pronoun"]
 
     @pytest.mark.parametrize("field_to_remove", ["content", "translation", "verb_id"])
     def test_missing_required_fields_fail(

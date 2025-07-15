@@ -87,7 +87,7 @@ The JSON structure MUST be as follows. Do not deviate.
             "second_person_singular": "",
             "third_person_singular": "",
             "first_person_plural": "",
-            "second_person_formal": "",
+            "second_person_plural": "",
             "third_person_plural": ""
         }},
         {{
@@ -99,7 +99,7 @@ The JSON structure MUST be as follows. Do not deviate.
             "second_person_singular": "",
             "third_person_singular": "",
             "first_person_plural": "",
-            "second_person_formal": "",
+            "second_person_plural": "",
             "third_person_plural": ""
         }}
     ]
