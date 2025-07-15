@@ -4,9 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from src.schemas.sentences import (
+    Negation,
     SentenceCreate,
     SentenceUpdate,
-    Negation,
 )
 from tests.sentences.fixtures import generate_random_sentence_data
 

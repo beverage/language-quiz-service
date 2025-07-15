@@ -1,14 +1,15 @@
 """Test fixtures for problem domain."""
 
-import pytest
-from faker import Faker
-from random import choice, randint
-from typing import Dict, Any, List
 from datetime import datetime
+from random import choice, randint
+from typing import Any
 from uuid import uuid4
 
-from src.schemas.problems import ProblemType, Problem
+import pytest
+from faker import Faker
+
 from src.repositories.problem_repository import ProblemRepository
+from src.schemas.problems import Problem, ProblemType
 
 fake = Faker()
 
@@ -17,12 +18,12 @@ def generate_random_problem_data(
     problem_type: str = None,
     target_language_code: str = None,
     correct_answer_index: int = None,
-    statements: List[Dict[str, Any]] = None,
-    topic_tags: List[str] = None,
+    statements: list[dict[str, Any]] = None,
+    topic_tags: list[str] = None,
     title: str = None,
     instructions: str = None,
-    metadata: Dict[str, Any] = None,
-) -> Dict[str, Any]:
+    metadata: dict[str, Any] = None,
+) -> dict[str, Any]:
     """Generate random problem data for testing."""
     if problem_type is None:
         # Only use GRAMMAR type since FUNCTIONAL and VOCABULARY are not implemented yet
@@ -81,7 +82,7 @@ def sample_problem():
     return Problem(**problem_data)
 
 
-def _generate_statements_for_type(problem_type: str) -> List[Dict[str, Any]]:
+def _generate_statements_for_type(problem_type: str) -> list[dict[str, Any]]:
     """Generate statements based on problem type."""
     if problem_type == ProblemType.GRAMMAR.value:
         return [
@@ -113,7 +114,7 @@ def _generate_statements_for_type(problem_type: str) -> List[Dict[str, Any]]:
         )
 
 
-def _generate_topic_tags_for_type(problem_type: str) -> List[str]:
+def _generate_topic_tags_for_type(problem_type: str) -> list[str]:
     """Generate appropriate topic tags based on problem type."""
     if problem_type == ProblemType.GRAMMAR.value:
         return choice(

@@ -1,17 +1,19 @@
 """Tests for sentence prompt generation functionality."""
 
+from uuid import UUID
+
 import pytest
+
 from src.prompts.sentence_prompts import SentencePromptGenerator
 from src.schemas.sentences import (
-    SentenceBase,
     DirectObject,
     IndirectObject,
     Negation,
     Pronoun,
+    SentenceBase,
     Tense,
 )
-from src.schemas.verbs import Verb, AuxiliaryType, VerbClassification
-from uuid import UUID
+from src.schemas.verbs import AuxiliaryType, Verb, VerbClassification
 
 
 @pytest.fixture

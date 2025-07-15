@@ -2,17 +2,17 @@
 API Keys CLI commands for managing API keys via the API.
 """
 
-import asyncclick as click
 import json
 import os
-from typing import Optional
 from uuid import UUID
+
+import asyncclick as click
 import httpx
 from rich.console import Console
 from rich.table import Table
 
 
-def get_api_key_from_env_or_flag(api_key_flag: Optional[str]) -> str:
+def get_api_key_from_env_or_flag(api_key_flag: str | None) -> str:
     """
     Get API key from environment variable or CLI flag.
 
@@ -50,8 +50,8 @@ async def make_api_request(
     method: str,
     endpoint: str,
     api_key: str,
-    json_data: Optional[dict] = None,
-    params: Optional[dict] = None,
+    json_data: dict | None = None,
+    params: dict | None = None,
 ) -> httpx.Response:
     """
     Make an authenticated API request.
@@ -121,12 +121,12 @@ async def make_api_request(
 @click.option("--api-key", help="API key for authentication (or set LQS_API_KEY)")
 async def create(
     name: str,
-    description: Optional[str],
-    client_name: Optional[str],
+    description: str | None,
+    client_name: str | None,
     permissions: str,
     rate_limit: int,
-    allowed_ips: Optional[str],
-    api_key: Optional[str],
+    allowed_ips: str | None,
+    api_key: str | None,
 ):
     """Create a new API key."""
 
@@ -175,7 +175,7 @@ async def create(
 @click.command()
 @click.option("--json", "output_json", is_flag=True, help="Output in JSON format")
 @click.option("--api-key", help="API key for authentication (or set LQS_API_KEY)")
-async def list_keys(output_json: bool, api_key: Optional[str]):
+async def list_keys(output_json: bool, api_key: str | None):
     """List all API keys."""
 
     # Get API key for authentication
@@ -241,7 +241,7 @@ async def list_keys(output_json: bool, api_key: Optional[str]):
 @click.command()
 @click.argument("key_id", type=str)
 @click.option("--api-key", help="API key for authentication (or set LQS_API_KEY)")
-async def revoke(key_id: str, api_key: Optional[str]):
+async def revoke(key_id: str, api_key: str | None):
     """Revoke an API key by UUID."""
 
     # Get API key for authentication

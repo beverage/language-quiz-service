@@ -1,10 +1,10 @@
 import asyncio
-import boto3
 import logging as log
 import os
 import time
-
 from functools import partial
+
+import boto3
 
 from src.cli.utils.console import Color, Style
 

@@ -1,14 +1,15 @@
 """Test cases for problem repository using Supabase client only."""
 
-import pytest
 from uuid import uuid4
 
+import pytest
+
 from src.schemas.problems import (
-    ProblemCreate,
-    ProblemUpdate,
     Problem,
-    ProblemType,
+    ProblemCreate,
     ProblemFilters,
+    ProblemType,
+    ProblemUpdate,
 )
 from tests.problems.fixtures import (
     generate_random_problem_data,

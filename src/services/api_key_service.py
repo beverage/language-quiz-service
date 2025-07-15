@@ -1,21 +1,20 @@
 """API Key service for business logic."""
 
 import logging
-from typing import List, Optional, Tuple
 from uuid import UUID
 
 from src.clients.supabase import get_supabase_client
 from src.repositories.api_keys_repository import ApiKeyRepository
 from src.schemas.api_keys import (
     ApiKeyCreate,
-    ApiKeyUpdate,
     ApiKeyResponse,
-    ApiKeyWithPlainText,
     ApiKeyStats,
+    ApiKeyUpdate,
+    ApiKeyWithPlainText,
+    check_ip_allowed,
     generate_api_key,
     hash_api_key,
     verify_api_key,
-    check_ip_allowed,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ApiKeyService:
     """Service for API key business logic and orchestration."""
 
-    def __init__(self, api_key_repository: Optional[ApiKeyRepository] = None):
+    def __init__(self, api_key_repository: ApiKeyRepository | None = None):
         """Initialize the API key service with injectable dependencies."""
         self.api_key_repository = api_key_repository
 
@@ -52,7 +51,7 @@ class ApiKeyService:
             key_info=ApiKeyResponse.model_validate(api_key.model_dump()),
         )
 
-    async def get_api_key(self, api_key_id: UUID) -> Optional[ApiKeyResponse]:
+    async def get_api_key(self, api_key_id: UUID) -> ApiKeyResponse | None:
         """Get an API key by ID (safe response, no sensitive data)."""
         repo = await self._get_api_key_repository()
         api_key = await repo.get_api_key(api_key_id)
@@ -63,7 +62,7 @@ class ApiKeyService:
 
     async def get_all_api_keys(
         self, limit: int = 100, include_inactive: bool = False
-    ) -> List[ApiKeyResponse]:
+    ) -> list[ApiKeyResponse]:
         """Get all API keys (safe response, no sensitive data)."""
         repo = await self._get_api_key_repository()
         api_keys = await repo.get_all_api_keys(limit, include_inactive)
@@ -72,7 +71,7 @@ class ApiKeyService:
 
     async def update_api_key(
         self, api_key_id: UUID, api_key_data: ApiKeyUpdate
-    ) -> Optional[ApiKeyResponse]:
+    ) -> ApiKeyResponse | None:
         """Update an API key."""
         repo = await self._get_api_key_repository()
         api_key = await repo.update_api_key(api_key_id, api_key_data)
@@ -87,8 +86,8 @@ class ApiKeyService:
         return await repo.delete_api_key(api_key_id)
 
     async def authenticate_api_key(
-        self, api_key_plain: str, client_ip: Optional[str] = None
-    ) -> Optional[ApiKeyResponse]:
+        self, api_key_plain: str, client_ip: str | None = None
+    ) -> ApiKeyResponse | None:
         """
         Authenticate an API key and return key info if valid.
 
@@ -143,7 +142,7 @@ class ApiKeyService:
 
     async def verify_api_key_format(
         self, api_key_plain: str
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         Verify if an API key has the correct format without database lookup.
 
@@ -171,7 +170,7 @@ class ApiKeyService:
         repo = await self._get_api_key_repository()
         return await repo.get_api_key_stats()
 
-    async def find_api_keys_by_name(self, name_pattern: str) -> List[ApiKeyResponse]:
+    async def find_api_keys_by_name(self, name_pattern: str) -> list[ApiKeyResponse]:
         """Find API keys by name pattern."""
         repo = await self._get_api_key_repository()
         api_keys = await repo.find_keys_by_name(name_pattern)
@@ -199,7 +198,7 @@ class ApiKeyService:
         # No expiration logic in current schema
         return False
 
-    async def get_permissions(self, api_key: ApiKeyResponse) -> List[str]:
+    async def get_permissions(self, api_key: ApiKeyResponse) -> list[str]:
         """Get the permissions for an API key."""
         return api_key.permissions_scope
 

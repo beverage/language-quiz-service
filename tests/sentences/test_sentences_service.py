@@ -4,21 +4,22 @@ Simple tests focused on business logic, using real repository connections.
 No complex mocking - we trust the repository layer works with local Supabase.
 """
 
-import pytest
-from uuid import uuid4
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
-from src.services.sentence_service import SentenceService
+import pytest
+
 from src.schemas.sentences import (
-    SentenceCreate,
-    SentenceUpdate,
-    Pronoun,
-    Tense,
     DirectObject,
     IndirectObject,
     Negation,
+    Pronoun,
+    SentenceCreate,
+    SentenceUpdate,
+    Tense,
 )
 from src.schemas.verbs import VerbCreate
+from src.services.sentence_service import SentenceService
 from tests.sentences.fixtures import generate_random_sentence_data
 from tests.verbs.fixtures import generate_random_verb_data
 

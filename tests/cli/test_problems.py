@@ -1,25 +1,25 @@
 """Tests for CLI problems functionality."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
+
+import pytest
 
 from src.cli.problems.create import (
     create_random_problem,
     create_random_problem_with_delay,
     create_random_problems_batch,
+    get_problem_statistics,
     list_problems,
     search_problems_by_focus,
     search_problems_by_topic,
-    get_problem_statistics,
 )
-
 from src.schemas.problems import (
+    GrammarProblemConstraints,
     Problem,
     ProblemSummary,
     ProblemType,
-    GrammarProblemConstraints,
 )
 
 # Filter expected warnings from async mocking

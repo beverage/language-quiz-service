@@ -1,8 +1,8 @@
 """Sentence-related schemas."""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, field_validator
 from strenum import StrEnum
 
@@ -66,8 +66,8 @@ class SentenceBase(BaseModel):
     indirect_object: IndirectObject
     negation: Negation
     is_correct: bool = True
-    explanation: Optional[str] = None
-    source: Optional[str] = None
+    explanation: str | None = None
+    source: str | None = None
 
     @field_validator("target_language_code")
     @classmethod
@@ -97,22 +97,22 @@ class SentenceCreate(SentenceBase):
 class SentenceUpdate(BaseModel):
     """Schema for updating a sentence."""
 
-    target_language_code: Optional[str] = None
-    content: Optional[str] = None
-    translation: Optional[str] = None
-    verb_id: Optional[UUID] = None
-    pronoun: Optional[Pronoun] = None
-    tense: Optional[Tense] = None
-    direct_object: Optional[DirectObject] = None
-    indirect_object: Optional[IndirectObject] = None
-    negation: Optional[Negation] = None
-    is_correct: Optional[bool] = None
-    explanation: Optional[str] = None
-    source: Optional[str] = None
+    target_language_code: str | None = None
+    content: str | None = None
+    translation: str | None = None
+    verb_id: UUID | None = None
+    pronoun: Pronoun | None = None
+    tense: Tense | None = None
+    direct_object: DirectObject | None = None
+    indirect_object: IndirectObject | None = None
+    negation: Negation | None = None
+    is_correct: bool | None = None
+    explanation: str | None = None
+    source: str | None = None
 
     @field_validator("target_language_code")
     @classmethod
-    def validate_language_code(cls, v: Optional[str]) -> Optional[str]:
+    def validate_language_code(cls, v: str | None) -> str | None:
         if v is None:
             return v
 
@@ -142,11 +142,11 @@ class CorrectnessValidationResponse(BaseModel):
     """Response schema for sentence correctness validation."""
 
     is_valid: bool
-    explanation: Optional[str] = None
+    explanation: str | None = None
     actual_direct_object: DirectObject
     actual_indirect_object: IndirectObject
     actual_negation: Negation
-    direct_object_text: Optional[str] = None
-    indirect_object_text: Optional[str] = None
+    direct_object_text: str | None = None
+    indirect_object_text: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

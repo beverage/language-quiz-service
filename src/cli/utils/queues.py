@@ -1,6 +1,7 @@
-from asyncio import create_task, gather, Queue, sleep
-from typing import Any, Awaitable, Callable, List, TypeVar
 import asyncio
+from asyncio import Queue, create_task, gather, sleep
+from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 
@@ -44,11 +45,11 @@ async def batch_operation(
 
 
 async def parallel_execute(
-    tasks: List[Awaitable[T]],
+    tasks: list[Awaitable[T]],
     max_concurrent: int = 10,
     batch_delay: float = 0.5,
     error_handler: Callable[[Exception, int], None] = None,
-) -> List[T]:
+) -> list[T]:
     """
     Execute a list of async tasks in parallel with batching and error handling.
 

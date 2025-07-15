@@ -3,27 +3,27 @@ Fixtures and test data generators for verb repository tests.
 Keeps conftest.py clean by separating domain-specific test utilities.
 """
 
-import pytest
-from typing import Dict, Any
+from datetime import UTC, datetime
 from random import choice
-from faker import Faker
+from typing import Any
 from uuid import uuid4
-from datetime import datetime, timezone
 
+import pytest
+from faker import Faker
+
+from src.repositories.verb_repository import VerbRepository
 from src.schemas.verbs import (
-    VerbCreate,
-    VerbClassification,
+    AuxiliaryType,
     Tense,
     Verb,
-    AuxiliaryType,
+    VerbClassification,
+    VerbCreate,
 )
-from src.repositories.verb_repository import VerbRepository
-
 
 fake = Faker()
 
 
-def generate_random_verb_data() -> Dict[str, Any]:
+def generate_random_verb_data() -> dict[str, Any]:
     """Generate random verb data for testing."""
     infinitive = f"{fake.word()}_{uuid4().hex[:8]}"  # Make unique
 
@@ -46,7 +46,7 @@ def generate_random_verb_data() -> Dict[str, Any]:
     }
 
 
-def generate_random_conjugation_data() -> Dict[str, Any]:
+def generate_random_conjugation_data() -> dict[str, Any]:
     """Generate random conjugation data for testing."""
     infinitive = f"{fake.word()}_{uuid4().hex[:8]}"  # Make unique
     return {
@@ -64,7 +64,7 @@ def generate_random_conjugation_data() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def sample_verb_data() -> Dict[str, Any]:
+def sample_verb_data() -> dict[str, Any]:
     """Provide sample verb data dictionary for testing."""
     return generate_random_verb_data()
 
@@ -91,8 +91,8 @@ def sample_verb():
         is_irregular=False,
         can_have_cod=True,
         can_have_coi=False,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         last_used_at=None,
         usage_count=0,
     )

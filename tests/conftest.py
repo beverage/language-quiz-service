@@ -9,6 +9,7 @@ async def test_supabase_client():
     """Create a Supabase client for testing that points to local Supabase instance."""
     import json
     import subprocess
+
     from src.clients.supabase import create_test_supabase_client
 
     # Local Supabase API connection details

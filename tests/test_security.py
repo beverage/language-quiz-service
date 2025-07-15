@@ -1,12 +1,13 @@
 """Comprehensive security tests for rate limiting and CORS."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from fastapi.testclient import TestClient
 from slowapi import Limiter
 
+from src.core.config import Settings, get_settings
 from src.main import app
-from src.core.config import get_settings, Settings
 
 
 @pytest.fixture

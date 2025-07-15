@@ -5,7 +5,7 @@ Migrated to use Supabase services instead of SQLAlchemy.
 Maintained for backward compatibility.
 """
 
-from src.schemas.sentences import Pronoun, DirectObject, IndirectObject, Negation
+from src.schemas.sentences import DirectObject, IndirectObject, Negation, Pronoun
 from src.schemas.verbs import Tense
 from src.services.sentence_service import SentenceService
 

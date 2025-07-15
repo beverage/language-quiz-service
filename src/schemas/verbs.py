@@ -4,7 +4,6 @@ Pydantic schemas for French verbs and conjugations.
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -79,7 +78,7 @@ class VerbBase(BaseModel):
         json_schema_extra={"example": "parlant"},
         min_length=1,
     )
-    classification: Optional[VerbClassification] = Field(
+    classification: VerbClassification | None = Field(
         None,
         description="French verb group classification",
         json_schema_extra={"example": "first_group"},
@@ -137,30 +136,30 @@ class VerbCreate(VerbBase):
 class VerbUpdate(BaseModel):
     """Schema for updating an existing verb."""
 
-    infinitive: Optional[str] = Field(None, min_length=1)
-    auxiliary: Optional[AuxiliaryType] = None
-    reflexive: Optional[bool] = None
-    target_language_code: Optional[str] = None
-    translation: Optional[str] = Field(None, min_length=1)
-    past_participle: Optional[str] = Field(None, min_length=1)
-    present_participle: Optional[str] = Field(None, min_length=1)
-    classification: Optional[VerbClassification] = None
-    is_irregular: Optional[bool] = None
-    can_have_cod: Optional[bool] = None
-    can_have_coi: Optional[bool] = None
+    infinitive: str | None = Field(None, min_length=1)
+    auxiliary: AuxiliaryType | None = None
+    reflexive: bool | None = None
+    target_language_code: str | None = None
+    translation: str | None = Field(None, min_length=1)
+    past_participle: str | None = Field(None, min_length=1)
+    present_participle: str | None = Field(None, min_length=1)
+    classification: VerbClassification | None = None
+    is_irregular: bool | None = None
+    can_have_cod: bool | None = None
+    can_have_coi: bool | None = None
 
     @field_validator(
         "infinitive", "translation", "past_participle", "present_participle"
     )
     @classmethod
-    def text_must_not_be_empty(cls, v: Optional[str]) -> Optional[str]:
+    def text_must_not_be_empty(cls, v: str | None) -> str | None:
         if v is not None and (not v or not v.strip()):
             raise ValueError("Text cannot be empty")
         return v.strip() if v else v
 
     @field_validator("target_language_code")
     @classmethod
-    def validate_language_code(cls, v: Optional[str]) -> Optional[str]:
+    def validate_language_code(cls, v: str | None) -> str | None:
         if v is None:
             return v
 
@@ -188,7 +187,7 @@ class Verb(VerbBase):
     updated_at: datetime = Field(
         ..., description="Timestamp when verb was last updated"
     )
-    last_used_at: Optional[datetime] = Field(
+    last_used_at: datetime | None = Field(
         None, description="Timestamp when verb was last used"
     )
 
@@ -236,32 +235,32 @@ class ConjugationBase(BaseModel):
     tense: Tense = Field(
         ..., description="Verb tense", json_schema_extra={"example": "present"}
     )
-    first_person_singular: Optional[str] = Field(
+    first_person_singular: str | None = Field(
         None,
         description="First person singular form (je)",
         json_schema_extra={"example": "parle"},
     )
-    second_person_singular: Optional[str] = Field(
+    second_person_singular: str | None = Field(
         None,
         description="Second person singular form (tu)",
         json_schema_extra={"example": "parles"},
     )
-    third_person_singular: Optional[str] = Field(
+    third_person_singular: str | None = Field(
         None,
         description="Third person singular form (il/elle)",
         json_schema_extra={"example": "parle"},
     )
-    first_person_plural: Optional[str] = Field(
+    first_person_plural: str | None = Field(
         None,
         description="First person plural form (nous)",
         json_schema_extra={"example": "parlons"},
     )
-    second_person_plural: Optional[str] = Field(
+    second_person_plural: str | None = Field(
         None,
         description="Second person plural form (vous)",
         json_schema_extra={"example": "parlez"},
     )
-    third_person_plural: Optional[str] = Field(
+    third_person_plural: str | None = Field(
         None,
         description="Third person plural form (ils/elles)",
         json_schema_extra={"example": "parlent"},
@@ -276,7 +275,7 @@ class ConjugationBase(BaseModel):
 
 
 class LLMVerbPayload(VerbBase):
-    tenses: List[ConjugationBase]
+    tenses: list[ConjugationBase]
 
 
 class ConjugationCreate(ConjugationBase):
@@ -288,20 +287,20 @@ class ConjugationCreate(ConjugationBase):
 class ConjugationUpdate(BaseModel):
     """Schema for updating an existing conjugation."""
 
-    infinitive: Optional[str] = Field(None, min_length=1)
-    auxiliary: Optional[AuxiliaryType] = None
-    reflexive: Optional[bool] = None
-    tense: Optional[Tense] = None
-    first_person_singular: Optional[str] = None
-    second_person_singular: Optional[str] = None
-    third_person_singular: Optional[str] = None
-    first_person_plural: Optional[str] = None
-    second_person_plural: Optional[str] = None
-    third_person_plural: Optional[str] = None
+    infinitive: str | None = Field(None, min_length=1)
+    auxiliary: AuxiliaryType | None = None
+    reflexive: bool | None = None
+    tense: Tense | None = None
+    first_person_singular: str | None = None
+    second_person_singular: str | None = None
+    third_person_singular: str | None = None
+    first_person_plural: str | None = None
+    second_person_plural: str | None = None
+    third_person_plural: str | None = None
 
     @field_validator("infinitive")
     @classmethod
-    def infinitive_must_not_be_empty(cls, v: Optional[str]) -> Optional[str]:
+    def infinitive_must_not_be_empty(cls, v: str | None) -> str | None:
         if v is not None and (not v or not v.strip()):
             raise ValueError("Infinitive cannot be empty")
         return v.strip() if v else v

@@ -3,21 +3,20 @@ API Key management endpoints.
 """
 
 import logging
-from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPBearer
 
 from src.core.auth import get_current_api_key
-from src.services.api_key_service import ApiKeyService
 from src.schemas.api_keys import (
     ApiKeyCreate,
-    ApiKeyUpdate,
     ApiKeyResponse,
-    ApiKeyWithPlainText,
     ApiKeyStats,
+    ApiKeyUpdate,
+    ApiKeyWithPlainText,
 )
+from src.services.api_key_service import ApiKeyService
 
 logger = logging.getLogger(__name__)
 
@@ -31,15 +30,15 @@ security = HTTPBearer()
     summary="Create a new API key",
     description="""
     Create a new API key with specified permissions and settings.
-    
-    **⚠️ Important**: The API key will only be shown once in the response. 
+
+    **⚠️ Important**: The API key will only be shown once in the response.
     Save it securely as it cannot be retrieved again.
-    
+
     **Permission Levels**:
     - `read`: Access to GET endpoints
     - `write`: Access to POST/PUT endpoints + read permissions
     - `admin`: Full access including API key management
-    
+
     **Required Permission**: `admin`
     """,
     responses={
@@ -133,15 +132,15 @@ async def create_api_key(
 
 @router.get(
     "/",
-    response_model=List[ApiKeyResponse],
+    response_model=list[ApiKeyResponse],
     summary="List all API keys",
     description="""
     Retrieve a list of all API keys in the system.
-    
+
     **Filtering Options**:
     - `limit`: Maximum number of keys to return (default: 100)
     - `include_inactive`: Whether to include deactivated keys (default: false)
-    
+
     **Required Permission**: `admin`
     """,
     responses={
@@ -205,7 +204,7 @@ async def list_api_keys(
         False, description="Include deactivated keys in results"
     ),
     current_key: dict = Depends(get_current_api_key),
-) -> List[ApiKeyResponse]:
+) -> list[ApiKeyResponse]:
     """
     List all API keys.
 
@@ -237,12 +236,12 @@ async def list_api_keys(
     summary="Get API key usage statistics",
     description="""
     Retrieve system-wide API key usage statistics and metrics.
-    
+
     **Returns**:
     - Total number of API keys (active and inactive)
     - Usage metrics and request counts
     - Most active API key information
-    
+
     **Required Permission**: `admin`
     """,
     responses={
@@ -308,7 +307,7 @@ async def get_api_key_stats(
 async def search_api_keys(
     name: str,
     current_key: dict = Depends(get_current_api_key),
-) -> List[ApiKeyResponse]:
+) -> list[ApiKeyResponse]:
     """
     Search API keys by name pattern.
 
@@ -340,13 +339,13 @@ async def search_api_keys(
     summary="Get current API key information",
     description="""
     Retrieve information about the currently authenticated API key.
-    
+
     **Use Cases**:
     - Verify API key authentication is working
     - Check current permissions and rate limits
     - View usage statistics for your key
     - Useful for debugging and monitoring
-    
+
     **Required Permission**: Any (authenticated user can view their own key info)
     """,
     responses={

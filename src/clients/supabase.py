@@ -1,8 +1,7 @@
 """Supabase client configuration."""
 
-from supabase import acreate_client, Client
-
 from src.core.config import settings
+from supabase import Client, acreate_client
 
 
 async def get_supabase_client() -> Client:

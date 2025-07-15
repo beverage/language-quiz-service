@@ -1,20 +1,18 @@
 """Sentence repository for data access."""
 
 import logging
-from typing import List, Optional
 from uuid import UUID
-
-from supabase import Client
 
 from src.clients.supabase import get_supabase_client
 from src.schemas.sentences import Sentence, SentenceCreate, SentenceUpdate
+from supabase import Client
 
 logger = logging.getLogger(__name__)
 
 
 class SentenceRepository:
     @classmethod
-    async def create(cls, client: Optional[Client] = None) -> "SentenceRepository":
+    async def create(cls, client: Client | None = None) -> "SentenceRepository":
         """Asynchronously create an instance of SentenceRepository."""
         if client is None:
             client = await get_supabase_client()
@@ -26,8 +24,8 @@ class SentenceRepository:
 
     async def count_sentences(
         self,
-        verb_id: Optional[UUID] = None,
-        is_correct: Optional[bool] = None,
+        verb_id: UUID | None = None,
+        is_correct: bool | None = None,
     ) -> int:
         """Count sentences with optional filters."""
         query = self.client.table("sentences").select("id", count="exact")
@@ -67,16 +65,16 @@ class SentenceRepository:
         )
         return len(result.data) > 0
 
-    async def get_all_sentences(self, limit: int = 100) -> List[Sentence]:
+    async def get_all_sentences(self, limit: int = 100) -> list[Sentence]:
         """Get all sentences."""
         result = await self.client.table("sentences").select("*").limit(limit).execute()
         return [Sentence.model_validate(sentence) for sentence in result.data]
 
     async def get_random_sentence(
         self,
-        is_correct: Optional[bool] = None,
-        verb_id: Optional[UUID] = None,
-    ) -> Optional[Sentence]:
+        is_correct: bool | None = None,
+        verb_id: UUID | None = None,
+    ) -> Sentence | None:
         """Get a random sentence with optional filters."""
         # Note: Supabase doesn't have native random, this is a simple implementation
         query = self.client.table("sentences").select("*")
@@ -94,7 +92,7 @@ class SentenceRepository:
             return Sentence.model_validate(random.choice(result.data))
         return None
 
-    async def get_sentence(self, sentence_id: UUID) -> Optional[Sentence]:
+    async def get_sentence(self, sentence_id: UUID) -> Sentence | None:
         """Get a sentence by ID."""
         result = (
             await self.client.table("sentences")
@@ -109,13 +107,13 @@ class SentenceRepository:
 
     async def get_sentences(
         self,
-        verb_id: Optional[UUID] = None,
-        is_correct: Optional[bool] = None,
-        tense: Optional[str] = None,
-        pronoun: Optional[str] = None,
-        target_language_code: Optional[str] = None,
+        verb_id: UUID | None = None,
+        is_correct: bool | None = None,
+        tense: str | None = None,
+        pronoun: str | None = None,
+        target_language_code: str | None = None,
         limit: int = 50,
-    ) -> List[Sentence]:
+    ) -> list[Sentence]:
         """Get sentences with optional filters."""
         query = self.client.table("sentences").select("*")
 
@@ -136,13 +134,13 @@ class SentenceRepository:
 
     async def get_sentences_by_verb(
         self, verb_id: UUID, limit: int = 50
-    ) -> List[Sentence]:
+    ) -> list[Sentence]:
         """Get all sentences for a specific verb."""
         return await self.get_sentences(verb_id=verb_id, limit=limit)
 
     async def update_sentence(
         self, sentence_id: UUID, sentence_data: SentenceUpdate
-    ) -> Optional[Sentence]:
+    ) -> Sentence | None:
         """Update a sentence."""
         sentence_dict = sentence_data.model_dump(exclude_unset=True)
 

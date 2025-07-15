@@ -1,20 +1,21 @@
 """Test cases for verb repository using Supabase client only."""
 
-import pytest
 from uuid import uuid4
 
+import pytest
+
 from src.schemas.verbs import (
-    VerbCreate,
-    VerbUpdate,
-    Verb,
-    VerbClassification,
-    Tense,
     ConjugationCreate,
     ConjugationUpdate,
+    Tense,
+    Verb,
+    VerbClassification,
+    VerbCreate,
+    VerbUpdate,
 )
 from tests.verbs.fixtures import (
-    generate_random_verb_data,
     generate_random_conjugation_data,
+    generate_random_verb_data,
     verb_repository,  # Import the fixture
 )
 

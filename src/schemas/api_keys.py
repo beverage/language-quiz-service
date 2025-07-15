@@ -2,14 +2,11 @@
 API Key schemas for authentication and management.
 """
 
+import ipaddress
 import secrets
 import string
-from typing import Tuple
-
 from datetime import datetime
-from typing import List, Optional
 from uuid import UUID
-import ipaddress
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -23,19 +20,19 @@ class ApiKeyCreate(BaseModel):
         max_length=100,
         description="Human-readable name for the API key",
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None, max_length=500, description="Optional description"
     )
-    client_name: Optional[str] = Field(
+    client_name: str | None = Field(
         None, max_length=100, description="Client application name"
     )
-    permissions_scope: List[str] = Field(
+    permissions_scope: list[str] = Field(
         default=["read"], description="Permissions for this key"
     )
     rate_limit_rpm: int = Field(
         default=100, ge=1, le=10000, description="Requests per minute limit"
     )
-    allowed_ips: Optional[List[str]] = Field(
+    allowed_ips: list[str] | None = Field(
         None, description="Optional IP allowlist (CIDR notation supported)"
     )
 
@@ -72,13 +69,13 @@ class ApiKeyCreate(BaseModel):
 class ApiKeyUpdate(BaseModel):
     """Schema for updating an existing API key."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
-    client_name: Optional[str] = Field(None, max_length=100)
-    is_active: Optional[bool] = None
-    permissions_scope: Optional[List[str]] = None
-    rate_limit_rpm: Optional[int] = Field(None, ge=1, le=10000)
-    allowed_ips: Optional[List[str]] = Field(
+    name: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = Field(None, max_length=500)
+    client_name: str | None = Field(None, max_length=100)
+    is_active: bool | None = None
+    permissions_scope: list[str] | None = None
+    rate_limit_rpm: int | None = Field(None, ge=1, le=10000)
+    allowed_ips: list[str] | None = Field(
         None, description="Optional IP allowlist (CIDR notation supported)"
     )
 
@@ -120,16 +117,16 @@ class ApiKey(BaseModel):
     key_hash: str
     key_prefix: str
     name: str
-    description: Optional[str] = None
-    client_name: Optional[str] = None
+    description: str | None = None
+    client_name: str | None = None
     is_active: bool = True
-    permissions_scope: List[str] = Field(default_factory=lambda: ["read"])
+    permissions_scope: list[str] = Field(default_factory=lambda: ["read"])
     created_at: datetime
     updated_at: datetime
-    last_used_at: Optional[datetime] = None
+    last_used_at: datetime | None = None
     usage_count: int = 0
     rate_limit_rpm: int = 100
-    allowed_ips: Optional[List[str]] = None
+    allowed_ips: list[str] | None = None
 
     model_config = {
         "from_attributes": True
@@ -142,15 +139,15 @@ class ApiKeyResponse(BaseModel):
     id: UUID
     key_prefix: str
     name: str
-    description: Optional[str] = None
-    client_name: Optional[str] = None
+    description: str | None = None
+    client_name: str | None = None
     is_active: bool
-    permissions_scope: List[str]
+    permissions_scope: list[str]
     created_at: datetime
-    last_used_at: Optional[datetime] = None
+    last_used_at: datetime | None = None
     usage_count: int
     rate_limit_rpm: int
-    allowed_ips: Optional[List[str]] = None
+    allowed_ips: list[str] | None = None
 
     model_config = {"from_attributes": True}
 
@@ -173,12 +170,12 @@ class ApiKeyStats(BaseModel):
     active_keys: int
     inactive_keys: int
     total_requests: int
-    requests_last_24h: Optional[int] = None
-    most_active_key: Optional[str] = None  # key_prefix
+    requests_last_24h: int | None = None
+    most_active_key: str | None = None  # key_prefix
 
 
 # Utility functions for key generation
-def generate_api_key() -> Tuple[str, str]:
+def generate_api_key() -> tuple[str, str]:
     """
     Generate a secure API key and its prefix.
 
@@ -206,8 +203,9 @@ def hash_api_key(api_key: str) -> str:
     Returns:
         Hashed API key suitable for database storage
     """
-    import bcrypt
     import os
+
+    import bcrypt
 
     # Use faster rounds for testing, secure rounds for production
     rounds = 4 if os.getenv("ENVIRONMENT") == "test" else 12
@@ -236,7 +234,7 @@ def verify_api_key(api_key: str, key_hash: str) -> bool:
         return False
 
 
-def check_ip_allowed(client_ip: str, allowed_ips: Optional[List[str]]) -> bool:
+def check_ip_allowed(client_ip: str, allowed_ips: list[str] | None) -> bool:
     """
     Check if a client IP is allowed based on the allowlist.
 

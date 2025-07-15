@@ -1,12 +1,10 @@
 """API Key repository for data access."""
 
 import logging
-from typing import List, Optional
 from uuid import UUID
 
+from src.schemas.api_keys import ApiKey, ApiKeyCreate, ApiKeyStats, ApiKeyUpdate
 from supabase import Client
-
-from src.schemas.api_keys import ApiKey, ApiKeyCreate, ApiKeyUpdate, ApiKeyStats
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +41,7 @@ class ApiKeyRepository:
             return ApiKey.model_validate(result.data[0])
         raise Exception("Failed to create API key")
 
-    async def get_api_key(self, api_key_id: UUID) -> Optional[ApiKey]:
+    async def get_api_key(self, api_key_id: UUID) -> ApiKey | None:
         """Get an API key by ID."""
         result = (
             await self.client.table("api_keys")
@@ -56,7 +54,7 @@ class ApiKeyRepository:
             return ApiKey.model_validate(result.data[0])
         return None
 
-    async def get_api_key_by_hash(self, key_hash: str) -> Optional[ApiKey]:
+    async def get_api_key_by_hash(self, key_hash: str) -> ApiKey | None:
         """Get an API key by its hash (for authentication)."""
         result = (
             await self.client.table("api_keys")
@@ -70,7 +68,7 @@ class ApiKeyRepository:
             return ApiKey.model_validate(result.data[0])
         return None
 
-    async def get_api_key_by_prefix(self, key_prefix: str) -> Optional[ApiKey]:
+    async def get_api_key_by_prefix(self, key_prefix: str) -> ApiKey | None:
         """Get an API key by its prefix (for authentication)."""
         result = (
             await self.client.table("api_keys")
@@ -86,7 +84,7 @@ class ApiKeyRepository:
 
     async def get_all_api_keys(
         self, limit: int = 100, include_inactive: bool = False
-    ) -> List[ApiKey]:
+    ) -> list[ApiKey]:
         """Get all API keys with optional filtering."""
         query = self.client.table("api_keys").select("*").limit(limit)
 
@@ -100,7 +98,7 @@ class ApiKeyRepository:
 
     async def update_api_key(
         self, api_key_id: UUID, api_key_data: ApiKeyUpdate
-    ) -> Optional[ApiKey]:
+    ) -> ApiKey | None:
         """Update an API key."""
         update_dict = api_key_data.model_dump(exclude_unset=True)
 
@@ -189,7 +187,7 @@ class ApiKeyRepository:
             most_active_key=most_active_key,
         )
 
-    async def find_keys_by_name(self, name_pattern: str) -> List[ApiKey]:
+    async def find_keys_by_name(self, name_pattern: str) -> list[ApiKey]:
         """Find API keys by name pattern (case-insensitive)."""
         result = (
             await self.client.table("api_keys")

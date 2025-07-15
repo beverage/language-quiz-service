@@ -2,22 +2,21 @@
 
 import json
 import logging
-from typing import List, Optional
 from uuid import UUID
 
 from src.clients.openai_client import OpenAIClient
-from src.repositories.sentence_repository import SentenceRepository
 from src.prompts.sentence_prompts import SentencePromptGenerator
+from src.repositories.sentence_repository import SentenceRepository
 from src.schemas.sentences import (
-    SentenceCreate,
-    Sentence,
-    SentenceUpdate,
-    Pronoun,
-    Tense,
+    CorrectnessValidationResponse,
     DirectObject,
     IndirectObject,
     Negation,
-    CorrectnessValidationResponse,
+    Pronoun,
+    Sentence,
+    SentenceCreate,
+    SentenceUpdate,
+    Tense,
 )
 from src.services.verb_service import VerbService
 
@@ -28,9 +27,9 @@ class SentenceService:
     def __init__(
         self,
         openai_client: OpenAIClient = None,
-        sentence_repository: Optional[SentenceRepository] = None,
-        verb_service: Optional[VerbService] = None,
-        prompt_generator: Optional[SentencePromptGenerator] = None,
+        sentence_repository: SentenceRepository | None = None,
+        verb_service: VerbService | None = None,
+        prompt_generator: SentencePromptGenerator | None = None,
     ):
         """Initialize the sentence service with injectable dependencies."""
         self.openai_client = openai_client or OpenAIClient()
@@ -72,8 +71,8 @@ class SentenceService:
 
     async def count_sentences(
         self,
-        verb_id: Optional[UUID] = None,
-        is_correct: Optional[bool] = None,
+        verb_id: UUID | None = None,
+        is_correct: bool | None = None,
     ) -> int:
         """Count sentences with optional filters."""
         repo = await self._get_sentence_repository()
@@ -194,34 +193,34 @@ class SentenceService:
         repo = await self._get_sentence_repository()
         return await repo.create_sentence(sentence_request)
 
-    async def get_all_sentences(self, limit: int = 100) -> List[Sentence]:
+    async def get_all_sentences(self, limit: int = 100) -> list[Sentence]:
         """Get all sentences."""
         repo = await self._get_sentence_repository()
         return await repo.get_all_sentences(limit)
 
     async def get_random_sentence(
         self,
-        is_correct: Optional[bool] = None,
-        verb_id: Optional[UUID] = None,
-    ) -> Optional[Sentence]:
+        is_correct: bool | None = None,
+        verb_id: UUID | None = None,
+    ) -> Sentence | None:
         """Get a random sentence."""
         repo = await self._get_sentence_repository()
         return await repo.get_random_sentence(is_correct=is_correct, verb_id=verb_id)
 
-    async def get_sentence(self, sentence_id: UUID) -> Optional[Sentence]:
+    async def get_sentence(self, sentence_id: UUID) -> Sentence | None:
         """Get a sentence by ID."""
         repo = await self._get_sentence_repository()
         return await repo.get_sentence(sentence_id)
 
     async def get_sentences(
         self,
-        verb_id: Optional[UUID] = None,
-        is_correct: Optional[bool] = None,
-        tense: Optional[str] = None,
-        pronoun: Optional[str] = None,
-        target_language_code: Optional[str] = None,
+        verb_id: UUID | None = None,
+        is_correct: bool | None = None,
+        tense: str | None = None,
+        pronoun: str | None = None,
+        target_language_code: str | None = None,
         limit: int = 50,
-    ) -> List[Sentence]:
+    ) -> list[Sentence]:
         """Get sentences with optional filters."""
         repo = await self._get_sentence_repository()
         return await repo.get_sentences(
@@ -235,14 +234,14 @@ class SentenceService:
 
     async def get_sentences_by_verb(
         self, verb_id: UUID, limit: int = 50
-    ) -> List[Sentence]:
+    ) -> list[Sentence]:
         """Get all sentences for a specific verb."""
         repo = await self._get_sentence_repository()
         return await repo.get_sentences_by_verb(verb_id, limit)
 
     async def update_sentence(
         self, sentence_id: UUID, sentence_data: SentenceUpdate
-    ) -> Optional[Sentence]:
+    ) -> Sentence | None:
         """Update a sentence."""
         repo = await self._get_sentence_repository()
         return await repo.update_sentence(sentence_id, sentence_data)

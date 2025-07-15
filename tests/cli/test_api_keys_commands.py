@@ -1,17 +1,18 @@
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
-import httpx
 import json
-from asyncclick.testing import CliRunner
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import asyncclick as click
+import httpx
+import pytest
+from asyncclick.testing import CliRunner
 
 from src.cli.api_keys.commands import (
     create,
-    list_keys,
-    revoke,
-    get_api_key_from_env_or_flag,
     get_api_base_url,
+    get_api_key_from_env_or_flag,
+    list_keys,
     make_api_request,
+    revoke,
 )
 
 

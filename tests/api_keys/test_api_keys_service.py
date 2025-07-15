@@ -2,20 +2,21 @@
 Tests for the API key service.
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from uuid import uuid4
 from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
-from src.services.api_key_service import ApiKeyService
+import pytest
+
 from src.schemas.api_keys import (
-    ApiKeyCreate,
-    ApiKeyUpdate,
-    ApiKeyResponse,
-    ApiKeyWithPlainText,
-    ApiKeyStats,
     ApiKey,
+    ApiKeyCreate,
+    ApiKeyResponse,
+    ApiKeyStats,
+    ApiKeyUpdate,
+    ApiKeyWithPlainText,
 )
+from src.services.api_key_service import ApiKeyService
 
 
 class TestApiKeyService:
@@ -83,11 +84,10 @@ class TestApiKeyService:
         mock_repository.create_api_key.return_value = sample_api_key
 
         # Mock key generation
-        with patch(
-            "src.services.api_key_service.generate_api_key"
-        ) as mock_generate, patch(
-            "src.services.api_key_service.hash_api_key"
-        ) as mock_hash:
+        with (
+            patch("src.services.api_key_service.generate_api_key") as mock_generate,
+            patch("src.services.api_key_service.hash_api_key") as mock_hash,
+        ):
             mock_generate.return_value = ("sk_live_test123", "sk_live_test")
             mock_hash.return_value = "hashed_key"
 
@@ -194,9 +194,10 @@ class TestApiKeyService:
         mock_repository.get_api_key_by_prefix.return_value = sample_api_key
         mock_repository.increment_usage.return_value = True
 
-        with patch("src.services.api_key_service.verify_api_key") as mock_verify, patch(
-            "src.services.api_key_service.check_ip_allowed"
-        ) as mock_ip_check:
+        with (
+            patch("src.services.api_key_service.verify_api_key") as mock_verify,
+            patch("src.services.api_key_service.check_ip_allowed") as mock_ip_check,
+        ):
             mock_verify.return_value = True
             mock_ip_check.return_value = True
 
@@ -249,9 +250,10 @@ class TestApiKeyService:
         """Test authentication with blocked IP."""
         mock_repository.get_api_key_by_prefix.return_value = sample_api_key
 
-        with patch("src.services.api_key_service.verify_api_key") as mock_verify, patch(
-            "src.services.api_key_service.check_ip_allowed"
-        ) as mock_ip_check:
+        with (
+            patch("src.services.api_key_service.verify_api_key") as mock_verify,
+            patch("src.services.api_key_service.check_ip_allowed") as mock_ip_check,
+        ):
             mock_verify.return_value = True
             mock_ip_check.return_value = False
 

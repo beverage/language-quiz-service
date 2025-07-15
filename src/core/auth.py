@@ -3,12 +3,12 @@ Authentication middleware for API key validation.
 """
 
 import logging
-from typing import Optional, List
-from fastapi import Request, HTTPException, status
+
+from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from src.services.api_key_service import ApiKeyService
 from src.core.config import get_settings
+from src.services.api_key_service import ApiKeyService
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
     """Middleware for API key authentication and authorization."""
 
-    def __init__(self, app, exempt_paths: List[str] = None):
+    def __init__(self, app, exempt_paths: list[str] = None):
         super().__init__(app)
         self.exempt_paths = exempt_paths or []
 
@@ -85,7 +85,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             # Fallback - only exempt health endpoints if settings fail
             return path.startswith(("/health", "/metrics", "/"))
 
-    def _extract_api_key(self, request: Request) -> Optional[str]:
+    def _extract_api_key(self, request: Request) -> str | None:
         """Extract API key from X-API-Key header."""
         return request.headers.get("X-API-Key")
 
@@ -109,7 +109,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
 
     async def _validate_api_key_with_ip(
         self, api_key: str, client_ip: str
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """Validate API key against database with IP checking and return key info if valid."""
         try:
             # Use the ApiKeyService for validation (handles IP checking and usage tracking)

@@ -1,14 +1,13 @@
 """Verb management endpoints."""
 
 import logging
-from typing import Optional
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from src.core.auth import get_current_api_key
-from src.services.verb_service import VerbService
 from src.schemas.verbs import Verb, VerbWithConjugations
+from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +20,14 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
     summary="Download and store a new French verb",
     description="""
     Download a French verb from AI service and store it in the database.
-    
+
     This endpoint uses AI to generate comprehensive verb information including:
     - Conjugations for all tenses
-    - Auxiliary verb information  
+    - Auxiliary verb information
     - Participle forms
     - Classification and irregularity status
     - Translation to target language
-    
+
     **Required Permission**: `write` or `admin`
     """,
     responses={
@@ -134,13 +133,13 @@ async def download_verb(
     summary="Get a random French verb",
     description="""
     Retrieve a random French verb from the database.
-    
+
     This endpoint is useful for:
     - Language learning applications
     - Quiz generation
     - Vocabulary practice
     - Random content exploration
-    
+
     **Required Permission**: `read`, `write`, or `admin`
     """,
     responses={
@@ -246,14 +245,14 @@ async def get_random_verb(
     summary="Get specific French verb by infinitive",
     description="""
     Retrieve a specific French verb by its infinitive form.
-    
+
     **URL Encoding**: Supports URL encoding for verbs with spaces (e.g., "se%20lever" for "se lever")
-    
+
     **Filtering Options**:
     - `auxiliary`: Filter by auxiliary verb type (avoir/être)
     - `reflexive`: Filter by reflexive status (true/false)
     - `target_language_code`: Specify translation language
-    
+
     **Required Permission**: `read`, `write`, or `admin`
     """,
     responses={
@@ -311,10 +310,10 @@ async def get_random_verb(
 )
 async def get_verb_by_infinitive(
     infinitive: str,
-    auxiliary: Optional[str] = Query(
+    auxiliary: str | None = Query(
         None, description="Filter by auxiliary verb type", examples=["avoir"]
     ),
-    reflexive: Optional[bool] = Query(
+    reflexive: bool | None = Query(
         None, description="Filter by reflexive status", examples=[False]
     ),
     target_language_code: str = Query(
@@ -375,18 +374,18 @@ async def get_verb_by_infinitive(
     summary="Get verb conjugations for all tenses",
     description="""
     Retrieve comprehensive conjugation information for a specific French verb.
-    
+
     **Returns**: Complete conjugation tables for all supported tenses:
     - Present (présent)
-    - Past Composite (passé composé)  
+    - Past Composite (passé composé)
     - Imperfect (imparfait)
     - Future Simple (futur simple)
     - Conditional (conditionnel)
     - Subjunctive (subjonctif)
     - Imperative (impératif)
-    
+
     **URL Encoding**: Supports URL encoding for verbs with spaces (e.g., "se%20lever" for "se lever")
-    
+
     **Required Permission**: `read`, `write`, or `admin`
     """,
     responses={
@@ -464,7 +463,7 @@ async def get_verb_by_infinitive(
 )
 async def get_verb_conjugations(
     infinitive: str,
-    auxiliary: Optional[str] = Query(
+    auxiliary: str | None = Query(
         None, description="Filter by auxiliary verb type", examples=["avoir"]
     ),
     reflexive: bool = Query(

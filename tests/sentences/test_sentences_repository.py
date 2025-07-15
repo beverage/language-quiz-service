@@ -1,7 +1,8 @@
 """Integration tests for the sentence repository using Supabase client."""
 
-import pytest
 from uuid import uuid4
+
+import pytest
 
 from src.schemas.sentences import SentenceCreate, SentenceUpdate, Tense
 from src.schemas.verbs import VerbCreate

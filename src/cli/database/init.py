@@ -1,5 +1,6 @@
 import asyncio
 import logging
+
 from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)

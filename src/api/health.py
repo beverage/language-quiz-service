@@ -3,7 +3,8 @@
 from fastapi import APIRouter, Depends, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from ..core.config import get_settings, Settings
+
+from ..core.config import Settings, get_settings
 
 router = APIRouter(tags=["health"])
 
@@ -16,12 +17,12 @@ limiter = Limiter(key_func=get_remote_address)
     summary="API service root endpoint",
     description="""
     Root endpoint providing basic service information.
-    
+
     **Use Cases**:
     - Verify API is running and accessible
     - Check service version and basic configuration
     - First endpoint to test when setting up API access
-    
+
     **Rate Limit**: 100 requests per minute
     **Authentication**: Not required
     """,
@@ -68,19 +69,19 @@ async def root(request: Request, settings: Settings = Depends(get_settings)):
     summary="Comprehensive health check",
     description="""
     Comprehensive health check endpoint with detailed system information.
-    
+
     **Returns**:
     - Service status and version
     - Environment information (production/staging/development)
     - Rate limiting configuration
     - System health indicators
-    
+
     **Use Cases**:
     - Monitor service availability
     - Check environment configuration
     - Verify rate limiting settings
     - Integration with monitoring systems
-    
+
     **Rate Limit**: 100 requests per minute
     **Authentication**: Not required
     """,

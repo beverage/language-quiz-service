@@ -8,14 +8,14 @@ Maintained for backward compatibility.
 import logging
 import random
 
-from src.services.sentence_service import SentenceService
 from src.schemas.sentences import (
-    Pronoun,
-    Tense,
     DirectObject,
     IndirectObject,
     Negation,
+    Pronoun,
+    Tense,
 )
+from src.services.sentence_service import SentenceService
 from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)

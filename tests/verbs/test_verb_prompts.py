@@ -1,6 +1,7 @@
 """Unit tests for the verb prompt generator."""
 
 import pytest
+
 from src.prompts.verb_prompts import VerbPromptGenerator
 
 

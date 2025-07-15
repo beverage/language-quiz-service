@@ -1,11 +1,12 @@
 """Tests for the main FastAPI application."""
 
-import pytest
-from fastapi.testclient import TestClient
 import logging
 
+import pytest
+from fastapi.testclient import TestClient
+
+from src.core.config import Settings, get_settings
 from src.main import app
-from src.core.config import get_settings, Settings
 
 
 @pytest.fixture

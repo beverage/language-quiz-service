@@ -5,8 +5,9 @@ Migrated to use Supabase VerbService instead of SQLAlchemy.
 Maintained for backward compatibility.
 """
 
-from src.services.verb_service import VerbService
 from rich.console import Console
+
+from src.services.verb_service import VerbService
 
 console = Console()
 

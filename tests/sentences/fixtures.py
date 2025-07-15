@@ -1,26 +1,27 @@
 """Test fixtures for sentence repository tests."""
 
-import pytest
-from typing import Dict, Any
 from random import choice
-from uuid import uuid4, UUID
+from typing import Any
+from uuid import UUID, uuid4
+
+import pytest
 from faker import Faker
 
+from src.repositories.sentence_repository import SentenceRepository
 from src.schemas.sentences import (
-    Pronoun,
-    Tense,
     DirectObject,
     IndirectObject,
     Negation,
+    Pronoun,
+    Tense,
 )
-from src.repositories.sentence_repository import SentenceRepository
 
 fake = Faker()
 
 
 def generate_random_sentence_data(
     verb_id: UUID = None, target_language_code: str = None, **overrides
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Generate random sentence data for testing."""
     if verb_id is None:
         verb_id = uuid4()

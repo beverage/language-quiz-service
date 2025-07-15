@@ -1,6 +1,5 @@
 """Core configuration settings."""
 
-from typing import List
 from pydantic import ConfigDict, Field
 from pydantic_settings import BaseSettings
 
@@ -23,7 +22,7 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, alias="WEB_PORT")
 
     # Security & CORS
-    cors_origins: List[str] = Field(default=["*"])
+    cors_origins: list[str] = Field(default=["*"])
 
     # Rate Limiting
     rate_limit_requests: int = Field(
@@ -57,7 +56,7 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @property
-    def production_cors_origins(self) -> List[str]:
+    def production_cors_origins(self) -> list[str]:
         """Get production-safe CORS origins."""
         if self.is_production:
             # In production, be more restrictive - only allow specific domains
