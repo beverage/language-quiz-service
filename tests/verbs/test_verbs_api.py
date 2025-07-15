@@ -180,7 +180,7 @@ class TestDownloadVerbEndpoint:
         )
 
         assert response.status_code == 403
-        assert "Write or admin permission required" in response.json()["detail"]
+        assert "Write or admin permission required" in response.json()["message"]
 
     @patch("src.core.auth.ApiKeyAuthMiddleware._validate_api_key_with_ip")
     @patch("src.api.verbs.VerbService")
@@ -208,7 +208,7 @@ class TestDownloadVerbEndpoint:
         )
 
         assert response.status_code == 400
-        assert "Invalid verb" in response.json()["detail"]
+        assert "Invalid verb" in response.json()["message"]
 
     @patch("src.core.auth.ApiKeyAuthMiddleware._validate_api_key_with_ip")
     @patch("src.api.verbs.VerbService")
@@ -236,7 +236,7 @@ class TestDownloadVerbEndpoint:
         )
 
         assert response.status_code == 500
-        assert "Failed to download verb" in response.json()["detail"]
+        assert "Failed to download verb" in response.json()["message"]
 
 
 class TestGetRandomVerbEndpoint:
@@ -297,7 +297,7 @@ class TestGetRandomVerbEndpoint:
         response = client.get("/verbs/random", headers=auth_headers)
 
         assert response.status_code == 404
-        assert "No verbs found" in response.json()["detail"]
+        assert "No verbs found" in response.json()["message"]
 
     @patch("src.core.auth.ApiKeyAuthMiddleware._validate_api_key_with_ip")
     def test_get_random_verb_insufficient_permissions(
@@ -318,7 +318,7 @@ class TestGetRandomVerbEndpoint:
         response = client.get("/verbs/random", headers=auth_headers)
 
         assert response.status_code == 403
-        assert "Read permission required" in response.json()["detail"]
+        assert "Read permission required" in response.json()["message"]
 
 
 class TestGetVerbByInfinitiveEndpoint:
@@ -417,7 +417,7 @@ class TestGetVerbByInfinitiveEndpoint:
         response = client.get("/verbs/nonexistent", headers=auth_headers)
 
         assert response.status_code == 404
-        assert "Verb 'nonexistent' not found" in response.json()["detail"]
+        assert "Verb 'nonexistent' not found" in response.json()["message"]
 
     @patch("src.core.auth.ApiKeyAuthMiddleware._validate_api_key_with_ip")
     @patch("src.api.verbs.VerbService")
@@ -560,7 +560,7 @@ class TestGetVerbConjugationsEndpoint:
         response = client.get("/verbs/nonexistent/conjugations", headers=auth_headers)
 
         assert response.status_code == 404
-        assert "Verb 'nonexistent' not found" in response.json()["detail"]
+        assert "Verb 'nonexistent' not found" in response.json()["message"]
 
     @patch("src.core.auth.ApiKeyAuthMiddleware._validate_api_key_with_ip")
     @patch("src.api.verbs.VerbService")

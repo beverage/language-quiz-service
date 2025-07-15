@@ -86,10 +86,10 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
 )
 async def download_verb(
     infinitive: str = Query(
-        ..., description="French verb in infinitive form", example="parler"
+        ..., description="French verb in infinitive form", examples=["parler"]
     ),
     target_language_code: str = Query(
-        "eng", description="Target language code (ISO 639-3)", example="eng"
+        "eng", description="Target language code (ISO 639-3)", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
 ) -> Verb:
@@ -198,7 +198,7 @@ async def download_verb(
 )
 async def get_random_verb(
     target_language_code: str = Query(
-        "eng", description="Target language code for translation", example="eng"
+        "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
 ) -> Verb:
@@ -312,13 +312,13 @@ async def get_random_verb(
 async def get_verb_by_infinitive(
     infinitive: str,
     auxiliary: Optional[str] = Query(
-        None, description="Filter by auxiliary verb type", example="avoir"
+        None, description="Filter by auxiliary verb type", examples=["avoir"]
     ),
     reflexive: Optional[bool] = Query(
-        None, description="Filter by reflexive status", example=False
+        None, description="Filter by reflexive status", examples=[False]
     ),
     target_language_code: str = Query(
-        "eng", description="Target language code for translation", example="eng"
+        "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
 ) -> Verb:
@@ -465,13 +465,13 @@ async def get_verb_by_infinitive(
 async def get_verb_conjugations(
     infinitive: str,
     auxiliary: Optional[str] = Query(
-        None, description="Filter by auxiliary verb type", example="avoir"
+        None, description="Filter by auxiliary verb type", examples=["avoir"]
     ),
     reflexive: bool = Query(
-        False, description="Filter by reflexive status", example=False
+        False, description="Filter by reflexive status", examples=[False]
     ),
     target_language_code: str = Query(
-        "eng", description="Target language code for translation", example="eng"
+        "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
 ) -> VerbWithConjugations:
