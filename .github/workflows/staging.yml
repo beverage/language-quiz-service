@@ -74,6 +74,9 @@ jobs:
     - name: Install Supabase
       run: make start-supabase
 
+    - name: Load database schemas
+      run: ./scripts/load-schemas.sh
+
     - name: Run quality checks (format, lint, test)
       run: |
         make format lint
