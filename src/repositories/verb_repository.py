@@ -23,7 +23,9 @@ class VerbRepository:
 
     async def create_verb(self, verb: VerbCreate) -> Verb:
         """Create a new verb."""
-        verb_dict = verb.model_dump()
+        verb_dict = verb.model_dump(
+            mode="json"
+        )  # Use mode="json" to serialize enums correctly
         result = await self.client.table("verbs").insert(verb_dict).execute()
 
         if result.data:
@@ -191,7 +193,9 @@ class VerbRepository:
 
     async def update_verb(self, verb_id: UUID, verb: VerbUpdate) -> Optional[Verb]:
         """Update a verb."""
-        verb_dict = verb.model_dump(exclude_unset=True)
+        verb_dict = verb.model_dump(
+            exclude_unset=True, mode="json"
+        )  # Add mode="json" for enum serialization
         result = (
             await self.client.table("verbs")
             .update(verb_dict)
@@ -225,11 +229,9 @@ class VerbRepository:
 
     async def create_conjugation(self, conjugation: ConjugationCreate) -> Conjugation:
         """Create a new conjugation."""
-        conj_dict = conjugation.model_dump()
-
-        # Ensure tense is stored as string value
-        if hasattr(conj_dict["tense"], "value"):
-            conj_dict["tense"] = conj_dict["tense"].value
+        conj_dict = conjugation.model_dump(
+            mode="json"
+        )  # Use mode="json" to serialize enums correctly
 
         result = await self.client.table("conjugations").insert(conj_dict).execute()
 
@@ -314,11 +316,9 @@ class VerbRepository:
         conjugation: ConjugationUpdate,
     ) -> Optional[Conjugation]:
         """Update a conjugation by verb parameters and tense."""
-        conj_dict = conjugation.model_dump(exclude_unset=True)
-
-        # Ensure tense is stored as string value if present
-        if "tense" in conj_dict and hasattr(conj_dict["tense"], "value"):
-            conj_dict["tense"] = conj_dict["tense"].value
+        conj_dict = conjugation.model_dump(
+            exclude_unset=True, mode="json"
+        )  # Use mode="json" for enum serialization
 
         result = (
             await self.client.table("conjugations")
@@ -343,7 +343,9 @@ class VerbRepository:
         )
         if existing:
             update_payload = ConjugationUpdate.model_validate(
-                conjugation_data.model_dump()
+                conjugation_data.model_dump(
+                    mode="json"
+                )  # Use mode="json" for enum serialization
             )
             await self.update_conjugation_by_verb_and_tense(
                 conjugation_data.infinitive,

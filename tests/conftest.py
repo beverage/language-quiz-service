@@ -55,7 +55,8 @@ async def test_supabase_client():
 
     # Create and return Supabase client for local instance
     client = await create_test_supabase_client(supabase_url, service_role_key)
-    return client
+    yield client
+    # No explicit cleanup needed - client connections are handled automatically
 
 
 # ===== TEMPORARILY RESTORED FIXTURES =====

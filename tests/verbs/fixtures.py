@@ -62,17 +62,6 @@ def generate_random_conjugation_data() -> Dict[str, Any]:
 
 
 @pytest.fixture
-async def clean_verb_db(supabase_db_connection):
-    """Ensure clean database state before each test."""
-    from tests.verbs.db_helpers import clear_verb_domain
-
-    await clear_verb_domain(supabase_db_connection)
-    yield
-    # Cleanup after test
-    await clear_verb_domain(supabase_db_connection)
-
-
-@pytest.fixture
 def sample_verb_data() -> Dict[str, Any]:
     """Provide sample verb data dictionary for testing."""
     return generate_random_verb_data()
@@ -153,7 +142,7 @@ def generate_standard_french_verb_set() -> Dict[str, Any]:
     }
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def verb_repository(test_supabase_client):
     """Create a VerbRepository instance for testing with testcontainers."""
     # Return repository using the shared test Supabase client
