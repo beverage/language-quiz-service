@@ -28,6 +28,7 @@ class TestApiKeyService:
         mock_repo.create_api_key = AsyncMock()
         mock_repo.get_api_key = AsyncMock()
         mock_repo.get_api_key_by_hash = AsyncMock()
+        mock_repo.get_api_key_by_prefix = AsyncMock()
         mock_repo.get_all_api_keys = AsyncMock()
         mock_repo.update_api_key = AsyncMock()
         mock_repo.delete_api_key = AsyncMock()
@@ -190,13 +191,13 @@ class TestApiKeyService:
         self, service, mock_repository, sample_api_key
     ):
         """Test successful API key authentication."""
-        mock_repository.get_api_key_by_hash.return_value = sample_api_key
+        mock_repository.get_api_key_by_prefix.return_value = sample_api_key
         mock_repository.increment_usage.return_value = True
 
-        with patch("src.services.api_key_service.hash_api_key") as mock_hash, patch(
+        with patch("src.services.api_key_service.verify_api_key") as mock_verify, patch(
             "src.services.api_key_service.check_ip_allowed"
         ) as mock_ip_check:
-            mock_hash.return_value = "hashed_key"
+            mock_verify.return_value = True
             mock_ip_check.return_value = True
 
             result = await service.authenticate_api_key(
@@ -206,7 +207,9 @@ class TestApiKeyService:
             assert isinstance(result, ApiKeyResponse)
             assert result.name == "Test Key"
 
-            mock_repository.get_api_key_by_hash.assert_called_once_with("hashed_key")
+            mock_repository.get_api_key_by_prefix.assert_called_once_with(
+                "sk_live_test123"
+            )
             mock_repository.increment_usage.assert_called_once_with(sample_api_key.id)
 
     @pytest.mark.asyncio
@@ -215,21 +218,16 @@ class TestApiKeyService:
         result = await service.authenticate_api_key("invalid_key", "192.168.1.1")
 
         assert result is None
-        mock_repository.get_api_key_by_hash.assert_not_called()
+        mock_repository.get_api_key_by_prefix.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_authenticate_api_key_not_found(self, service, mock_repository):
         """Test authentication when API key doesn't exist."""
-        mock_repository.get_api_key_by_hash.return_value = None
+        mock_repository.get_api_key_by_prefix.return_value = None
 
-        with patch("src.services.api_key_service.hash_api_key") as mock_hash:
-            mock_hash.return_value = "hashed_key"
+        result = await service.authenticate_api_key("sk_live_test123", "192.168.1.1")
 
-            result = await service.authenticate_api_key(
-                "sk_live_test123", "192.168.1.1"
-            )
-
-            assert result is None
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_authenticate_api_key_inactive(
@@ -238,28 +236,23 @@ class TestApiKeyService:
         """Test authentication with inactive API key."""
         inactive_key = sample_api_key.model_copy(deep=True)
         inactive_key.is_active = False
-        mock_repository.get_api_key_by_hash.return_value = inactive_key
+        mock_repository.get_api_key_by_prefix.return_value = inactive_key
 
-        with patch("src.services.api_key_service.hash_api_key") as mock_hash:
-            mock_hash.return_value = "hashed_key"
+        result = await service.authenticate_api_key("sk_live_test123", "192.168.1.1")
 
-            result = await service.authenticate_api_key(
-                "sk_live_test123", "192.168.1.1"
-            )
-
-            assert result is None
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_authenticate_api_key_ip_blocked(
         self, service, mock_repository, sample_api_key
     ):
         """Test authentication with blocked IP."""
-        mock_repository.get_api_key_by_hash.return_value = sample_api_key
+        mock_repository.get_api_key_by_prefix.return_value = sample_api_key
 
-        with patch("src.services.api_key_service.hash_api_key") as mock_hash, patch(
+        with patch("src.services.api_key_service.verify_api_key") as mock_verify, patch(
             "src.services.api_key_service.check_ip_allowed"
         ) as mock_ip_check:
-            mock_hash.return_value = "hashed_key"
+            mock_verify.return_value = True
             mock_ip_check.return_value = False
 
             result = await service.authenticate_api_key("sk_live_test123", "10.0.0.1")
@@ -269,10 +262,21 @@ class TestApiKeyService:
     @pytest.mark.asyncio
     async def test_authenticate_api_key_exception(self, service, mock_repository):
         """Test authentication with database exception."""
-        mock_repository.get_api_key_by_hash.side_effect = Exception("Database error")
+        mock_repository.get_api_key_by_prefix.side_effect = Exception("Database error")
 
-        with patch("src.services.api_key_service.hash_api_key") as mock_hash:
-            mock_hash.return_value = "hashed_key"
+        result = await service.authenticate_api_key("sk_live_test123", "192.168.1.1")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_authenticate_api_key_verification_failed(
+        self, service, mock_repository, sample_api_key
+    ):
+        """Test authentication when API key verification fails."""
+        mock_repository.get_api_key_by_prefix.return_value = sample_api_key
+
+        with patch("src.services.api_key_service.verify_api_key") as mock_verify:
+            mock_verify.return_value = False
 
             result = await service.authenticate_api_key(
                 "sk_live_test123", "192.168.1.1"

@@ -3,8 +3,14 @@ import asyncclick as click
 import logging
 import traceback
 from pprint import pprint
+from dotenv import load_dotenv
 
 from src.cli.cli.options import random_options, sentence_options
+from src.cli.api_keys.commands import (
+    create as api_keys_create,
+    list_keys as api_keys_list,
+    revoke as api_keys_revoke,
+)
 from src.cli.cloud.database import (
     down as database_down,
     up as database_up,
@@ -37,6 +43,9 @@ from src.cli.utils.queues import batch_operation
 @click.option("--debug-openai", default=False, is_flag=True)
 @click.option("--debug-recovery", default=False, is_flag=True)
 async def cli(debug=False, debug_openai=False, debug_recovery=True):
+    # Load environment variables from .env file
+    load_dotenv()
+
     logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
 
     # Suppress httpx logging to reduce noise
@@ -434,6 +443,18 @@ async def start():
         "⚠️  Legacy webserver command - use 'uvicorn src.main:app --host 0.0.0.0 --port 8000' instead"
     )
     click.echo("   or 'make serve' for development")
+
+
+@cli.group("api-keys")
+async def api_keys():
+    """API key management commands."""
+    pass
+
+
+# Add API key commands to the group
+api_keys.add_command(api_keys_create, name="create")
+api_keys.add_command(api_keys_list, name="list")
+api_keys.add_command(api_keys_revoke, name="revoke")
 
 
 def main():

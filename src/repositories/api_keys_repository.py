@@ -70,6 +70,20 @@ class ApiKeyRepository:
             return ApiKey.model_validate(result.data[0])
         return None
 
+    async def get_api_key_by_prefix(self, key_prefix: str) -> Optional[ApiKey]:
+        """Get an API key by its prefix (for authentication)."""
+        result = (
+            await self.client.table("api_keys")
+            .select("*")
+            .eq("key_prefix", key_prefix)
+            .eq("is_active", True)
+            .execute()
+        )
+
+        if result.data:
+            return ApiKey.model_validate(result.data[0])
+        return None
+
     async def get_all_api_keys(
         self, limit: int = 100, include_inactive: bool = False
     ) -> List[ApiKey]:

@@ -14,6 +14,7 @@ from src.schemas.api_keys import (
     ApiKeyStats,
     generate_api_key,
     hash_api_key,
+    verify_api_key,
     check_ip_allowed,
 )
 
@@ -104,16 +105,21 @@ class ApiKeyService:
         repo = await self._get_api_key_repository()
 
         try:
-            # Hash the provided key
-            key_hash = hash_api_key(api_key_plain)
+            # Get the key prefix for lookup
+            key_prefix = api_key_plain[:16]  # sk_live_ + first 8 chars
 
-            # Look up the key in database
-            api_key = await repo.get_api_key_by_hash(key_hash)
+            # Look up the key by prefix
+            api_key = await repo.get_api_key_by_prefix(key_prefix)
 
             if not api_key or not api_key.is_active:
                 logger.warning(
                     f"Invalid or inactive API key used: {api_key_plain[:12]}..."
                 )
+                return None
+
+            # Verify the key against the stored hash
+            if not verify_api_key(api_key_plain, api_key.key_hash):
+                logger.warning(f"API key verification failed: {api_key_plain[:12]}...")
                 return None
 
             # Check IP allowlist if configured

@@ -75,7 +75,15 @@ pythonpath = "."
 source = ["src"]
 branch = true
 omit = [
-    "src/cli/*"
+    "src/cli/ai/*",
+    "src/cli/cli/*",
+    "src/cli/cloud/*",
+    "src/cli/config/*",
+    "src/cli/database/*",
+    "src/cli/sentences/*",
+    "src/cli/verbs/*",
+    "src/cli/utils/*",
+    "src/cli/console.py"
 ]
 
 [tool.coverage.report]
