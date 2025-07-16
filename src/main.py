@@ -19,6 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .api import api_keys, health, sentences, verbs
 from .core.auth import ApiKeyAuthMiddleware
 from .core.config import get_settings
+from .core.exceptions import AppException
 
 # Configure logging
 logging.basicConfig(
@@ -202,9 +203,24 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     )
 
 
+# Unified exception handler for HTTP, application, and other errors
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """Handle all other exceptions with detailed error responses."""
+    """Handle exceptions, routing them based on type."""
+    # Application-specific exceptions (custom AppException and subclasses)
+    if isinstance(exc, AppException):
+        logger.error(f"AppException: {exc.message}", exc_info=True)
+        response = {
+            "error": True,
+            "message": exc.message,
+            "status_code": exc.status_code,
+            "path": str(request.url.path),
+        }
+        if exc.details is not None:
+            response["details"] = exc.details
+        return JSONResponse(status_code=exc.status_code, content=response)
+
+    # Unhandled exceptions -> Internal Server Error
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,

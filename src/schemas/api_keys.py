@@ -248,12 +248,22 @@ def check_ip_allowed(client_ip: str, allowed_ips: list[str] | None) -> bool:
     if not allowed_ips:
         return True  # No restrictions
 
+    # First check for exact string matches (for non-IP addresses like 'testclient')
+    if client_ip in allowed_ips:
+        return True
+
+    # Then check IP address/CIDR matching
     try:
         client_addr = ipaddress.ip_address(client_ip)
         for allowed_ip in allowed_ips:
-            allowed_network = ipaddress.ip_network(allowed_ip, strict=False)
-            if client_addr in allowed_network:
-                return True
+            try:
+                allowed_network = ipaddress.ip_network(allowed_ip, strict=False)
+                if client_addr in allowed_network:
+                    return True
+            except (ValueError, TypeError):
+                # Skip invalid IP/CIDR entries - already checked exact match above
+                continue
         return False
     except (ValueError, TypeError):
+        # client_ip is not a valid IP address, but we already checked exact match
         return False  # Invalid IP format

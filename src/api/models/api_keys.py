@@ -5,7 +5,7 @@ These models define the API contracts for API key management endpoints,
 providing clean separation from internal service schemas.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApiKeyUpdateRequest(BaseModel):
@@ -75,8 +75,8 @@ class ApiKeyUpdateRequest(BaseModel):
         },
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "name": "Production Web App Key",
                 "description": "API key for the main production web application",
@@ -91,3 +91,4 @@ class ApiKeyUpdateRequest(BaseModel):
                 "rate_limit_rpm": 2000,
             },
         }
+    )
