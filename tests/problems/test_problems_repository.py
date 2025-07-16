@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.core.exceptions import RepositoryError
 from src.schemas.problems import (
     Problem,
     ProblemCreate,
@@ -17,6 +18,7 @@ from tests.problems.fixtures import (
 )
 
 
+@pytest.mark.integration
 class TestProblemRepository:
     """Test cases for ProblemRepository using Supabase client operations only."""
 
@@ -37,6 +39,18 @@ class TestProblemRepository:
             await problem_repository.create_problem(
                 ProblemCreate(**invalid_problem_data)
             )
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_create_problem_db_error(self, problem_repository):
+        """Test that a database constraint violation raises RepositoryError."""
+        problem_data = generate_random_problem_data()
+        # The 'problem_type' field is an ENUM on the DB, so an invalid value will fail.
+        problem_data["problem_type"] = "invalid_type"
+        problem_create = ProblemCreate(**problem_data)
+
+        with pytest.raises(RepositoryError):
+            await problem_repository.create_problem(problem_create)
 
     @pytest.mark.asyncio
     @pytest.mark.integration

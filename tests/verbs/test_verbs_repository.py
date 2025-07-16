@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import pytest
 
+from src.core.exceptions import RepositoryError
+from src.repositories.verb_repository import VerbRepository
 from src.schemas.verbs import (
     ConjugationCreate,
     ConjugationUpdate,
@@ -18,6 +20,7 @@ from tests.verbs.fixtures import (
 )
 
 
+@pytest.mark.integration
 class TestVerbRepository:
     """Test cases for VerbRepository using Supabase client operations only."""
 
@@ -36,6 +39,20 @@ class TestVerbRepository:
 
         with pytest.raises(Exception):
             await verb_repository.create_verb(VerbCreate(**invalid_verb_data))
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_create_verb_db_error(self, verb_repository):
+        """Test that a database constraint violation raises RepositoryError."""
+        verb_data = generate_random_verb_data()
+        # Intentionally violate a DB constraint.
+        # The 'auxiliary' field is an ENUM on the DB, so an invalid value will fail.
+        verb_data["auxiliary"] = "invalid_auxiliary"
+        verb_create = VerbCreate(**verb_data)
+
+        # The underlying DB error should be caught and re-raised as our custom exception.
+        with pytest.raises(RepositoryError):
+            await verb_repository.create_verb(verb_create)
 
     @pytest.mark.asyncio
     @pytest.mark.integration

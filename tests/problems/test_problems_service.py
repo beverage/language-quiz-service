@@ -2,9 +2,11 @@
 
 from datetime import UTC, datetime, timezone
 from uuid import uuid4
+from unittest.mock import AsyncMock
 
 import pytest
 
+from src.core.exceptions import LanguageResourceNotFoundError
 from src.schemas.problems import (
     GrammarProblemConstraints,
     ProblemCreate,
@@ -248,6 +250,19 @@ class TestProblemService:
         grammar_count = await service.count_problems(problem_type=ProblemType.GRAMMAR)
         assert grammar_count >= 1
 
+    @pytest.mark.asyncio
+    async def test_create_random_grammar_problem_no_verbs(
+        self, problem_repository
+    ):
+        """Test that creating a random problem fails if no verbs are available."""
+        service = ProblemService(problem_repository=problem_repository)
+
+        # Mock the verb_service to return no verbs, simulating an empty verb database
+        service.verb_service.get_random_verb = AsyncMock(return_value=None)
+
+        with pytest.raises(LanguageResourceNotFoundError):
+            await service.create_random_grammar_problem()
+
     async def test_get_problem_statistics(
         self, problem_repository, sample_problem_create
     ):
@@ -264,6 +279,7 @@ class TestProblemService:
         assert "problems_by_type" in stats
 
 
+@pytest.mark.asyncio
 class TestProblemServiceAnalytics:
     """Test analytics and search methods that were missing coverage."""
 

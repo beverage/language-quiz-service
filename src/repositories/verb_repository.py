@@ -2,6 +2,7 @@
 
 from uuid import UUID
 
+from src.core.exceptions import RepositoryError
 from src.schemas.verbs import (
     Conjugation,
     ConjugationCreate,
@@ -28,7 +29,7 @@ class VerbRepository:
 
         if result.data:
             return Verb.model_validate(result.data[0])
-        raise Exception("Failed to create verb")
+        raise RepositoryError("Failed to create verb: No data returned from Supabase")
 
     async def delete_verb(self, verb_id: UUID) -> bool:
         """Delete a verb."""
@@ -233,7 +234,7 @@ class VerbRepository:
 
         if result.data:
             return Conjugation.model_validate(result.data[0])
-        raise Exception("Failed to create conjugation")
+        raise RepositoryError("Failed to create conjugation: No data returned from Supabase")
 
     async def delete_conjugations_by_verb(
         self, infinitive: str, auxiliary: str, reflexive: bool

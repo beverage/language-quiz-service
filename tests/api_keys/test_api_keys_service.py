@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.core.exceptions import NotFoundError, RepositoryError, ServiceError
 from src.schemas.api_keys import (
     ApiKey,
     ApiKeyCreate,
@@ -122,9 +123,8 @@ class TestApiKeyService:
         """Test API key retrieval when key doesn't exist."""
         mock_repository.get_api_key.return_value = None
 
-        result = await service.get_api_key(uuid4())
-
-        assert result is None
+        with pytest.raises(NotFoundError):
+            await service.get_api_key(uuid4())
 
     @pytest.mark.asyncio
     async def test_get_all_api_keys(self, service, mock_repository, sample_api_key):
@@ -164,9 +164,8 @@ class TestApiKeyService:
         mock_repository.update_api_key.return_value = None
 
         update_data = ApiKeyUpdate(name="Updated Key")
-        result = await service.update_api_key(uuid4(), update_data)
-
-        assert result is None
+        with pytest.raises(NotFoundError):
+            await service.update_api_key(uuid4(), update_data)
 
     @pytest.mark.asyncio
     async def test_revoke_api_key_success(self, service, mock_repository):

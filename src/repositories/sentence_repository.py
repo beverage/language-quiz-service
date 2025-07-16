@@ -4,6 +4,7 @@ import logging
 from uuid import UUID
 
 from src.clients.supabase import get_supabase_client
+from src.core.exceptions import RepositoryError
 from src.schemas.sentences import Sentence, SentenceCreate, SentenceUpdate
 from supabase import Client
 
@@ -53,7 +54,7 @@ class SentenceRepository:
 
         if result.data:
             return Sentence.model_validate(result.data[0])
-        raise Exception("Failed to create sentence")
+        raise RepositoryError("Failed to create sentence: No data returned from Supabase")
 
     async def delete_sentence(self, sentence_id: UUID) -> bool:
         """Delete a sentence."""

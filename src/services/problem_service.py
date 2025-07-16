@@ -6,6 +6,7 @@ import random
 from typing import Any
 from uuid import UUID
 
+from src.core.exceptions import LanguageResourceNotFoundError, NotFoundError, ServiceError
 from src.repositories.problem_repository import ProblemRepository
 from src.schemas.problems import (
     GrammarProblemConstraints,
@@ -55,10 +56,13 @@ class ProblemService:
         repo = await self._get_problem_repository()
         return await repo.create_problem(problem_data)
 
-    async def get_problem(self, problem_id: UUID) -> Problem | None:
-        """Get a problem by ID."""
+    async def get_problem_by_id(self, problem_id: UUID) -> Problem:
+        """Get a problem by ID, raising an error if not found."""
         repo = await self._get_problem_repository()
-        return await repo.get_problem(problem_id)
+        problem = await repo.get_problem(problem_id)
+        if not problem:
+            raise NotFoundError(f"Problem with ID {problem_id} not found")
+        return problem
 
     async def get_problems(
         self, filters: ProblemFilters, include_statements: bool = True
@@ -76,10 +80,23 @@ class ProblemService:
 
     async def update_problem(
         self, problem_id: UUID, problem_data: ProblemUpdate
-    ) -> Problem | None:
-        """Update a problem."""
+    ) -> Problem:
+        """Update a problem, raising an error if not found."""
         repo = await self._get_problem_repository()
-        return await repo.update_problem(problem_id, problem_data)
+
+        # First, ensure the problem exists
+        existing_problem = await repo.get_problem(problem_id)
+        if not existing_problem:
+            raise NotFoundError(f"Problem with ID {problem_id} not found for update")
+
+        # Then, perform the update
+        updated_problem = await repo.update_problem(problem_id, problem_data)
+        if not updated_problem:
+            # This case should ideally not be reached if the get succeeded,
+            # but it's a safeguard against race conditions or other issues.
+            raise ServiceError(f"Failed to update problem with ID {problem_id}")
+            
+        return updated_problem
 
     async def delete_problem(self, problem_id: UUID) -> bool:
         """Delete a problem."""
@@ -108,7 +125,7 @@ class ProblemService:
         # Step 1: Select a random verb for consistency across statements
         verb = await self.verb_service.get_random_verb()
         if not verb:
-            raise ValueError("No verbs available for problem generation")
+            raise LanguageResourceNotFoundError(resource_type="verbs")
 
         logger.info(f"📝 Selected verb: {verb.infinitive}")
 

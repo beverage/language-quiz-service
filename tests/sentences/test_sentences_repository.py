@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.core.exceptions import RepositoryError
 from src.schemas.sentences import SentenceCreate, SentenceUpdate, Tense
 from src.schemas.verbs import VerbCreate
 from tests.sentences.fixtures import (
@@ -54,11 +55,11 @@ class TestSentenceRepository:
     async def test_create_sentence_failure_with_invalid_verb_id(
         self, sentence_repository
     ):
-        """Test sentence creation failure with invalid verb ID."""
+        """Test sentence creation failure with invalid verb ID raises RepositoryError."""
         sentence_data = generate_random_sentence_data(verb_id=uuid4())
         sentence_create = SentenceCreate(**sentence_data)
 
-        with pytest.raises(Exception):  # Foreign key constraint violation
+        with pytest.raises(RepositoryError):  # Foreign key constraint violation
             await sentence_repository.create_sentence(sentence_create)
 
     @pytest.mark.integration

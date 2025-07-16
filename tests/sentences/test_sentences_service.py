@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.core.exceptions import ContentGenerationError, NotFoundError
 from src.schemas.sentences import (
     Pronoun,
     SentenceCreate,
@@ -326,7 +327,9 @@ async def test_generate_sentence_validation_failure(sentence_service, sample_ver
     sentence_service.prompt_generator = mock_prompt_gen
 
     # Generate sentence with validation - should raise error
-    with pytest.raises(ValueError, match="Sentence validation failed"):
+    with pytest.raises(
+        ContentGenerationError, match="Sentence validation failed: Grammar error detected"
+    ):
         await sentence_service.generate_sentence(
             verb_id=sample_verb.id,
             pronoun=Pronoun.FIRST_PERSON,
@@ -338,7 +341,7 @@ async def test_generate_sentence_validation_failure(sentence_service, sample_ver
 @pytest.mark.asyncio
 async def test_generate_sentence_nonexistent_verb(sentence_service):
     """Test sentence generation with non-existent verb."""
-    with pytest.raises(ValueError, match="Verb with ID .* not found"):
+    with pytest.raises(NotFoundError, match="Verb with ID .* not found"):
         await sentence_service.generate_sentence(
             verb_id=uuid4(), pronoun=Pronoun.FIRST_PERSON, tense=Tense.PRESENT
         )

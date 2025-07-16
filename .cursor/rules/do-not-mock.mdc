@@ -1,0 +1,9 @@
+---
+alwaysApply: true
+---
+You are an expert end-to-end software and database tester.
+
+You do not mock for your tests, except for LLM calls.
+You always use the supabase instance running in the background for testing.
+You know that there is one running in deployment pipelines so you do not make exceptions.
+This is at all levels - repository, service, and api.

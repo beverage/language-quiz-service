@@ -5,7 +5,9 @@ from datetime import UTC, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from postgrest import APIError as PostgrestAPIError
 
+from src.core.exceptions import RepositoryError
 from src.repositories.api_keys_repository import ApiKeyRepository
 from src.schemas.api_keys import ApiKey, ApiKeyCreate, ApiKeyStats, ApiKeyUpdate
 
@@ -109,7 +111,9 @@ class TestApiKeyRepository:
         mock_supabase_client.table.return_value = table_mock
 
         # Execute and verify exception
-        with pytest.raises(Exception, match="Failed to create API key"):
+        with pytest.raises(
+            RepositoryError, match="Failed to create API key: No data returned from Supabase"
+        ):
             await repository.create_api_key(
                 sample_api_key_create, "test_hash", "sk_live_test"
             )
@@ -655,3 +659,22 @@ class TestApiKeyRepository:
 
         # Verify
         assert result == 0
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_create_api_key_db_error(
+        self, repository: ApiKeyRepository, sample_api_key_create: ApiKeyCreate
+    ):
+        """Test that a DB constraint violation raises a RepositoryError."""
+        # Intentionally violate a DB constraint.
+        # The 'permissions_scope' is a text array; inserting a non-text value should fail.
+        invalid_create_data = sample_api_key_create.model_dump()
+        invalid_create_data["permissions_scope"] = [123]  # Invalid type for text[]
+
+        # The Pydantic model will accept this, but the DB will reject it.
+        invalid_api_key_create = ApiKeyCreate(**invalid_create_data)
+
+        with pytest.raises(RepositoryError):
+            await repository.create_api_key(
+                invalid_api_key_create, "test_hash", "sk_live_db_error"
+            )

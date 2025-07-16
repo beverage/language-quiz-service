@@ -11,6 +11,13 @@ from src.api.models.verbs import (
     VerbWithConjugationsResponse,
 )
 from src.core.auth import get_current_api_key
+from src.core.exceptions import (
+    AppException,
+    ContentGenerationError,
+    NotFoundError,
+    RepositoryError,
+    ServiceError,
+)
 from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
@@ -185,14 +192,13 @@ async def download_verb(
         # Convert service schema to API response model
         return VerbResponse(**verb.model_dump())
 
-    except ValueError as e:
-        logger.warning(f"Invalid verb download request: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error downloading verb {request.infinitive}: {e}")
+    except (NotFoundError, ContentGenerationError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to download verb",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
@@ -298,13 +304,13 @@ async def get_random_verb(
 
         return VerbResponse(**verb.model_dump())
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting random verb: {e}")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get random verb",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
@@ -427,10 +433,11 @@ async def get_verb_by_infinitive(
 
         return VerbResponse(**verb.model_dump())
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting verb by infinitive {infinitive}: {e}")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get verb",
@@ -580,10 +587,11 @@ async def get_verb_conjugations(
 
         return VerbWithConjugationsResponse(**verb_with_conjugations.model_dump())
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting verb conjugations for {infinitive}: {e}")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get verb conjugations",

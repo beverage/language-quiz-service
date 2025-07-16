@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from src.clients.supabase import get_supabase_client
+from src.core.exceptions import RepositoryError
 from src.schemas.problems import (
     Problem,
     ProblemCreate,
@@ -42,7 +43,7 @@ class ProblemRepository:
 
         if result.data:
             return Problem.model_validate(self._prepare_problem_data(result.data[0]))
-        raise Exception("Failed to create problem")
+        raise RepositoryError("Failed to create problem: No data returned from Supabase")
 
     async def get_problem(self, problem_id: UUID) -> Problem | None:
         """Get a problem by ID."""

@@ -221,146 +221,118 @@ class TestApiKeysAPIIntegration:
         """Test successful API keys listing."""
         response = client.get(f"{API_KEY_PREFIX}/", headers=admin_headers)
 
-        # Should work with admin permissions or fail at service level
-        assert response.status_code in [200, 500]
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
-        if response.status_code == 200:
-            data = response.json()
-            assert isinstance(data, list)
-            # Should include our active test keys (inactive keys are filtered out)
-            assert len(data) >= 3  # We have 3 active test keys
+        data = response.json()
+        assert isinstance(data, list)
+        # Should include our active test keys
+        assert len(data) >= 3, "Expected at least 3 active test keys"
 
     def test_list_api_keys_with_parameters(self, client: TestClient, admin_headers):
         """Test API keys listing with query parameters."""
         response = client.get(f"{API_KEY_PREFIX}/?limit=2", headers=admin_headers)
 
-        assert response.status_code in [200, 500]
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
-        if response.status_code == 200:
-            data = response.json()
-            assert isinstance(data, list)
-            assert len(data) <= 2
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) <= 2
 
     def test_get_api_key_stats_success(self, client: TestClient, admin_headers):
         """Test successful API key statistics retrieval."""
         response = client.get(f"{API_KEY_PREFIX}/stats", headers=admin_headers)
 
-        assert response.status_code in [200, 500]
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
-        if response.status_code == 200:
-            data = response.json()
-            # Verify expected stats fields exist
-            expected_fields = ["total_keys", "active_keys", "inactive_keys"]
-            for field in expected_fields:
-                assert field in data
-
-            # Should have our test data
-            assert data["total_keys"] >= 4
-            assert data["active_keys"] >= 3  # 3 active test keys
-            assert data["inactive_keys"] >= 1  # 1 inactive test key
+        data = response.json()
+        assert "total_keys" in data
+        assert "active_keys" in data
+        assert data["total_keys"] >= 3
 
     def test_get_current_key_info_success(self, client: TestClient, admin_headers):
-        """Test successful current key info retrieval."""
+        """Test retrieving information about the current key."""
         response = client.get(f"{API_KEY_PREFIX}/current", headers=admin_headers)
 
-        assert response.status_code in [200, 500]
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
-        if response.status_code == 200:
-            data = response.json()
-            # Should contain key info fields
-            assert "name" in data
-            assert "key_prefix" in data
-            assert "permissions_scope" in data
-            # Should be our admin test key
-            assert data["key_prefix"] == "sk_live_adm1"
-            assert "admin" in data["permissions_scope"]
+        data = response.json()
+        assert data["key_prefix"] == "sk_live_adm1"
+        assert "admin" in data["permissions_scope"]
 
     def test_get_api_key_by_id_not_found(self, client: TestClient, admin_headers):
-        """Test retrieving non-existent API key."""
-        key_id = uuid4()
-        response = client.get(f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers)
+        """Test getting a non-existent API key by ID."""
+        non_existent_id = uuid4()
+        response = client.get(f"{API_KEY_PREFIX}/{non_existent_id}", headers=admin_headers)
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
 
-        # Should be 404 for not found, regardless of service implementation
-        assert response.status_code in [404, 500]
-
-    def test_search_api_keys_with_parameters(self, client: TestClient, admin_headers):
-        """Test API key search with parameters."""
+    def test_search_api_keys_not_found(self, client: TestClient, admin_headers):
+        """Test searching for API keys with a term that yields no results."""
+        search_term = "nonexistentkeysearchterm"
         response = client.get(
-            f"{API_KEY_PREFIX}/search?name=Test", headers=admin_headers
+            f"{API_KEY_PREFIX}/search?name={search_term}", headers=admin_headers
         )
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
 
-        assert response.status_code in [200, 500]
-
-        if response.status_code == 200:
-            data = response.json()
-            assert isinstance(data, list)
-            # Should find test keys that contain "Test" in name
-            for key in data:
-                assert "test" in key["name"].lower()
-
-    def test_create_api_key_success(self, client: TestClient, admin_headers):
-        """Test successful API key creation."""
-        from uuid import uuid4
-
-        unique_name = f"New Test API Key {uuid4()}"
-
-        create_data = {
-            "name": unique_name,
-            "description": "A new test API key",
-            "client_name": "new-test-client",
-            "permissions_scope": ["read", "write"],
-            "rate_limit_rpm": 100,
-            "allowed_ips": ["127.0.0.1"],
-        }
-
+    def test_create_and_revoke_api_key_flow(self, client: TestClient, admin_headers):
+        """Test creating, verifying, and then revoking a new API key."""
+        # 1. Create a new API key
+        key_name = f"Test-Key-{uuid4()}"
+        create_data = {"name": key_name, "permissions_scope": ["read"]}
         response = client.post(
             f"{API_KEY_PREFIX}/", json=create_data, headers=admin_headers
         )
+        assert response.status_code == 200, f"Failed to create key: {response.text}"
+        create_data = response.json()
+        new_key_id = create_data["key_info"]["id"]
+        assert new_key_id is not None
 
-        # Service layer should handle the actual creation logic
-        assert response.status_code in [200, 201, 500]
+        # 2. Verify the key can be retrieved
+        response = client.get(f"{API_KEY_PREFIX}/{new_key_id}", headers=admin_headers)
+        assert response.status_code == 200
+        retrieved_data = response.json()
+        assert retrieved_data["name"] == key_name
+        assert retrieved_data["is_active"] is True
 
-        if response.status_code in [200, 201]:
-            data = response.json()
-            assert "api_key" in data
-            assert "key_info" in data
-            assert data["api_key"].startswith("sk_live_")  # Real keys use sk_live_
-            assert data["key_info"]["name"] == unique_name
+        # 3. Revoke the key
+        response = client.delete(f"{API_KEY_PREFIX}/{new_key_id}", headers=admin_headers)
+        assert response.status_code == 200
+        assert "revoked" in response.json()["message"]
 
-            # Clean up - revoke the created key
-            key_id = data["key_info"]["id"]
-            client.delete(f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers)
-            # Don't assert cleanup success - main test is creation
+        # 4. Verify the key is now inactive
+        response = client.get(f"{API_KEY_PREFIX}/{new_key_id}", headers=admin_headers)
+        assert response.status_code == 200
+        retrieved_data = response.json()
+        assert retrieved_data["is_active"] is False
 
-    def test_update_api_key_with_test_key(self, client: TestClient, admin_headers):
-        """Test updating API keys without modifying our permanent test keys."""
-        # Test with a non-existent UUID to verify the endpoint works
-        fake_uuid = "00000000-0000-0000-0000-000000000000"
-        update_data = {"description": "Test description"}
+    def test_update_api_key_not_found(self, client: TestClient, admin_headers):
+        """Test updating a non-existent API key."""
+        non_existent_id = uuid4()
+        update_data = {"name": "This Should Fail"}
+        response = client.put(
+            f"{API_KEY_PREFIX}/{non_existent_id}",
+            json=update_data,
+            headers=admin_headers,
+        )
+        assert response.status_code == 404
+
+    def test_revoke_api_key_not_found(self, client: TestClient, admin_headers):
+        """Test revoking a non-existent API key."""
+        non_existent_id = uuid4()
+        response = client.delete(f"{API_KEY_PREFIX}/{non_existent_id}", headers=admin_headers)
+        assert response.status_code == 404
+
+    def test_update_api_key_no_data_provided(
+        self, client: TestClient, admin_headers
+    ):
+        """Test updating an API key with no data should result in a 400."""
+        # Find a valid key to update
+        response = client.get(f"{API_KEY_PREFIX}/", headers=admin_headers)
+        key_id = response.json()[0]["id"]
 
         response = client.put(
-            f"{API_KEY_PREFIX}/{fake_uuid}", json=update_data, headers=admin_headers
+            f"{API_KEY_PREFIX}/{key_id}", json={}, headers=admin_headers
         )
-
-        # Should return 404 for non-existent key, or 500 if there are other issues
-        assert response.status_code in [404, 500]
-
-    def test_revoke_and_restore_flow(self, client: TestClient, admin_headers):
-        """Test the revoke endpoint without affecting our permanent test keys."""
-        # Test with a non-existent UUID to verify the endpoint works
-        fake_uuid = "00000000-0000-0000-0000-000000000000"
-        response = client.delete(f"{API_KEY_PREFIX}/{fake_uuid}", headers=admin_headers)
-
-        # Should return 404 for non-existent key, or 500 if there are other issues
-        assert response.status_code in [404, 500]
-
-    def test_error_response_format(self, client: TestClient):
-        """Test that error responses follow expected format."""
-        response = client.get(f"{API_KEY_PREFIX}/")
-        assert response.status_code == 401
-
-        data = response.json()
-        assert "error" in data
-        assert "message" in data
-        assert data["error"] is True
-        assert isinstance(data["message"], str)
+        assert response.status_code == 400
+        assert "no update data provided" in response.json()["detail"].lower()

@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from src.clients.openai_client import OpenAIClient
 from src.clients.supabase import get_supabase_client
+from src.core.exceptions import ContentGenerationError
 from src.prompts.verb_prompts import VerbPromptGenerator
 from src.repositories.verb_repository import VerbRepository
 from src.schemas.verbs import (
@@ -245,7 +246,9 @@ class VerbService:
             logger.error(
                 f"Failed to decode or validate verb download response from the LLM: {e}"
             )
-            raise ValueError("Invalid response format from the LLM") from e
+            raise ContentGenerationError(
+                content_type="verb", message=f"Invalid response from LLM: {e}"
+            ) from e
 
         # Phase 2: Get COD/COI flags using the auxiliary from Phase 1
         logger.info(

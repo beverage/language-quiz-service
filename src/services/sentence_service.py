@@ -5,6 +5,7 @@ import logging
 from uuid import UUID
 
 from src.clients.openai_client import OpenAIClient
+from src.core.exceptions import ContentGenerationError, NotFoundError
 from src.prompts.sentence_prompts import SentencePromptGenerator
 from src.repositories.sentence_repository import SentenceRepository
 from src.schemas.sentences import (
@@ -106,7 +107,7 @@ class SentenceService:
         # Get the verb details first
         verb = await self.verb_service.get_verb(verb_id)
         if not verb:
-            raise ValueError(f"Verb with ID {verb_id} not found")
+            raise NotFoundError(f"Verb with ID {verb_id} not found")
 
         logger.info(
             f"➡️ Generating: {verb.infinitive}, {pronoun.value}, {tense.value}, "
@@ -183,8 +184,9 @@ class SentenceService:
                 logger.info("✅ Validation passed")
             else:
                 logger.error(f"❌ Validation failed: {validation.explanation}")
-                raise ValueError(
-                    f"Sentence validation failed: {validation.explanation}"
+                raise ContentGenerationError(
+                    content_type="sentence",
+                    message=f"Sentence validation failed: {validation.explanation}",
                 )
         else:
             logger.info("⚡ Validation disabled - skipping additional LLM validation")
