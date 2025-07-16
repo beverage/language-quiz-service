@@ -209,7 +209,7 @@ class TestApiKeyService:
             assert result.name == "Test Key"
 
             mock_repository.get_api_key_by_prefix.assert_called_once_with(
-                "sk_live_test123"
+                "sk_live_test"
             )
             mock_repository.increment_usage.assert_called_once_with(sample_api_key.id)
 

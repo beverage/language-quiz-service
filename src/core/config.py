@@ -65,10 +65,26 @@ class Settings(BaseSettings):
         return self.cors_origins
 
 
-# Singleton instance
-settings = Settings()
+# Singleton instance - initialized lazily
+_settings: Settings | None = None
 
 
 def get_settings() -> Settings:
     """Get the settings instance."""
-    return settings
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
+
+
+def reset_settings() -> None:
+    """Reset the settings instance (useful for testing)."""
+    global _settings
+    _settings = None
+
+
+# For backward compatibility, create a property that behaves like the old singleton
+def __getattr__(name):
+    if name == "settings":
+        return get_settings()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

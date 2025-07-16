@@ -8,7 +8,7 @@ separate from internal service schemas to allow independent evolution.
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.schemas.verbs import AuxiliaryType, VerbClassification
 
@@ -39,10 +39,11 @@ class VerbDownloadRequest(BaseModel):
         },
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {"infinitive": "parler", "target_language_code": "eng"}
         }
+    )
 
 
 class VerbResponse(BaseModel):
@@ -121,8 +122,8 @@ class VerbResponse(BaseModel):
         None, description="Timestamp when the verb was last accessed (for analytics)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "infinitive": "parler",
@@ -141,6 +142,7 @@ class VerbResponse(BaseModel):
                 "last_used_at": "2024-01-15T16:45:00Z",
             }
         }
+    )
 
 
 class ConjugationResponse(BaseModel):
@@ -224,8 +226,8 @@ class ConjugationResponse(BaseModel):
         ..., description="Timestamp when the conjugation was last updated"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174001",
                 "infinitive": "parler",
@@ -242,6 +244,7 @@ class ConjugationResponse(BaseModel):
                 "updated_at": "2024-01-15T10:30:00Z",
             }
         }
+    )
 
 
 class VerbWithConjugationsResponse(VerbResponse):
@@ -260,8 +263,8 @@ class VerbWithConjugationsResponse(VerbResponse):
         },
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "123e4567-e89b-12d3-a456-426614174000",
                 "infinitive": "parler",
@@ -312,3 +315,4 @@ class VerbWithConjugationsResponse(VerbResponse):
                 ],
             }
         }
+    )

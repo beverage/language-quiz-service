@@ -8,7 +8,7 @@ providing clean separation from internal service schemas.
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.schemas.sentences import (
     DirectObject,
@@ -107,8 +107,8 @@ class SentenceGenerateRequest(BaseModel):
             raise ValueError("Verb infinitive cannot be empty")
         return v.strip()
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "verb_infinitive": "parler",
                 "pronoun": "first_person",
@@ -120,6 +120,7 @@ class SentenceGenerateRequest(BaseModel):
                 "target_language_code": "eng",
             }
         }
+    )
 
 
 class SentenceListRequest(BaseModel):
@@ -184,8 +185,8 @@ class SentenceListRequest(BaseModel):
         json_schema_extra={"example": 25},
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "verb_id": "123e4567-e89b-12d3-a456-426614174000",
                 "is_correct": True,
@@ -195,6 +196,7 @@ class SentenceListRequest(BaseModel):
                 "limit": 25,
             }
         }
+    )
 
 
 class SentenceResponse(BaseModel):
@@ -279,8 +281,8 @@ class SentenceResponse(BaseModel):
         ..., description="Timestamp when the sentence was last updated"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "789e1234-e89b-12d3-a456-426614174333",
                 "target_language_code": "eng",
@@ -299,3 +301,4 @@ class SentenceResponse(BaseModel):
                 "updated_at": "2024-01-15T11:30:00Z",
             }
         }
+    )

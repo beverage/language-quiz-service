@@ -42,46 +42,27 @@ def sample_verb_with_conjugations(sample_verb):
 
 
 @pytest.fixture
-def mock_api_key_info():
-    """Mock API key info for authorization."""
+def auth_headers():
+    """Basic auth headers for API testing with admin test key."""
     return {
-        "id": str(uuid4()),
-        "key_prefix": "sk_test_verb",
-        "name": "Verb Test Key",
-        "description": "Test API key for verbs",
-        "is_active": True,
-        "rate_limit": 1000,
-        "rate_limit_remaining": 1000,
-        "rate_limit_reset": datetime.now().timestamp() + 3600,
-        "last_used_at": None,
-        "created_at": datetime.now(),
-        "updated_at": datetime.now(),
-        "permissions_scope": [
-            "read",
-            "write",
-        ],  # Include write permission for download tests
+        "X-API-Key": "sk_live_adm1234567890123456789012345678901234567890123456789012345678901234"
     }
 
 
 @pytest.fixture
-def auth_headers():
-    """Basic auth headers for API testing."""
-    return {"X-API-Key": "sk_test_valid_key"}
+def write_headers():
+    """Headers with read/write test API key."""
+    return {
+        "X-API-Key": "sk_live_wrt1234567890123456789012345678901234567890123456789012345678901234"
+    }
 
 
-@contextmanager
-def _mock_auth_middleware(api_key_info):
-    """Context manager to mock auth middleware."""
-
-    async def mock_dispatch(request, call_next):
-        request.state.api_key_info = api_key_info
-        request.state.client_ip = "127.0.0.1"
-        return await call_next(request)
-
-    with patch(
-        "src.core.auth.ApiKeyAuthMiddleware.dispatch", side_effect=mock_dispatch
-    ):
-        yield
+@pytest.fixture
+def read_headers():
+    """Headers with read-only test API key."""
+    return {
+        "X-API-Key": "sk_live_red1234567890123456789012345678901234567890123456789012345678901234"
+    }
 
 
 class TestVerbsAPIEndpoints:
@@ -146,7 +127,6 @@ class TestVerbsAPIEndpoints:
         self,
         client: TestClient,
         auth_headers,
-        mock_api_key_info,
         sample_verb,
         sample_verb_with_conjugations,
         endpoint,
@@ -164,27 +144,26 @@ class TestVerbsAPIEndpoints:
         else:
             mock_return = return_value
 
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                getattr(mock_service, method_name).return_value = mock_return
+        with patch("src.api.verbs.VerbService") as mock_service_class:
+            mock_service = AsyncMock()
+            mock_service_class.return_value = mock_service
+            getattr(mock_service, method_name).return_value = mock_return
 
-                response = client.get(endpoint, headers=auth_headers)
+            response = client.get(endpoint, headers=auth_headers)
 
-                assert response.status_code == expected_status
-                data = response.json()
+            assert response.status_code == expected_status
+            data = response.json()
 
-                # Verify response structure
-                for key in expected_response_keys:
-                    assert key in data
+            # Verify response structure
+            for key in expected_response_keys:
+                assert key in data
 
-                # Verify specific data for success cases
-                if expected_status == 200 and mock_return:
-                    if "infinitive" in expected_response_keys:
-                        assert data["infinitive"] == "parler"
-                    if "translation" in expected_response_keys:
-                        assert data["translation"] == "to speak"
+            # Verify specific data for success cases
+            if expected_status == 200 and mock_return:
+                if "infinitive" in expected_response_keys:
+                    assert data["infinitive"] == "parler"
+                if "translation" in expected_response_keys:
+                    assert data["translation"] == "to speak"
 
     @pytest.mark.parametrize(
         "endpoint,params,expected_service_call",
@@ -227,33 +206,31 @@ class TestVerbsAPIEndpoints:
         self,
         client: TestClient,
         auth_headers,
-        mock_api_key_info,
         sample_verb,
         endpoint,
         params,
         expected_service_call,
     ):
         """Test parameter parsing and handling."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = sample_verb
-                mock_service.get_random_verb.return_value = sample_verb
+        with patch("src.api.verbs.VerbService") as mock_service_class:
+            mock_service = AsyncMock()
+            mock_service_class.return_value = mock_service
+            mock_service.get_verb_by_infinitive.return_value = sample_verb
+            mock_service.get_random_verb.return_value = sample_verb
 
-                response = client.get(endpoint, headers=auth_headers, params=params)
+            response = client.get(endpoint, headers=auth_headers, params=params)
 
-                assert response.status_code == 200
+            assert response.status_code == 200
 
-                # Verify correct service method was called with expected parameters
-                if "random" in endpoint:
-                    mock_service.get_random_verb.assert_called_once_with(
-                        **expected_service_call
-                    )
-                else:
-                    mock_service.get_verb_by_infinitive.assert_called_once_with(
-                        **expected_service_call
-                    )
+            # Verify correct service method was called with expected parameters
+            if "random" in endpoint:
+                mock_service.get_random_verb.assert_called_once_with(
+                    **expected_service_call
+                )
+            else:
+                mock_service.get_verb_by_infinitive.assert_called_once_with(
+                    **expected_service_call
+                )
 
     @pytest.mark.parametrize(
         "bool_value,expected_bool",
@@ -270,31 +247,29 @@ class TestVerbsAPIEndpoints:
         self,
         client: TestClient,
         auth_headers,
-        mock_api_key_info,
         sample_verb,
         bool_value,
         expected_bool,
     ):
         """Test boolean parameter parsing variations."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = sample_verb
+        with patch("src.api.verbs.VerbService") as mock_service_class:
+            mock_service = AsyncMock()
+            mock_service_class.return_value = mock_service
+            mock_service.get_verb_by_infinitive.return_value = sample_verb
 
-                response = client.get(
-                    "/api/v1/verbs/parler",
-                    headers=auth_headers,
-                    params={"reflexive": bool_value},
-                )
+            response = client.get(
+                "/api/v1/verbs/parler",
+                headers=auth_headers,
+                params={"reflexive": bool_value},
+            )
 
-                assert response.status_code == 200
-                mock_service.get_verb_by_infinitive.assert_called_once_with(
-                    infinitive="parler",
-                    auxiliary=None,
-                    reflexive=expected_bool,
-                    target_language_code="eng",
-                )
+            assert response.status_code == 200
+            mock_service.get_verb_by_infinitive.assert_called_once_with(
+                infinitive="parler",
+                auxiliary=None,
+                reflexive=expected_bool,
+                target_language_code="eng",
+            )
 
     @pytest.mark.parametrize(
         "auxiliary_value",
@@ -304,50 +279,45 @@ class TestVerbsAPIEndpoints:
         self,
         client: TestClient,
         auth_headers,
-        mock_api_key_info,
         sample_verb,
         auxiliary_value,
     ):
         """Test enum parameter validation."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = sample_verb
+        with patch("src.api.verbs.VerbService") as mock_service_class:
+            mock_service = AsyncMock()
+            mock_service_class.return_value = mock_service
+            mock_service.get_verb_by_infinitive.return_value = sample_verb
 
-                response = client.get(
-                    "/api/v1/verbs/parler",
-                    headers=auth_headers,
-                    params={"auxiliary": auxiliary_value},
-                )
+            response = client.get(
+                "/api/v1/verbs/parler",
+                headers=auth_headers,
+                params={"auxiliary": auxiliary_value},
+            )
 
-                # Should not return 422 (validation error)
-                assert response.status_code == 200
+            # Should not return 422 (validation error)
+            assert response.status_code == 200
 
 
 class TestVerbsAPIDownload:
     """Test verb download functionality."""
 
-    def test_download_verb_success(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
-    ):
+    def test_download_verb_success(self, client: TestClient, auth_headers, sample_verb):
         """Test successful verb download."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.download_verb.return_value = sample_verb
+        with patch("src.api.verbs.VerbService") as mock_service_class:
+            mock_service = AsyncMock()
+            mock_service_class.return_value = mock_service
+            mock_service.download_verb.return_value = sample_verb
 
-                response = client.post(
-                    "/api/v1/verbs/download",
-                    headers=auth_headers,
-                    json={"infinitive": "parler", "target_language_code": "eng"},
-                )
+            response = client.post(
+                "/api/v1/verbs/download",
+                headers=auth_headers,
+                json={"infinitive": "parler", "target_language_code": "eng"},
+            )
 
-                assert response.status_code == 201
-                data = response.json()
-                assert data["infinitive"] == "parler"
-                assert data["translation"] == "to speak"
+            assert response.status_code == 201
+            data = response.json()
+            assert data["infinitive"] == "parler"
+            assert data["translation"] == "to speak"
 
     @pytest.mark.parametrize(
         "request_body,expected_status,expected_error_key",
@@ -364,13 +334,14 @@ class TestVerbsAPIDownload:
         self,
         client: TestClient,
         auth_headers,
-        mock_api_key_info,
         request_body,
         expected_status,
         expected_error_key,
     ):
         """Test download verb request validation."""
-        with _mock_auth_middleware(mock_api_key_info):
+        with patch("src.api.verbs.VerbService") as mock_service_class:
+            mock_service = AsyncMock()
+            mock_service_class.return_value = mock_service
             response = client.post(
                 "/api/v1/verbs/download",
                 headers=auth_headers,
@@ -385,26 +356,25 @@ class TestVerbsAPIDownload:
             assert expected_error_key in error_str
 
     def test_download_verb_already_exists(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
+        self, client: TestClient, auth_headers, sample_verb
     ):
         """Test download when verb already exists - should return 201 as re-downloading is supported."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                # Re-downloading should succeed and return the verb
-                mock_service.download_verb.return_value = sample_verb
+        with patch("src.api.verbs.VerbService") as mock_service_class:
+            mock_service = AsyncMock()
+            mock_service_class.return_value = mock_service
+            # Re-downloading should succeed and return the verb
+            mock_service.download_verb.return_value = sample_verb
 
-                response = client.post(
-                    "/api/v1/verbs/download",
-                    headers=auth_headers,
-                    json={"infinitive": "parler", "target_language_code": "eng"},
-                )
+            response = client.post(
+                "/api/v1/verbs/download",
+                headers=auth_headers,
+                json={"infinitive": "parler", "target_language_code": "eng"},
+            )
 
-                assert response.status_code == 201
-                data = response.json()
-                assert data["infinitive"] == "parler"
-                assert data["translation"] == "to speak"
+            assert response.status_code == 201
+            data = response.json()
+            assert data["infinitive"] == "parler"
+            assert data["translation"] == "to speak"
 
 
 class TestVerbsAPIResponseFormats:
@@ -442,7 +412,6 @@ class TestVerbsAPIResponseFormats:
         self,
         client: TestClient,
         auth_headers,
-        mock_api_key_info,
         sample_verb,
         sample_verb_with_conjugations,
         endpoint,
@@ -458,43 +427,39 @@ class TestVerbsAPIResponseFormats:
             else "get_random_verb"
         )
 
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                getattr(mock_service, method_name).return_value = mock_return
+        with patch("src.api.verbs.VerbService") as mock_service_class:
+            mock_service = AsyncMock()
+            mock_service_class.return_value = mock_service
+            getattr(mock_service, method_name).return_value = mock_return
 
-                response = client.get(endpoint, headers=auth_headers)
+            response = client.get(endpoint, headers=auth_headers)
 
-                assert response.status_code == 200
-                data = response.json()
+            assert response.status_code == 200
+            data = response.json()
 
-                # Verify all expected fields are present
-                assert expected_fields.issubset(set(data.keys()))
+            # Verify all expected fields are present
+            assert expected_fields.issubset(set(data.keys()))
 
-                # Verify data types for key fields
-                assert isinstance(data["id"], str)
-                assert isinstance(data["infinitive"], str)
-                if "conjugations" in data:
-                    assert isinstance(data["conjugations"], list)
+            # Verify data types for key fields
+            assert isinstance(data["id"], str)
+            assert isinstance(data["infinitive"], str)
+            if "conjugations" in data:
+                assert isinstance(data["conjugations"], list)
 
-    def test_error_response_format(
-        self, client: TestClient, auth_headers, mock_api_key_info
-    ):
+    def test_error_response_format(self, client: TestClient, auth_headers):
         """Test that error responses follow consistent format."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_random_verb.return_value = None
+        with patch("src.api.verbs.VerbService") as mock_service_class:
+            mock_service = AsyncMock()
+            mock_service_class.return_value = mock_service
+            mock_service.get_random_verb.return_value = None
 
-                response = client.get("/api/v1/verbs/random", headers=auth_headers)
+            response = client.get("/api/v1/verbs/random", headers=auth_headers)
 
-                assert response.status_code == 404
-                data = response.json()
+            assert response.status_code == 404
+            data = response.json()
 
-                # Verify error response structure
-                required_error_fields = {"message"}
-                assert required_error_fields.issubset(set(data.keys()))
-                assert isinstance(data["message"], str)
-                assert len(data["message"]) > 0
+            # Verify error response structure
+            required_error_fields = {"message"}
+            assert required_error_fields.issubset(set(data.keys()))
+            assert isinstance(data["message"], str)
+            assert len(data["message"]) > 0

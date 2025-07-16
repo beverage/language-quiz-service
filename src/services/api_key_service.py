@@ -104,8 +104,8 @@ class ApiKeyService:
         repo = await self._get_api_key_repository()
 
         try:
-            # Get the key prefix for lookup
-            key_prefix = api_key_plain[:16]  # sk_live_ + first 8 chars
+            # Get the key prefix for lookup (first 12 chars to match generation function)
+            key_prefix = api_key_plain[:12]  # sk_live_ + first 4 chars
 
             # Look up the key by prefix
             api_key = await repo.get_api_key_by_prefix(key_prefix)

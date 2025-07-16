@@ -88,22 +88,22 @@ format:
 # Testing target
 test:
 	@echo "Running all tests..."
-	poetry run pytest
+	poetry run pytest -n auto
 
 # Testing with coverage
 test-cov:
 	@echo "Running all tests with coverage..."
-	poetry run pytest --cov=src --cov-report=xml --cov-report=term-missing
+	poetry run pytest -n auto --cov=src --cov-report=xml --cov-report=term-missing
 
 .PHONY: test-unit
 test-unit:
 	@echo "Running unit tests..."
-	poetry run pytest -m unit
+	poetry run pytest -n auto-m unit
 
 .PHONY: test-integration
 test-integration:
 	@echo "Running integration tests..."
-	poetry run pytest -m integration
+	poetry run pytest -n auto-m integration
 
 # Run everything
 all: format lint test

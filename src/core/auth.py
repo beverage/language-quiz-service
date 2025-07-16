@@ -5,6 +5,7 @@ Authentication middleware for API key validation.
 import logging
 
 from fastapi import HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.core.config import get_settings
@@ -52,13 +53,28 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
 
-        except HTTPException:
-            raise
+        except HTTPException as exc:
+            # Return standardized JSON response for authentication errors
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={
+                    "error": True,
+                    "message": exc.detail,
+                    "status_code": exc.status_code,
+                    "path": str(request.url.path),
+                },
+            )
         except Exception as e:
-            logger.error(f"Authentication middleware error: {e}")
-            raise HTTPException(
+            logger.error(f"Authentication middleware error: {e}", exc_info=True)
+            # Return standardized JSON response for unexpected auth errors
+            return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Authentication service error",
+                content={
+                    "error": True,
+                    "message": "Authentication service error",
+                    "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    "path": str(request.url.path),
+                },
             )
 
     def _is_exempt_path(self, path: str) -> bool:

@@ -23,6 +23,7 @@ boto3 = "^1.38.22"
 rich = "^14.0.0"
 slowapi = "^0.1.9"
 bcrypt = "^4.3.0"
+pytest-xdist = "^3.8.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
@@ -31,6 +32,7 @@ pytest-cov = "^5.0.0"
 ruff = "^0.4.8"
 pip-audit = "^2.9.0"
 faker = "^37.4.0"
+pytest-xdist = "^3.8.0"
 
 [tool.poetry.scripts]
 lqs = "src.cli.console:main"
