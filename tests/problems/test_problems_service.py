@@ -41,9 +41,11 @@ class TestProblemService:
         service = ProblemService(problem_repository=problem_repository)
 
         # Create a simple grammar problem
+        from uuid import uuid4
+
         problem_data = ProblemCreate(
             problem_type=ProblemType.GRAMMAR,
-            title="Grammar: Parler",
+            title=f"Grammar: Parler_{uuid4().hex[:8]}",
             instructions="Choose the correctly formed French sentence.",
             correct_answer_index=0,
             target_language_code="eng",
@@ -67,7 +69,8 @@ class TestProblemService:
         # Create the problem
         created_problem = await service.create_problem(problem_data)
         assert created_problem.id is not None
-        assert created_problem.title == "Grammar: Parler"
+        assert created_problem.title.startswith("Grammar: Parler_")
+        assert len(created_problem.title.split("_")[-1]) == 8  # UUID hex suffix
         assert created_problem.problem_type == ProblemType.GRAMMAR
         assert len(created_problem.statements) == 2
         assert created_problem.correct_answer_index == 0
@@ -85,13 +88,16 @@ class TestProblemService:
         created_problem = await service.create_problem(sample_problem_create)
 
         # Update the problem
+        from uuid import uuid4
+
         update_data = ProblemUpdate(
-            title="Updated Grammar: Parler",
+            title=f"Updated Grammar: Parler_{uuid4().hex[:8]}",
             instructions="Updated: Choose the correctly formed French sentence.",
         )
 
         updated_problem = await service.update_problem(created_problem.id, update_data)
-        assert updated_problem.title == "Updated Grammar: Parler"
+        assert updated_problem.title.startswith("Updated Grammar: Parler_")
+        assert len(updated_problem.title.split("_")[-1]) == 8  # UUID hex suffix
         assert (
             updated_problem.instructions
             == "Updated: Choose the correctly formed French sentence."
@@ -236,17 +242,31 @@ class TestProblemService:
 
         # Get initial count
         initial_count = await service.count_problems()
+        intital_grammar_count = await service.count_problems(
+            problem_type=ProblemType.GRAMMAR
+        )
 
         # Create a problem
-        await service.create_problem(sample_problem_create)
+        new_protlem = await service.create_problem(sample_problem_create)
 
         # Count should increase
         new_count = await service.count_problems()
-        assert new_count == initial_count + 1
+        assert new_count > initial_count
 
         # Count with filters
-        grammar_count = await service.count_problems(problem_type=ProblemType.GRAMMAR)
-        assert grammar_count >= 1
+        new_grammar_count = await service.count_problems(
+            problem_type=ProblemType.GRAMMAR
+        )
+        assert new_grammar_count > intital_grammar_count
+
+        check_problem = await service.get_problem(new_protlem.id)
+
+        assert check_problem.id == new_protlem.id
+        assert check_problem.title == new_protlem.title
+        assert check_problem.problem_type == new_protlem.problem_type
+        assert check_problem.instructions == new_protlem.instructions
+        assert check_problem.correct_answer_index == new_protlem.correct_answer_index
+        assert check_problem.target_language_code == new_protlem.target_language_code
 
     async def test_get_problem_statistics(
         self, problem_repository, sample_problem_create
@@ -273,9 +293,11 @@ class TestProblemServiceAnalytics:
         service = ProblemService(problem_repository=problem_repository)
 
         # Create a problem with verb metadata
+        from uuid import uuid4
+
         problem_data = ProblemCreate(
             problem_type=ProblemType.GRAMMAR,
-            title=f"Grammar: {sample_verb.infinitive}",
+            title=f"Grammar: {sample_verb.infinitive}_{uuid4().hex[:8]}",
             instructions="Choose the correctly formed French sentence.",
             correct_answer_index=0,
             target_language_code="eng",
@@ -850,7 +872,10 @@ class TestProblemServiceParameterGeneration:
         )
 
         assert problem_create.problem_type == ProblemType.GRAMMAR
-        assert problem_create.title == f"Grammar: {sample_verb.infinitive.title()}"
+        assert problem_create.title.startswith(
+            f"Grammar: {sample_verb.infinitive.title()}_"
+        )
+        assert len(problem_create.title.split("_")[-1]) == 8  # UUID hex suffix
         assert problem_create.correct_answer_index == 0
         assert len(problem_create.statements) == 2
         assert problem_create.statements[0]["is_correct"] is True

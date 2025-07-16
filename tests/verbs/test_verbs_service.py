@@ -20,15 +20,8 @@ from src.services.verb_service import VerbService
 from tests.verbs.fixtures import (
     generate_random_conjugation_data,
     generate_random_verb_data,
+    verb_service,
 )
-
-
-@pytest.fixture
-async def verb_service(test_supabase_client):
-    """Create a VerbService with real repository connection."""
-    service = VerbService()
-    service.db_client = test_supabase_client  # Inject test client
-    return service
 
 
 @pytest.mark.asyncio
@@ -121,11 +114,13 @@ async def test_get_verbs_by_infinitive(verb_service):
     """Test getting verbs by infinitive."""
     # Create a verb with specific infinitive
     verb_data = VerbCreate(**generate_random_verb_data())
-    verb_data.infinitive = "test_infinitive_unique"
+    verb_infinitive = uuid4().hex[:8]
+
+    verb_data.infinitive = verb_infinitive
     created_verb = await verb_service.create_verb(verb_data)
 
     # Search by infinitive
-    results = await verb_service.get_verbs_by_infinitive("test_infinitive_unique")
+    results = await verb_service.get_verbs_by_infinitive(verb_infinitive)
     assert len(results) >= 1
     assert any(v.id == created_verb.id for v in results)
 
@@ -136,7 +131,7 @@ async def test_get_all_verbs_with_limit(verb_service):
     # Create a couple of verbs
     for i in range(2):
         verb_data = VerbCreate(**generate_random_verb_data())
-        verb_data.infinitive = f"test_limit_{i}"
+        verb_data.infinitive = uuid4().hex[:8]
         await verb_service.create_verb(verb_data)
 
     # Get verbs with limit
@@ -235,7 +230,7 @@ async def test_get_conjugations_with_filters(verb_service):
     """Test getting conjugations with various filters."""
     # Create a verb
     verb_data = VerbCreate(**generate_random_verb_data())
-    verb_data.infinitive = "test_conjugations"
+    verb_data.infinitive = uuid4().hex[:8]
     created_verb = await verb_service.create_verb(verb_data)
 
     # Add conjugations with different tenses

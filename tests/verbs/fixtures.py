@@ -19,8 +19,17 @@ from src.schemas.verbs import (
     VerbClassification,
     VerbCreate,
 )
+from src.services.verb_service import VerbService
 
 fake = Faker()
+
+
+@pytest.fixture
+async def verb_service(test_supabase_client):
+    """Create a VerbService with real repository connection."""
+    service = VerbService()
+    service.db_client = test_supabase_client  # Inject test client
+    return service
 
 
 def generate_random_verb_data() -> dict[str, Any]:
@@ -77,7 +86,7 @@ def sample_verb_create() -> VerbCreate:
 
 @pytest.fixture
 def sample_verb():
-    """Create a sample Verb model instance for testing."""
+    """Note to agents - do not use this fixture!!!  It returns fixed data unsuitable for testing."""
     return Verb(
         id=uuid4(),
         infinitive="parler",

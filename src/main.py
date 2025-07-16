@@ -16,7 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .api import api_keys, health, sentences, verbs
+from .api import api_keys, health, problems, sentences, verbs
 from .core.auth import ApiKeyAuthMiddleware
 from .core.config import get_settings
 from .core.exceptions import AppException
@@ -144,7 +144,7 @@ app = FastAPI(
         },
         {
             "name": "problems",
-            "description": "Quiz problem generation endpoints (coming soon)",
+            "description": "Quiz problem generation and management endpoints",
         },
         {
             "name": "sentences",
@@ -181,6 +181,7 @@ v1_router = APIRouter(prefix=ROUTER_PREFIX)
 v1_router.include_router(api_keys.router)
 v1_router.include_router(verbs.router)
 v1_router.include_router(sentences.router)
+v1_router.include_router(problems.router)
 
 # TODO: Uncomment these when endpoints are implemented
 # v1_router.include_router(problems.router)
@@ -207,6 +208,10 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Handle exceptions, routing them based on type."""
+    # HTTP exceptions should be handled by the specific HTTP handler
+    if isinstance(exc, StarletteHTTPException):
+        return await http_exception_handler(request, exc)
+
     # Application-specific exceptions (custom AppException and subclasses)
     if isinstance(exc, AppException):
         logger.error(f"AppException: {exc.message}", exc_info=True)
