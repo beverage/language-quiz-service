@@ -53,5 +53,39 @@ class ServiceError(AppException):
     Raised when a service layer operation fails.
     """
 
-    def __init__(self, message: str = "Service error"):
-        super().__init__(message, status_code=500)
+    def __init__(self, message: str = "Service error", status_code: int = 500):
+        super().__init__(message, status_code=status_code)
+
+
+class ContentGenerationError(ServiceError):
+    """
+    LLM content generation failure (503).
+    Raised when an AI service (e.g., OpenAI) fails to generate required content.
+    """
+
+    def __init__(
+        self,
+        message: str = "Content generation failed",
+        *,
+        content_type: str | None = None,
+    ):
+        full_message = f"AI ({content_type or 'general'}): {message}"
+        super().__init__(full_message, status_code=503)
+
+
+class LanguageResourceNotFoundError(NotFoundError):
+    """
+    A specific language resource (e.g., a verb in a specific language) was not found.
+    Inherits from NotFoundError (404).
+    """
+
+    def __init__(
+        self,
+        message: str = "Language resource not found",
+        *,
+        resource_type: str | None = None,
+    ):
+        full_message = (
+            f"Language resource ({resource_type or 'general'}) not found: {message}"
+        )
+        super().__init__(full_message)

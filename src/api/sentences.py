@@ -120,6 +120,8 @@ async def get_random_sentence(
             is_correct=is_correct,
             verb_id=str(verb_id) if verb_id is not None else None,
         )
+        if not sentence:
+            raise NotFoundError("No sentences found matching criteria")
         return SentenceResponse(**sentence.model_dump())
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -192,6 +194,8 @@ async def get_sentence(
     """Get a specific sentence by its ID."""
     try:
         sentence = await service.get_sentence(sentence_id)
+        if not sentence:
+            raise NotFoundError("Sentence not found")
         return SentenceResponse(**sentence.model_dump())
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -305,11 +309,7 @@ async def list_sentences(
     try:
         sentences = await service.get_sentences_by_verb(
             verb_id=str(verb_id) if verb_id else None,
-            is_correct=is_correct,
-            tense=tense,
-            pronoun=pronoun,
             limit=limit,
-            target_language_code=target_language_code,
         )
         return [SentenceResponse(**s.model_dump()) for s in sentences]
     except NotFoundError as e:

@@ -46,6 +46,20 @@ def generate_random_verb_data() -> dict[str, Any]:
     }
 
 
+def generate_sample_verb_data(infinitive: str | None = None) -> dict[str, Any]:
+    """Generate sample verb data dictionary for testing (callable function)."""
+    data = generate_random_verb_data()
+    if infinitive:
+        data["infinitive"] = infinitive
+    return data
+
+
+@pytest.fixture
+def sample_verb_data() -> dict[str, Any]:
+    """Provide sample verb data dictionary for testing (fixture)."""
+    return generate_random_verb_data()
+
+
 def generate_random_conjugation_data() -> dict[str, Any]:
     """Generate random conjugation data for testing."""
     infinitive = f"{fake.word()}_{uuid4().hex[:8]}"  # Make unique
@@ -61,12 +75,6 @@ def generate_random_conjugation_data() -> dict[str, Any]:
         "second_person_plural": fake.word(),
         "third_person_plural": fake.word(),
     }
-
-
-@pytest.fixture
-def sample_verb_data() -> dict[str, Any]:
-    """Provide sample verb data dictionary for testing."""
-    return generate_random_verb_data()
 
 
 @pytest.fixture

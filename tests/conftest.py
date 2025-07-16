@@ -7,33 +7,52 @@ import subprocess
 
 import pytest
 
+from supabase import Client, acreate_client
+
+
+# Helper function to create a test client, now co-located with tests
+async def create_test_supabase_client(
+    database_url: str, service_key: str = "test_key"
+) -> Client:
+    """Create a Supabase client for testing that points to a local Supabase instance."""
+    return await acreate_client(database_url, service_key)
+
 
 # Override environment variables IMMEDIATELY at module import time
 def _setup_test_environment():
     """Set up test environment variables before any other imports."""
-    # Get local Supabase service key
     try:
         result = subprocess.run(
             ["supabase", "status", "--output", "json"],
             capture_output=True,
             text=True,
             check=True,
+            timeout=10,
         )
         status_data = json.loads(result.stdout)
-        service_role_key = status_data.get("SERVICE_ROLE_KEY", "")
+        service_role_key = status_data.get("SERVICE_ROLE_KEY")
 
         if not service_role_key:
-            raise ValueError("SERVICE_ROLE_KEY not found in supabase status output")
+            raise ValueError("SERVICE_ROLE_KEY not found in Supabase status output.")
 
-    except (subprocess.CalledProcessError, json.JSONDecodeError, ValueError) as e:
-        raise RuntimeError(f"Failed to get service role key from supabase status: {e}")
+    except (
+        subprocess.CalledProcessError,
+        json.JSONDecodeError,
+        ValueError,
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+    ) as e:
+        pytest.fail(
+            f"Critical test setup failed: Could not get Supabase service role key. Is Supabase running? Error: {e}",
+            pytrace=False,
+        )
 
     # Set test environment variables immediately
     test_env_vars = {
         "SUPABASE_URL": "http://127.0.0.1:54321",
         "SUPABASE_SERVICE_ROLE_KEY": service_role_key,
-        "SUPABASE_API_URL": "http://127.0.0.1:54321",  # Override any production URL
-        "SUPABASE_ANON_KEY": service_role_key,  # Use same key for tests
+        "SUPABASE_API_URL": "http://127.0.0.1:54321",
+        "SUPABASE_ANON_KEY": service_role_key,  # Use service key for anon key in tests
     }
 
     for key, value in test_env_vars.items():
@@ -44,41 +63,21 @@ def _setup_test_environment():
 _setup_test_environment()
 
 # Force reset of Settings after environment override
-try:
-    from src.core.config import reset_settings
+# This is crucial for the FastAPI app to load with the correct test settings
+from src.core.config import reset_settings
 
-    reset_settings()
-except ImportError:
-    # Settings module not available yet, will be reset later
-    pass
+reset_settings()
 
 
 @pytest.fixture
-async def test_supabase_client():
-    """Create a Supabase client for testing that points to local Supabase instance."""
-    from src.clients.supabase import create_test_supabase_client
+async def test_supabase_client() -> Client:
+    """Fixture to provide a Supabase client for the local test instance."""
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-    # Local Supabase API connection details
-    supabase_url = "http://127.0.0.1:54321"
-
-    # Get service role key from supabase status
-    try:
-        result = subprocess.run(
-            ["supabase", "status", "--output", "json"],
-            capture_output=True,
-            text=True,
-            check=True,
+    if not supabase_url or not service_role_key:
+        pytest.fail(
+            "Supabase environment variables were not set correctly by the test setup."
         )
-        status_data = json.loads(result.stdout)
-        service_role_key = status_data.get("SERVICE_ROLE_KEY", "")
 
-        if not service_role_key:
-            raise ValueError("SERVICE_ROLE_KEY not found in supabase status output")
-
-    except (subprocess.CalledProcessError, json.JSONDecodeError, ValueError) as e:
-        raise RuntimeError(f"Failed to get service role key from supabase status: {e}")
-
-    # Create and return Supabase client for local instance
-    client = await create_test_supabase_client(supabase_url, service_role_key)
-    yield client
-    # No explicit cleanup needed - client connections are handled automatically
+    return await create_test_supabase_client(supabase_url, service_role_key)

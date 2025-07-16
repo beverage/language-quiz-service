@@ -98,7 +98,8 @@ CREATE TABLE problems (
     CONSTRAINT valid_correct_index CHECK (correct_answer_index >= 0),
     CONSTRAINT valid_statements_array CHECK (jsonb_typeof(statements) = 'array'),
     CONSTRAINT statements_not_empty CHECK (jsonb_array_length(statements) > 0),
-    CONSTRAINT correct_index_within_bounds CHECK (correct_answer_index < jsonb_array_length(statements))
+    CONSTRAINT correct_index_within_bounds CHECK (correct_answer_index < jsonb_array_length(statements)),
+    CONSTRAINT problems_title_type_unique UNIQUE (title, problem_type)
 );
 
 -- ===== INDEXES FOR EFFICIENT QUERYING =====

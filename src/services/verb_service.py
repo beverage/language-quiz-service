@@ -234,87 +234,92 @@ class VerbService:
         )
 
         # Get AI response for main verb data
-        response = await self.openai_client.handle_request(verb_prompt)
-        logger.debug("✅ LLM Response: %s", response)
+        llm_response = await self.openai_client.handle_request(verb_prompt)
+        logger.debug("✅ LLM Response: %s", llm_response)
 
         repo = await self._get_verb_repository()
         try:
-            response_json = json.loads(response)
-            # Create a temporary payload to extract infinitive and auxiliary
-            temp_payload = LLMVerbPayload.model_validate(response_json)
+            response_json = json.loads(llm_response)
+            verb_payload = LLMVerbPayload.model_validate(response_json)
         except (json.JSONDecodeError, ValidationError) as e:
-            logger.error(
-                f"Failed to decode or validate verb download response from the LLM: {e}"
-            )
+            logger.error(f"Failed to decode or validate LLM response: {e}")
             raise ContentGenerationError(
-                content_type="verb", message=f"Invalid response from LLM: {e}"
+                content_type="verb",
+                message=f"Failed to parse verb data from AI for '{requested_verb}'",
             ) from e
 
-        # Phase 2: Get COD/COI flags using the auxiliary from Phase 1
-        logger.info(
-            "Determining COD/COI flags for %s with auxiliary %s",
-            temp_payload.infinitive,
-            temp_payload.auxiliary,
+        # Check if this specific verb variant already exists using the correct unique tuple
+        # NOTE: Verb uniqueness is determined by (infinitive, auxiliary, reflexive, target_language_code)
+        existing_verb = await repo.get_verb_by_infinitive(
+            infinitive=verb_payload.infinitive,
+            auxiliary=verb_payload.auxiliary.value,
+            reflexive=verb_payload.reflexive,
+            target_language_code=target_language_code,  # Include in uniqueness check
         )
+        if existing_verb:
+            raise ContentGenerationError(
+                content_type="verb",
+                message=f"Verb '{verb_payload.infinitive}' with auxiliary '{verb_payload.auxiliary.value}', reflexive={verb_payload.reflexive}, and target_language='{target_language_code}' already exists.",
+            )
 
+        # Phase 2: Use the auxiliary from Phase 1 to determine COD/COI
         objects_prompt = self.verb_prompt_generator.generate_objects_prompt(
-            verb_infinitive=temp_payload.infinitive, auxiliary=temp_payload.auxiliary
+            verb_infinitive=verb_payload.infinitive,
+            auxiliary=verb_payload.auxiliary.value,
         )
-
         objects_response = await self.openai_client.handle_request(objects_prompt)
-        logger.info(
+        logger.debug(
             "✅ Objects Response (%s, %s): %s",
-            temp_payload.infinitive,
-            temp_payload.auxiliary,
+            verb_payload.infinitive,
+            verb_payload.auxiliary,
             objects_response,
         )
 
         try:
-            # Response is already cleaned by OpenAI client
             objects_json = json.loads(objects_response)
-            can_have_cod = objects_json.get("can_have_cod", False)
-            can_have_coi = objects_json.get("can_have_coi", False)
-            # Handle both boolean and string responses
-            if isinstance(can_have_cod, str):
-                can_have_cod = can_have_cod.lower() == "true"
-            if isinstance(can_have_coi, str):
-                can_have_coi = can_have_coi.lower() == "true"
-        except (json.JSONDecodeError, KeyError) as e:
-            logger.error(
-                f"Failed to decode or validate complimentobjects response from the LLM: {e}"
-            )
-            raise ValueError("Invalid response format from the LLM") from e
+            can_have_cod = objects_json.get("can_have_cod", True)
+            can_have_coi = objects_json.get("can_have_coi", True)
+        except json.JSONDecodeError:
+            logger.warning("Failed to decode COD/COI response, using defaults.")
+            can_have_cod, can_have_coi = True, True
 
-        # Phase 3: Merge the results by updating the original response
-        response_json["can_have_cod"] = can_have_cod
-        response_json["can_have_coi"] = can_have_coi
+        # Create a new VerbCreate object with all the data
+        verb_data = verb_payload.model_dump()
+        verb_data.pop("can_have_cod", None)
+        verb_data.pop("can_have_coi", None)
 
-        # Create final payload with COD/COI flags
-        llm_payload = LLMVerbPayload.model_validate(response_json)
+        verb_to_create = VerbCreate(
+            **verb_data,
+            can_have_cod=can_have_cod,
+            can_have_coi=can_have_coi,
+        )
 
-        verb = await self._upsert_verb(llm_payload, repo)
-        await self._process_conjugations(verb, llm_payload.tenses, repo)
-
-        # Update last used timestamp
-        await repo.update_last_used(verb.id)
+        # Upsert the verb and its conjugations
+        verb = await self._upsert_verb(verb_to_create, repo)
+        await self._process_conjugations(verb, verb_payload.tenses, repo)
 
         return verb
 
-    async def _upsert_verb(
-        self, llm_payload: LLMVerbPayload, repo: VerbRepository
-    ) -> Verb:
-        """Upserts the verb basic info."""
-        verb_create = VerbCreate.model_validate(llm_payload.model_dump())
-        return await repo.upsert_verb(verb_create)
+    async def _upsert_verb(self, verb_data: VerbCreate, repo: VerbRepository) -> Verb:
+        """Helper to upsert a verb."""
+        return await repo.upsert_verb(verb_data)
 
     async def _process_conjugations(
-        self, verb: Verb, conjugations: list[ConjugationCreate], repo: VerbRepository
-    ) -> None:
-        """Processes and upserts conjugations for a verb."""
-        for conjugation_data in conjugations:
-            # Add verb identifiers to conjugation data
-            conjugation_data.infinitive = verb.infinitive
-            conjugation_data.auxiliary = verb.auxiliary
-            conjugation_data.reflexive = verb.reflexive
+        self, verb: Verb, conjugations: list, repo: VerbRepository
+    ):
+        """Helper to process and upsert conjugations."""
+        for conj_data in conjugations:
+            # The conj_data from the LLM might contain redundant fields
+            # that are already defined in the parent verb object.
+            dumped_data = conj_data.model_dump()
+            dumped_data.pop("infinitive", None)
+            dumped_data.pop("auxiliary", None)
+            dumped_data.pop("reflexive", None)
 
-            await repo.upsert_conjugation(conjugation_data)
+            conj_create = ConjugationCreate(
+                infinitive=verb.infinitive,
+                auxiliary=verb.auxiliary,
+                reflexive=verb.reflexive,
+                **dumped_data,
+            )
+            await repo.upsert_conjugation(conj_create)

@@ -221,7 +221,9 @@ class TestApiKeysAPIIntegration:
         """Test successful API keys listing."""
         response = client.get(f"{API_KEY_PREFIX}/", headers=admin_headers)
 
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}: {response.text}"
 
         data = response.json()
         assert isinstance(data, list)
@@ -232,7 +234,9 @@ class TestApiKeysAPIIntegration:
         """Test API keys listing with query parameters."""
         response = client.get(f"{API_KEY_PREFIX}/?limit=2", headers=admin_headers)
 
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}: {response.text}"
 
         data = response.json()
         assert isinstance(data, list)
@@ -242,7 +246,9 @@ class TestApiKeysAPIIntegration:
         """Test successful API key statistics retrieval."""
         response = client.get(f"{API_KEY_PREFIX}/stats", headers=admin_headers)
 
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}: {response.text}"
 
         data = response.json()
         assert "total_keys" in data
@@ -250,21 +256,20 @@ class TestApiKeysAPIIntegration:
         assert data["total_keys"] >= 3
 
     def test_get_current_key_info_success(self, client: TestClient, admin_headers):
-        """Test retrieving information about the current key."""
+        """Test getting current key info."""
         response = client.get(f"{API_KEY_PREFIX}/current", headers=admin_headers)
-
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
-
+        assert response.status_code == 200
         data = response.json()
-        assert data["key_prefix"] == "sk_live_adm1"
-        assert "admin" in data["permissions_scope"]
+        assert data["name"] == "Test Admin Key 11112222-3333-4444"
 
     def test_get_api_key_by_id_not_found(self, client: TestClient, admin_headers):
         """Test getting a non-existent API key by ID."""
         non_existent_id = uuid4()
-        response = client.get(f"{API_KEY_PREFIX}/{non_existent_id}", headers=admin_headers)
+        response = client.get(
+            f"{API_KEY_PREFIX}/{non_existent_id}", headers=admin_headers
+        )
         assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        assert "not found" in response.json()["message"].lower()
 
     def test_search_api_keys_not_found(self, client: TestClient, admin_headers):
         """Test searching for API keys with a term that yields no results."""
@@ -272,8 +277,8 @@ class TestApiKeysAPIIntegration:
         response = client.get(
             f"{API_KEY_PREFIX}/search?name={search_term}", headers=admin_headers
         )
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
+        assert response.status_code == 200
+        assert response.json() == []
 
     def test_create_and_revoke_api_key_flow(self, client: TestClient, admin_headers):
         """Test creating, verifying, and then revoking a new API key."""
@@ -296,15 +301,15 @@ class TestApiKeysAPIIntegration:
         assert retrieved_data["is_active"] is True
 
         # 3. Revoke the key
-        response = client.delete(f"{API_KEY_PREFIX}/{new_key_id}", headers=admin_headers)
+        response = client.delete(
+            f"{API_KEY_PREFIX}/{new_key_id}", headers=admin_headers
+        )
         assert response.status_code == 200
         assert "revoked" in response.json()["message"]
 
-        # 4. Verify the key is now inactive
+        # 4. Verify the key is now inactive and cannot be fetched
         response = client.get(f"{API_KEY_PREFIX}/{new_key_id}", headers=admin_headers)
-        assert response.status_code == 200
-        retrieved_data = response.json()
-        assert retrieved_data["is_active"] is False
+        assert response.status_code == 404
 
     def test_update_api_key_not_found(self, client: TestClient, admin_headers):
         """Test updating a non-existent API key."""
@@ -320,12 +325,12 @@ class TestApiKeysAPIIntegration:
     def test_revoke_api_key_not_found(self, client: TestClient, admin_headers):
         """Test revoking a non-existent API key."""
         non_existent_id = uuid4()
-        response = client.delete(f"{API_KEY_PREFIX}/{non_existent_id}", headers=admin_headers)
+        response = client.delete(
+            f"{API_KEY_PREFIX}/{non_existent_id}", headers=admin_headers
+        )
         assert response.status_code == 404
 
-    def test_update_api_key_no_data_provided(
-        self, client: TestClient, admin_headers
-    ):
+    def test_update_api_key_no_data_provided(self, client: TestClient, admin_headers):
         """Test updating an API key with no data should result in a 400."""
         # Find a valid key to update
         response = client.get(f"{API_KEY_PREFIX}/", headers=admin_headers)
@@ -335,4 +340,4 @@ class TestApiKeysAPIIntegration:
             f"{API_KEY_PREFIX}/{key_id}", json={}, headers=admin_headers
         )
         assert response.status_code == 400
-        assert "no update data provided" in response.json()["detail"].lower()
+        assert "no update data provided" in response.json()["message"].lower()

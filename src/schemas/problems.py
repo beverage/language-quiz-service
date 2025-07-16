@@ -256,6 +256,7 @@ class ProblemFilters(BaseModel):
     target_language_code: str | None = None
     created_after: datetime | None = None
     created_before: datetime | None = None
+    verb: str | None = None  # Filter by verb infinitive
     metadata_contains: dict[str, Any] | None = None
 
     # Pagination

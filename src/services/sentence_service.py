@@ -87,6 +87,10 @@ class SentenceService:
     async def delete_sentence(self, sentence_id: UUID) -> bool:
         """Delete a sentence."""
         repo = await self._get_sentence_repository()
+        # First, check if the sentence exists
+        sentence = await repo.get_sentence(sentence_id)
+        if not sentence:
+            raise NotFoundError(f"Sentence with ID {sentence_id} not found")
         return await repo.delete_sentence(sentence_id)
 
     async def generate_sentence(

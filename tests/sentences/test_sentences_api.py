@@ -145,7 +145,9 @@ class TestSentencesAPIIntegration:
     def test_random_sentence_success(self, client: TestClient, read_headers):
         """Test random sentence endpoint successfully retrieves a sentence."""
         response = client.get(f"{SENTENCES_PREFIX}/random", headers=read_headers)
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}: {response.text}"
 
         data = response.json()
         assert "content" in data and "translation" in data
@@ -160,21 +162,25 @@ class TestSentencesAPIIntegration:
             headers=read_headers,
         )
         assert response.status_code == 404
-        assert "no sentences found" in response.json()["detail"].lower()
+        assert "no sentences found" in response.json()["message"].lower()
 
     def test_list_sentences_success(self, client: TestClient, read_headers):
         """Test list sentences endpoint successfully retrieves sentences."""
         response = client.get(f"{SENTENCES_PREFIX}/", headers=read_headers)
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}: {response.text}"
         data = response.json()
         assert isinstance(data, list)
 
     def test_get_sentence_by_id_not_found(self, client: TestClient, read_headers):
         """Test retrieving a non-existent sentence by ID returns 404."""
         non_existent_id = uuid4()
-        response = client.get(f"{SENTENCES_PREFIX}/{non_existent_id}", headers=read_headers)
+        response = client.get(
+            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=read_headers
+        )
         assert response.status_code == 404
-        assert "sentence not found" in response.json()["detail"].lower()
+        assert "sentence not found" in response.json()["message"].lower()
 
     def test_delete_sentence_permission_and_not_found(
         self, client: TestClient, read_headers, write_headers, admin_headers
@@ -183,25 +189,32 @@ class TestSentencesAPIIntegration:
         non_existent_id = uuid4()
 
         # 1. Read-only key should be forbidden
-        response = client.delete(f"{SENTENCES_PREFIX}/{non_existent_id}", headers=read_headers)
+        response = client.delete(
+            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=read_headers
+        )
         assert response.status_code == 403
-        assert "permission required" in response.json()["detail"].lower()
+        assert "permission required" in response.json()["message"].lower()
 
         # 2. Write key should be allowed, but will return 404 for a non-existent sentence
-        response = client.delete(f"{SENTENCES_PREFIX}/{non_existent_id}", headers=write_headers)
+        response = client.delete(
+            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=write_headers
+        )
         assert response.status_code == 404
-        assert "sentence not found" in response.json()["detail"].lower()
+        assert "not found" in response.json()["message"].lower()
 
         # 3. Admin key should also be allowed and return 404
-        response = client.delete(f"{SENTENCES_PREFIX}/{non_existent_id}", headers=admin_headers)
+        response = client.delete(
+            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=admin_headers
+        )
         assert response.status_code == 404
-        assert "sentence not found" in response.json()["detail"].lower()
+        assert "not found" in response.json()["message"].lower()
 
     def test_health_endpoint_bypasses_auth(self, client: TestClient):
         """Test that health endpoint doesn't require authentication."""
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        data = response.json()
+        assert data["status"] == "healthy"
 
     def test_api_returns_proper_json_structure(self, client: TestClient):
         """Test that API returns properly structured JSON errors."""

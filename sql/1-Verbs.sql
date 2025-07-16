@@ -39,7 +39,10 @@ CREATE TABLE verbs (
     CHECK (translation != ''),
     CHECK (past_participle != ''),
     CHECK (present_participle != ''),
-    UNIQUE(infinitive, auxiliary, reflexive, target_language_code, translation)
+    -- FIXED: Verb uniqueness is determined by (infinitive, auxiliary, reflexive, target_language_code)
+    -- The same French verb can have different representations for different target languages
+    -- Translation field is probably unnecessary in hindsight but kept for compatibility
+    UNIQUE(infinitive, auxiliary, reflexive, target_language_code)
 );
 
 COMMENT ON COLUMN verbs.can_have_cod IS 'Whether this verb can take a direct object (COD) - useful for object pronoun problems';
@@ -153,7 +156,6 @@ CREATE POLICY "Enable all operations for conjugations" ON conjugations FOR ALL U
 -- INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular) VALUES
 -- ('être', 'être', false, 'fra', 'to be', 'été', 'étant', 'third_group', true),
 -- ('avoir', 'avoir', false, 'fra', 'to have', 'eu', 'ayant', 'third_group', true),
--- ('aller', 'être', false, 'fra', 'to go', 'allé', 'allant', 'third_group', true),
--- ('faire', 'avoir', false, 'fra', 'to do/make', 'fait', 'faisant', 'third_group', true),
 -- ('parler', 'avoir', false, 'fra', 'to speak', 'parlé', 'parlant', 'first_group', false),
--- ('finir', 'avoir', false, 'fra', 'to finish', 'fini', 'finissant', 'second_group', false);
+-- ('finir', 'avoir', false, 'fra', 'to finish', 'fini', 'finissant', 'second_group', false),
+-- ('se laver', 'être', true, 'fra', 'to wash oneself', 'lavé', 'lavant', 'first_group', false);

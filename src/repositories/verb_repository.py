@@ -1,6 +1,9 @@
 """Verb repository for data access with updated Supabase schema."""
 
+import logging
 from uuid import UUID
+
+from postgrest import APIError as PostgrestAPIError
 
 from src.core.exceptions import RepositoryError
 from src.schemas.verbs import (
@@ -15,21 +18,26 @@ from src.schemas.verbs import (
 )
 from supabase import Client
 
+logger = logging.getLogger(__name__)
+
 
 class VerbRepository:
     def __init__(self, client: Client):
+        """Initialize the repository with a Supabase client."""
         self.client = client
 
     async def create_verb(self, verb: VerbCreate) -> Verb:
         """Create a new verb."""
-        verb_dict = verb.model_dump(
-            mode="json"
-        )  # Use mode="json" to serialize enums correctly
-        result = await self.client.table("verbs").insert(verb_dict).execute()
+        verb_dict = verb.model_dump()
+        try:
+            result = await self.client.table("verbs").insert(verb_dict).execute()
+        except PostgrestAPIError as e:
+            logger.error(f"Database error creating verb: {e.message}")
+            raise RepositoryError(f"Failed to create verb: {e.message}") from e
 
         if result.data:
             return Verb.model_validate(result.data[0])
-        raise RepositoryError("Failed to create verb: No data returned from Supabase")
+        raise RepositoryError("Failed to create verb: No data returned.")
 
     async def delete_verb(self, verb_id: UUID) -> bool:
         """Delete a verb."""
@@ -87,8 +95,11 @@ class VerbRepository:
         """
         Get a verb by infinitive and optional parameters.
 
-        Since infinitive is no longer unique, we may need additional
-        parameters to identify the specific verb variant.
+        NOTE: Verb uniqueness is determined by (infinitive, auxiliary, reflexive, target_language_code).
+        The same French verb can have different representations for different target languages.
+
+        If auxiliary, reflexive, and target_language_code are provided, this will find the exact verb variant.
+        If not provided, returns the first match found for the infinitive.
         """
         query = self.client.table("verbs").select("*").eq("infinitive", infinitive)
 
@@ -96,6 +107,7 @@ class VerbRepository:
             query = query.eq("auxiliary", auxiliary)
         if reflexive is not None:
             query = query.eq("reflexive", reflexive)
+        # target_language_code is part of uniqueness for the same French verb across languages
         if target_language_code:
             query = query.eq("target_language_code", target_language_code)
 
@@ -234,7 +246,9 @@ class VerbRepository:
 
         if result.data:
             return Conjugation.model_validate(result.data[0])
-        raise RepositoryError("Failed to create conjugation: No data returned from Supabase")
+        raise RepositoryError(
+            "Failed to create conjugation: No data returned."
+        )
 
     async def delete_conjugations_by_verb(
         self, infinitive: str, auxiliary: str, reflexive: bool

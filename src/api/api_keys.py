@@ -138,7 +138,8 @@ async def create_api_key(
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred.",
         )
 
 
@@ -240,7 +241,8 @@ async def list_api_keys(
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred.",
         )
 
 
@@ -314,7 +316,8 @@ async def get_api_key_stats(
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred.",
         )
 
 
@@ -347,7 +350,8 @@ async def search_api_keys(
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred.",
         )
 
 
@@ -437,7 +441,7 @@ async def get_api_key(
 
     try:
         service = ApiKeyService()
-        return await service.get_api_key_by_id(api_key_id)
+        return await service.get_api_key(api_key_id)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (RepositoryError, ServiceError) as e:
@@ -446,7 +450,8 @@ async def get_api_key(
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred.",
         )
 
 
@@ -617,7 +622,8 @@ async def update_api_key(
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred.",
         )
 
 
@@ -629,7 +635,7 @@ async def revoke_api_key(
     """
     Revoke (deactivate) an API key.
 
-    Requires 'admin' permission to revoke keys.
+    Requires 'admin' permission.
     """
     # Check permissions
     permissions = current_key.get("permissions_scope", [])
@@ -639,18 +645,24 @@ async def revoke_api_key(
             detail="Admin permission required to revoke API keys",
         )
 
-    # Prevent self-revocation
-    if str(api_key_id) == current_key.get("id"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot revoke the API key you are currently using",
-        )
-
     try:
         service = ApiKeyService()
-        await service.revoke_api_key(api_key_id)
-        return {"message": "API key revoked successfully"}
+        success = await service.revoke_api_key(api_key_id)
+        if not success:
+            # This case might occur if the key was already deleted by another process
+            # or if there was a database error handled by the repository.
+            # We raise not found because from the client's perspective, the key is gone.
+            raise NotFoundError(
+                f"API key with ID {api_key_id} not found or could not be revoked."
+            )
+
+        logger.info(
+            f"API key {api_key_id} revoked by {current_key.get('name', 'unknown')}"
+        )
+        return {"message": f"API key {api_key_id} has been revoked."}
+
     except NotFoundError as e:
+        logger.warning(f"Attempt to revoke non-existent API key {api_key_id}: {e}")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (RepositoryError, ServiceError) as e:
         logger.error(f"API error revoking key {api_key_id}: {e}", exc_info=True)
@@ -658,7 +670,8 @@ async def revoke_api_key(
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred.",
         )
 
 
@@ -690,5 +703,6 @@ async def validate_api_key_format(
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred."
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred.",
         )

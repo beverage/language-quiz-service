@@ -45,14 +45,15 @@ class TestVerbRepository:
     async def test_create_verb_db_error(self, verb_repository):
         """Test that a database constraint violation raises RepositoryError."""
         verb_data = generate_random_verb_data()
-        # Intentionally violate a DB constraint.
-        # The 'auxiliary' field is an ENUM on the DB, so an invalid value will fail.
-        verb_data["auxiliary"] = "invalid_auxiliary"
-        verb_create = VerbCreate(**verb_data)
+        verb_data["infinitive"] = f"unique_infinitive_{uuid4()}"
+        verb_to_create = VerbCreate(**verb_data)
 
-        # The underlying DB error should be caught and re-raised as our custom exception.
+        # Create the verb once, which should succeed.
+        await verb_repository.create_verb(verb_to_create)
+
+        # Try to create the exact same verb again, which should fail.
         with pytest.raises(RepositoryError):
-            await verb_repository.create_verb(verb_create)
+            await verb_repository.create_verb(verb_to_create)
 
     @pytest.mark.asyncio
     @pytest.mark.integration

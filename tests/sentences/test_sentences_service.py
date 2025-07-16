@@ -118,8 +118,8 @@ async def test_delete_sentence(sentence_service, sample_verb):
 @pytest.mark.asyncio
 async def test_delete_nonexistent_sentence(sentence_service):
     """Test deleting a sentence that doesn't exist."""
-    result = await sentence_service.delete_sentence(uuid4())
-    assert result is False
+    with pytest.raises(NotFoundError):
+        await sentence_service.delete_sentence(uuid4())
 
 
 @pytest.mark.asyncio
@@ -328,7 +328,8 @@ async def test_generate_sentence_validation_failure(sentence_service, sample_ver
 
     # Generate sentence with validation - should raise error
     with pytest.raises(
-        ContentGenerationError, match="Sentence validation failed: Grammar error detected"
+        ContentGenerationError,
+        match="Sentence validation failed: Grammar error detected",
     ):
         await sentence_service.generate_sentence(
             verb_id=sample_verb.id,

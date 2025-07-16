@@ -40,7 +40,9 @@ class ApiKeyRepository:
 
         if result.data:
             return ApiKey.model_validate(result.data[0])
-        raise RepositoryError("Failed to create API key: No data returned from Supabase")
+        raise RepositoryError(
+            "Failed to create API key: No data returned from Supabase"
+        )
 
     async def get_api_key(self, api_key_id: UUID) -> ApiKey | None:
         """Get an API key by ID."""

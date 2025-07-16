@@ -6,7 +6,11 @@ import random
 from typing import Any
 from uuid import UUID
 
-from src.core.exceptions import LanguageResourceNotFoundError, NotFoundError, ServiceError
+from src.core.exceptions import (
+    LanguageResourceNotFoundError,
+    NotFoundError,
+    ServiceError,
+)
 from src.repositories.problem_repository import ProblemRepository
 from src.schemas.problems import (
     GrammarProblemConstraints,
@@ -95,7 +99,7 @@ class ProblemService:
             # This case should ideally not be reached if the get succeeded,
             # but it's a safeguard against race conditions or other issues.
             raise ServiceError(f"Failed to update problem with ID {problem_id}")
-            
+
         return updated_problem
 
     async def delete_problem(self, problem_id: UUID) -> bool:
@@ -448,19 +452,21 @@ class ProblemService:
     async def get_problems_by_grammatical_focus(
         self, focus: str, limit: int = 50
     ) -> list[Problem]:
-        """Get problems focusing on specific grammatical concepts."""
+        """Get problems by grammatical focus (metadata search)."""
         repo = await self._get_problem_repository()
-        metadata_query = {"grammatical_focus": [focus]}
-        return await repo.search_problems_by_metadata(metadata_query, limit)
+        filters = ProblemFilters(
+            metadata_contains={"grammatical_focus": [focus]}, limit=limit
+        )
+        problems, _ = await repo.get_problems(filters)
+        return problems
 
     async def get_random_problem(
         self,
-        problem_type: ProblemType | None = None,
-        topic_tags: list[str] | None = None,
+        filters: ProblemFilters | None = None,
     ) -> Problem | None:
-        """Get a random problem with optional filters."""
+        """Get a random problem, optionally filtered."""
         repo = await self._get_problem_repository()
-        return await repo.get_random_problem(problem_type, topic_tags)
+        return await repo.get_random_problem(filters or ProblemFilters())
 
     async def count_problems(
         self,

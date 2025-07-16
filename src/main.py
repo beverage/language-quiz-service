@@ -19,7 +19,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .api import api_keys, health, sentences, verbs
 from .core.auth import ApiKeyAuthMiddleware
 from .core.config import get_settings
-from .core.exceptions import AppException
+from .core.exceptions import (
+    AppException,
+    ContentGenerationError,
+    NotFoundError,
+    ValidationError,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -187,6 +192,40 @@ v1_router.include_router(sentences.router)
 
 # Include the v1 router in the main app
 app.include_router(v1_router)
+
+
+@app.exception_handler(NotFoundError)
+async def not_found_exception_handler(request: Request, exc: NotFoundError):
+    """Handle 404 Not Found errors."""
+    return JSONResponse(
+        status_code=404,
+        content={"error": True, "message": exc.message, "status_code": 404},
+    )
+
+
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    """Handle 400 Validation errors."""
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": True,
+            "message": exc.message,
+            "details": exc.details,
+            "status_code": 400,
+        },
+    )
+
+
+@app.exception_handler(ContentGenerationError)
+async def content_generation_exception_handler(
+    request: Request, exc: ContentGenerationError
+):
+    """Handle 503 Content Generation errors."""
+    return JSONResponse(
+        status_code=503,
+        content={"error": True, "message": exc.message, "status_code": 503},
+    )
 
 
 @app.exception_handler(StarletteHTTPException)

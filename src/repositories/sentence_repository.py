@@ -3,6 +3,8 @@
 import logging
 from uuid import UUID
 
+from postgrest import APIError as PostgrestAPIError
+
 from src.clients.supabase import get_supabase_client
 from src.core.exceptions import RepositoryError
 from src.schemas.sentences import Sentence, SentenceCreate, SentenceUpdate
@@ -50,11 +52,19 @@ class SentenceRepository:
             elif isinstance(value, UUID):
                 sentence_dict[key] = str(value)
 
-        result = await self.client.table("sentences").insert(sentence_dict).execute()
+        try:
+            result = (
+                await self.client.table("sentences").insert(sentence_dict).execute()
+            )
+        except PostgrestAPIError as e:
+            logger.error(f"Database error creating sentence: {e.message}")
+            raise RepositoryError(f"Failed to create sentence: {e.message}") from e
 
         if result.data:
             return Sentence.model_validate(result.data[0])
-        raise RepositoryError("Failed to create sentence: No data returned from Supabase")
+        raise RepositoryError(
+            "Failed to create sentence: No data returned."
+        )
 
     async def delete_sentence(self, sentence_id: UUID) -> bool:
         """Delete a sentence."""

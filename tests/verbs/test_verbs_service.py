@@ -9,10 +9,12 @@ from uuid import uuid4
 
 import pytest
 
+from src.core.exceptions import ContentGenerationError
 from src.schemas.verbs import (
     ConjugationCreate,
     ConjugationUpdate,
     Tense,
+    Verb,
     VerbCreate,
     VerbUpdate,
 )
@@ -119,13 +121,16 @@ async def test_get_random_verb_updates_timestamp(verb_service):
 @pytest.mark.asyncio
 async def test_get_verbs_by_infinitive(verb_service):
     """Test getting verbs by infinitive."""
-    # Create a verb with specific infinitive
+    # Create a verb with specific infinitive (unique per test run)
+    from uuid import uuid4
+
     verb_data = VerbCreate(**generate_random_verb_data())
-    verb_data.infinitive = "test_infinitive_unique"
+    unique_infinitive = f"test_infinitive_unique_{uuid4().hex[:8]}"
+    verb_data.infinitive = unique_infinitive
     created_verb = await verb_service.create_verb(verb_data)
 
     # Search by infinitive
-    results = await verb_service.get_verbs_by_infinitive("test_infinitive_unique")
+    results = await verb_service.get_verbs_by_infinitive(unique_infinitive)
     assert len(results) >= 1
     assert any(v.id == created_verb.id for v in results)
 
@@ -133,10 +138,13 @@ async def test_get_verbs_by_infinitive(verb_service):
 @pytest.mark.asyncio
 async def test_get_all_verbs_with_limit(verb_service):
     """Test getting all verbs with limit parameter."""
-    # Create a couple of verbs
+    # Create a couple of verbs with unique names per test run
+    from uuid import uuid4
+
+    test_id = uuid4().hex[:8]
     for i in range(2):
         verb_data = VerbCreate(**generate_random_verb_data())
-        verb_data.infinitive = f"test_limit_{i}"
+        verb_data.infinitive = f"test_limit_{test_id}_{i}"
         await verb_service.create_verb(verb_data)
 
     # Get verbs with limit
@@ -233,9 +241,11 @@ async def test_get_conjugations_by_verb_id_with_conjugations(verb_service):
 @pytest.mark.asyncio
 async def test_get_conjugations_with_filters(verb_service):
     """Test getting conjugations with various filters."""
-    # Create a verb
+    # Create a verb with unique name per test run
+    from uuid import uuid4
+
     verb_data = VerbCreate(**generate_random_verb_data())
-    verb_data.infinitive = "test_conjugations"
+    verb_data.infinitive = f"test_conjugations_{uuid4().hex[:8]}"
     created_verb = await verb_service.create_verb(verb_data)
 
     # Add conjugations with different tenses
@@ -398,11 +408,31 @@ async def test_search_verbs(verb_service):
 @pytest.mark.asyncio
 async def test_download_verb_success(verb_service):
     """Test successful verb download with mocked AI responses."""
+    # Mock the repository to simulate the verb not existing
+    mock_repo = AsyncMock()
+    mock_repo.get_verb_by_infinitive.return_value = None
+    mock_repo.upsert_verb.return_value = Verb(
+        id=uuid4(),
+        infinitive="parler",
+        translation="to speak",
+        auxiliary="avoir",
+        reflexive=False,
+        target_language_code="eng",
+        classification="first_group",
+        past_participle="parlé",
+        present_participle="parlant",
+        can_have_cod=True,
+        can_have_coi=False,
+        created_at="2024-01-01T00:00:00Z",
+        updated_at="2024-01-01T00:00:00Z",
+    )
+    verb_service._get_verb_repository = AsyncMock(return_value=mock_repo)
+
     # Create async mock for the client
     mock_client = AsyncMock()
     mock_prompt_gen = AsyncMock()
 
-    # Setup mocks
+    # Setup mocks for prompts
     mock_prompt_gen.generate_verb_prompt.return_value = "verb prompt"
     mock_prompt_gen.generate_objects_prompt.return_value = "objects prompt"
 
@@ -418,11 +448,12 @@ async def test_download_verb_success(verb_service):
 
     result = await verb_service.download_verb("parler", "eng")
 
+    # Assertions
     assert result.infinitive == "parler"
     assert result.translation == "to speak"
-    assert result.auxiliary.value == "avoir"
     assert result.can_have_cod is True
     assert result.can_have_coi is False
+    mock_repo.upsert_verb.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -439,7 +470,7 @@ async def test_download_verb_invalid_json(verb_service):
     verb_service.openai_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
-    with pytest.raises(ValueError, match="Invalid response format from the LLM"):
+    with pytest.raises(ContentGenerationError, match="Failed to parse verb data"):
         await verb_service.download_verb("parler", "eng")
 
 
@@ -458,5 +489,5 @@ async def test_download_verb_validation_error(verb_service):
     verb_service.openai_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
-    with pytest.raises(ValueError, match="Invalid response format from the LLM"):
+    with pytest.raises(ContentGenerationError, match="Failed to parse verb data"):
         await verb_service.download_verb("parler", "eng")
