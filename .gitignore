@@ -179,6 +179,7 @@ performance_summary_*.csv
 
 # Commit message files
 commit_message.txt
+commit_msg.txt
 temp_commit_msg.txt
 
 # FastAPI specific

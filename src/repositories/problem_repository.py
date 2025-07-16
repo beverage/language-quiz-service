@@ -231,6 +231,7 @@ class ProblemRepository:
             await self.client.table("problems")
             .select("*")
             .contains("metadata", metadata_query)
+            .order("updated_at", desc=True)
             .limit(limit)
             .execute()
         )

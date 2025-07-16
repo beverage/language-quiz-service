@@ -4,20 +4,24 @@ These tests focus on HTTP request/response behavior, parameter handling,
 and API contract validation without complex dependency injection.
 """
 
+import pytest
+
 from contextlib import contextmanager
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
-import pytest
 from fastapi.testclient import TestClient
 
-from src.main import app
+from src.api.api_keys import API_PREFIX
+from src.main import app, ROUTER_PREFIX
 from src.schemas.api_keys import (
     ApiKeyResponse,
     ApiKeyStats,
     ApiKeyWithPlainText,
 )
+
+API_KEY_PREFIX = f"{ROUTER_PREFIX}{API_PREFIX}"
 
 
 @pytest.fixture
@@ -159,7 +163,7 @@ class TestApiKeysAPIContract:
                 }
 
                 response = client.post(
-                    "/api-keys/", json=create_data, headers=admin_headers
+                    f"{API_KEY_PREFIX}/", json=create_data, headers=admin_headers
                 )
 
                 assert response.status_code == 200
@@ -183,7 +187,7 @@ class TestApiKeysAPIContract:
                 }
 
                 response = client.post(
-                    "/api-keys/", json=create_data, headers=read_headers
+                    f"{API_KEY_PREFIX}/", json=create_data, headers=read_headers
                 )
 
                 assert response.status_code == 403
@@ -200,7 +204,7 @@ class TestApiKeysAPIContract:
                 mock_service_class.return_value = mock_service
                 mock_service.get_all_api_keys.return_value = [sample_api_key_response]
 
-                response = client.get("/api-keys/", headers=admin_headers)
+                response = client.get(f"{API_KEY_PREFIX}/", headers=admin_headers)
 
                 assert response.status_code == 200
                 data = response.json()
@@ -219,7 +223,8 @@ class TestApiKeysAPIContract:
                 mock_service.get_all_api_keys.return_value = []
 
                 response = client.get(
-                    "/api-keys/?limit=50&include_inactive=true", headers=admin_headers
+                    f"{API_KEY_PREFIX}/?limit=50&include_inactive=true",
+                    headers=admin_headers,
                 )
 
                 assert response.status_code == 200
@@ -236,7 +241,7 @@ class TestApiKeysAPIContract:
                 mock_service_class.return_value = mock_service
                 mock_service.get_api_key_stats.return_value = sample_api_key_stats
 
-                response = client.get("/api-keys/stats", headers=admin_headers)
+                response = client.get(f"{API_KEY_PREFIX}/stats", headers=admin_headers)
 
                 assert response.status_code == 200
                 data = response.json()
@@ -250,7 +255,7 @@ class TestApiKeysAPIContract:
     ):
         """Test successful current key info retrieval."""
         with _mock_auth_middleware(admin_key_info):
-            response = client.get("/api-keys/current", headers=admin_headers)
+            response = client.get(f"{API_KEY_PREFIX}/current", headers=admin_headers)
 
             assert response.status_code == 200
             data = response.json()
@@ -270,7 +275,7 @@ class TestApiKeysAPIContract:
                 mock_service_class.return_value = mock_service
                 mock_service.get_api_key.return_value = sample_api_key_response
 
-                response = client.get(f"/api-keys/{key_id}", headers=admin_headers)
+                response = client.get(f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers)
 
                 assert response.status_code == 200
                 data = response.json()
@@ -289,7 +294,7 @@ class TestApiKeysAPIContract:
                 mock_service_class.return_value = mock_service
                 mock_service.get_api_key.return_value = None
 
-                response = client.get(f"/api-keys/{key_id}", headers=admin_headers)
+                response = client.get(f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers)
 
                 assert response.status_code == 404
                 data = response.json()
@@ -317,7 +322,7 @@ class TestApiKeysAPIContract:
                 }
 
                 response = client.put(
-                    f"/api-keys/{key_id}", json=update_data, headers=admin_headers
+                    f"{API_KEY_PREFIX}/{key_id}", json=update_data, headers=admin_headers
                 )
 
                 assert response.status_code == 200
@@ -336,7 +341,9 @@ class TestApiKeysAPIContract:
                 mock_service_class.return_value = mock_service
                 mock_service.revoke_api_key.return_value = True
 
-                response = client.delete(f"/api-keys/{key_id}", headers=admin_headers)
+                response = client.delete(
+                    f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers
+                )
 
                 assert response.status_code == 200
                 data = response.json()
@@ -355,7 +362,7 @@ class TestApiKeysAPIContract:
                 ]
 
                 response = client.get(
-                    "/api-keys/search?name=test", headers=admin_headers
+                    f"{API_KEY_PREFIX}/search?name=test"
                 )
 
                 assert response.status_code == 200
@@ -373,7 +380,7 @@ class TestApiKeysAPIParameterHandling:
         """Test API key creation parameter validation."""
         with _mock_auth_middleware(admin_key_info):
             # Missing required fields
-            response = client.post("/api-keys/", json={}, headers=admin_headers)
+            response = client.post(f"{API_KEY_PREFIX}/", json={}, headers=admin_headers)
 
             assert response.status_code == 422  # Validation error
 
@@ -389,7 +396,7 @@ class TestApiKeysAPIParameterHandling:
 
                 # Test parameter bounds
                 response = client.get(
-                    "/api-keys/?limit=1500",  # Over max limit
+                    f"{API_KEY_PREFIX}/?limit=1500",  # Over max limit
                     headers=admin_headers,
                 )
 
@@ -400,7 +407,7 @@ class TestApiKeysAPIParameterHandling:
     ):
         """Test search API keys with missing name parameter."""
         with _mock_auth_middleware(admin_key_info):
-            response = client.get("/api-keys/search", headers=admin_headers)
+            response = client.get(f"{API_KEY_PREFIX}/search", headers=admin_headers)
 
             assert response.status_code == 422  # Missing required parameter
 
@@ -418,7 +425,7 @@ class TestApiKeysAPIResponseFormats:
                 mock_service_class.return_value = mock_service
                 mock_service.get_all_api_keys.return_value = [sample_api_key_response]
 
-                response = client.get("/api-keys/", headers=admin_headers)
+                response = client.get(f"{API_KEY_PREFIX}/", headers=admin_headers)
 
                 assert response.status_code == 200
                 data = response.json()[0]
@@ -456,7 +463,7 @@ class TestApiKeysAPIResponseFormats:
                 }
 
                 response = client.post(
-                    "/api-keys/", json=create_data, headers=admin_headers
+                    f"{API_KEY_PREFIX}/", json=create_data, headers=admin_headers
                 )
 
                 assert response.status_code == 200
@@ -477,7 +484,7 @@ class TestApiKeysAPIResponseFormats:
         with _mock_auth_middleware(read_key_info):
             with patch("src.clients.supabase.get_supabase_client"):
                 response = client.post(
-                    "/api-keys/", json={"name": "Test"}, headers=read_headers
+                    f"{API_KEY_PREFIX}/", json={"name": "Test"}, headers=read_headers
                 )
 
                 assert response.status_code == 403

@@ -174,7 +174,9 @@ app.add_middleware(ApiKeyAuthMiddleware)
 app.include_router(health.router)
 
 # Create v1 API router
-v1_router = APIRouter(prefix="/api/v1")
+ROUTER_PREFIX = "/api/v1"
+
+v1_router = APIRouter(prefix=ROUTER_PREFIX)
 v1_router.include_router(api_keys.router)
 v1_router.include_router(verbs.router)
 # TODO: Uncomment these when endpoints are implemented

@@ -20,7 +20,8 @@ from src.services.api_key_service import ApiKeyService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api-keys", tags=["api-keys"])
+API_PREFIX = "/api-keys"
+router = APIRouter(prefix=API_PREFIX, tags=["api-keys"])
 security = HTTPBearer()
 
 
