@@ -5,8 +5,12 @@ from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from src.api.models.verbs import (
+    VerbDownloadRequest,
+    VerbResponse,
+    VerbWithConjugationsResponse,
+)
 from src.core.auth import get_current_api_key
-from src.schemas.verbs import Verb, VerbWithConjugations
 from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
@@ -16,22 +20,42 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
 
 @router.post(
     "/download",
-    response_model=Verb,
+    response_model=VerbResponse,
+    status_code=status.HTTP_201_CREATED,
     summary="Download and store a new French verb",
     description="""
     Download a French verb from AI service and store it in the database.
 
     This endpoint uses AI to generate comprehensive verb information including:
-    - Conjugations for all tenses
-    - Auxiliary verb information
-    - Participle forms
-    - Classification and irregularity status
-    - Translation to target language
+    - **Conjugations**: Complete conjugation tables for all supported tenses
+    - **Auxiliary Information**: Whether the verb uses avoir or être
+    - **Participle Forms**: Past participle (for compound tenses) and present participle
+    - **Classification**: French verb group (1st, 2nd, or 3rd group)
+    - **Grammatical Properties**: Irregularity status, direct/indirect object compatibility
+    - **Translation**: Target language translation with language code support
+
+    **Input Requirements:**
+    - `infinitive`: French verb in infinitive form (e.g., "parler", "être", "se lever")
+    - `target_language_code`: ISO 639-3 language code for translation (default: "eng")
+
+    **AI Processing:**
+    The endpoint leverages advanced language models to:
+    1. Validate the French verb exists and is properly formed
+    2. Generate complete conjugation patterns for all tenses
+    3. Determine auxiliary verb requirements and reflexivity
+    4. Classify the verb according to French grammar rules
+    5. Provide accurate translations in the target language
+
+    **Use Cases:**
+    - Expanding vocabulary database with new verbs
+    - Educational content creation for language learning
+    - Automated curriculum development
+    - Language analysis and linguistic research
 
     **Required Permission**: `write` or `admin`
     """,
     responses={
-        200: {
+        201: {
             "description": "Verb successfully downloaded and stored",
             "content": {
                 "application/json": {
@@ -56,14 +80,28 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
             },
         },
         400: {
-            "description": "Invalid request parameters",
+            "description": "Invalid request parameters or verb not found",
             "content": {
                 "application/json": {
-                    "example": {
-                        "error": True,
-                        "message": "Invalid verb or language code",
-                        "status_code": 400,
-                        "path": "/verbs/download",
+                    "examples": {
+                        "invalid_verb": {
+                            "summary": "Invalid French verb",
+                            "value": {
+                                "error": True,
+                                "message": "Invalid French verb 'xyz123' - not found in French dictionary",
+                                "status_code": 400,
+                                "path": "/api/v1/verbs/download",
+                            },
+                        },
+                        "invalid_language": {
+                            "summary": "Invalid language code",
+                            "value": {
+                                "error": True,
+                                "message": "Invalid language code 'xyz' - must be ISO 639-3 format",
+                                "status_code": 400,
+                                "path": "/api/v1/verbs/download",
+                            },
+                        },
                     }
                 }
             },
@@ -76,7 +114,40 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
                         "error": True,
                         "message": "Write or admin permission required to download verbs",
                         "status_code": 403,
-                        "path": "/verbs/download",
+                        "path": "/api/v1/verbs/download",
+                    }
+                }
+            },
+        },
+        422: {
+            "description": "Request validation failed",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Request validation failed",
+                        "status_code": 422,
+                        "path": "/api/v1/verbs/download",
+                        "details": [
+                            {
+                                "field": "infinitive",
+                                "message": "String should have at least 1 character",
+                                "type": "string_too_short",
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "AI service error or internal server error",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Failed to download verb - AI service temporarily unavailable",
+                        "status_code": 500,
+                        "path": "/api/v1/verbs/download",
                     }
                 }
             },
@@ -84,14 +155,9 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
     },
 )
 async def download_verb(
-    infinitive: str = Query(
-        ..., description="French verb in infinitive form", examples=["parler"]
-    ),
-    target_language_code: str = Query(
-        "eng", description="Target language code (ISO 639-3)", examples=["eng"]
-    ),
+    request: VerbDownloadRequest,
     current_key: dict = Depends(get_current_api_key),
-) -> Verb:
+) -> VerbResponse:
     """
     Download a verb from LLM and store it.
 
@@ -108,19 +174,22 @@ async def download_verb(
     try:
         service = VerbService()
         verb = await service.download_verb(
-            requested_verb=infinitive, target_language_code=target_language_code
+            requested_verb=request.infinitive,
+            target_language_code=request.target_language_code,
         )
 
         logger.info(
-            f"Downloaded verb {infinitive} by {current_key.get('name', 'unknown')}"
+            f"Downloaded verb {request.infinitive} by {current_key.get('name', 'unknown')}"
         )
-        return verb
+
+        # Convert service schema to API response model
+        return VerbResponse(**verb.model_dump())
 
     except ValueError as e:
         logger.warning(f"Invalid verb download request: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.error(f"Error downloading verb {infinitive}: {e}")
+        logger.error(f"Error downloading verb {request.infinitive}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to download verb",
@@ -129,7 +198,7 @@ async def download_verb(
 
 @router.get(
     "/random",
-    response_model=Verb,
+    response_model=VerbResponse,
     summary="Get a random French verb",
     description="""
     Retrieve a random French verb from the database.
@@ -200,7 +269,7 @@ async def get_random_verb(
         "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
-) -> Verb:
+) -> VerbResponse:
     """
     Get a random verb.
 
@@ -227,7 +296,7 @@ async def get_random_verb(
                 status_code=status.HTTP_404_NOT_FOUND, detail="No verbs found"
             )
 
-        return verb
+        return VerbResponse(**verb.model_dump())
 
     except HTTPException:
         raise
@@ -241,7 +310,7 @@ async def get_random_verb(
 
 @router.get(
     "/{infinitive}",
-    response_model=Verb,
+    response_model=VerbResponse,
     summary="Get specific French verb by infinitive",
     description="""
     Retrieve a specific French verb by its infinitive form.
@@ -320,7 +389,7 @@ async def get_verb_by_infinitive(
         "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
-) -> Verb:
+) -> VerbResponse:
     """
     Get a verb by infinitive (supports URL encoding for spaces).
 
@@ -356,7 +425,7 @@ async def get_verb_by_infinitive(
                 detail=f"Verb '{decoded_infinitive}' not found",
             )
 
-        return verb
+        return VerbResponse(**verb.model_dump())
 
     except HTTPException:
         raise
@@ -370,7 +439,7 @@ async def get_verb_by_infinitive(
 
 @router.get(
     "/{infinitive}/conjugations",
-    response_model=VerbWithConjugations,
+    response_model=VerbWithConjugationsResponse,
     summary="Get verb conjugations for all tenses",
     description="""
     Retrieve comprehensive conjugation information for a specific French verb.
@@ -473,7 +542,7 @@ async def get_verb_conjugations(
         "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
-) -> VerbWithConjugations:
+) -> VerbWithConjugationsResponse:
     """
     Get verb conjugations (supports URL encoding for spaces).
 
@@ -509,7 +578,7 @@ async def get_verb_conjugations(
                 detail=f"Verb '{decoded_infinitive}' not found",
             )
 
-        return verb_with_conjugations
+        return VerbWithConjugationsResponse(**verb_with_conjugations.model_dump())
 
     except HTTPException:
         raise

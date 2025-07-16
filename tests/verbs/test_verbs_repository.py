@@ -8,8 +8,6 @@ from src.schemas.verbs import (
     ConjugationCreate,
     ConjugationUpdate,
     Tense,
-    Verb,
-    VerbClassification,
     VerbCreate,
     VerbUpdate,
 )

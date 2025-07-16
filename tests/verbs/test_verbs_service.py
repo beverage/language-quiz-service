@@ -4,7 +4,7 @@ Simple tests focused on business logic, using real repository connections.
 No complex mocking - we trust the repository layer works with local Supabase.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest

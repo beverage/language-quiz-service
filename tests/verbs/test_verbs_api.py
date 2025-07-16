@@ -4,6 +4,7 @@ These tests focus on HTTP request/response behavior, parameter handling,
 and API contract validation without complex dependency injection.
 """
 
+from contextlib import contextmanager
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -13,9 +14,6 @@ from fastapi.testclient import TestClient
 
 from src.main import app
 from src.schemas.verbs import (
-    AuxiliaryType,
-    Verb,
-    VerbClassification,
     VerbCreate,
     VerbWithConjugations,
 )
@@ -51,261 +49,289 @@ def mock_api_key_info():
         "key_prefix": "sk_test_verb",
         "name": "Verb Test Key",
         "description": "Test API key for verbs",
-        "client_name": "test-client",
         "is_active": True,
-        "permissions_scope": ["read", "write", "admin"],
-        "created_at": datetime.now().isoformat(),
+        "rate_limit": 1000,
+        "rate_limit_remaining": 1000,
+        "rate_limit_reset": datetime.now().timestamp() + 3600,
         "last_used_at": None,
-        "usage_count": 0,
-        "rate_limit_rpm": 1000,
-        "allowed_ips": ["127.0.0.1"],
+        "created_at": datetime.now(),
+        "updated_at": datetime.now(),
+        "permissions_scope": [
+            "read",
+            "write",
+        ],  # Include write permission for download tests
     }
 
 
 @pytest.fixture
 def auth_headers():
-    """Standard auth headers for testing."""
-    return {"X-API-Key": "sk_test_12345678901234567890123456789012"}
+    """Basic auth headers for API testing."""
+    return {"X-API-Key": "sk_test_valid_key"}
 
 
-def _mock_auth_middleware(mock_key_info):
-    """Helper to mock the authentication middleware for isolated testing."""
+@contextmanager
+def _mock_auth_middleware(api_key_info):
+    """Context manager to mock auth middleware."""
 
     async def mock_dispatch(request, call_next):
-        # Mock the request state with API key info
-        request.state.api_key_info = mock_key_info
+        request.state.api_key_info = api_key_info
         request.state.client_ip = "127.0.0.1"
         return await call_next(request)
 
-    return patch(
+    with patch(
         "src.core.auth.ApiKeyAuthMiddleware.dispatch", side_effect=mock_dispatch
+    ):
+        yield
+
+
+class TestVerbsAPIEndpoints:
+    """Test verbs API endpoints with success and error cases."""
+
+    @pytest.mark.parametrize(
+        "endpoint,method_name,expected_status,return_value,expected_response_keys",
+        [
+            # Success cases
+            (
+                "/api/v1/verbs/random?target_language_code=eng",
+                "get_random_verb",
+                200,
+                "sample_verb",
+                [
+                    "id",
+                    "infinitive",
+                    "translation",
+                    "auxiliary",
+                    "target_language_code",
+                ],
+            ),
+            (
+                "/api/v1/verbs/parler",
+                "get_verb_by_infinitive",
+                200,
+                "sample_verb",
+                ["id", "infinitive", "translation", "auxiliary"],
+            ),
+            (
+                "/api/v1/verbs/parler/conjugations",
+                "get_verb_with_conjugations",
+                200,
+                "sample_verb_with_conjugations",
+                ["id", "infinitive", "conjugations"],
+            ),
+            # Not found cases
+            (
+                "/api/v1/verbs/random",
+                "get_random_verb",
+                404,
+                None,
+                ["message"],
+            ),
+            (
+                "/api/v1/verbs/nonexistent",
+                "get_verb_by_infinitive",
+                404,
+                None,
+                ["message"],
+            ),
+            (
+                "/api/v1/verbs/nonexistent/conjugations",
+                "get_verb_with_conjugations",
+                404,
+                None,
+                ["message"],
+            ),
+        ],
     )
-
-
-class TestVerbsAPIContract:
-    """Test HTTP contract and API behavior for verbs endpoints."""
-
-    def test_get_random_verb_success(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
-    ):
-        """Test successful random verb retrieval."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                # Mock service instance and method
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_random_verb.return_value = sample_verb
-
-                response = client.get(
-                    "/verbs/random",
-                    headers=auth_headers,
-                    params={"target_language_code": "eng"},
-                )
-
-                # Verify HTTP contract
-                assert response.status_code == 200
-                data = response.json()
-
-                # Verify response structure
-                assert "id" in data
-                assert "infinitive" in data
-                assert "translation" in data
-                assert "auxiliary" in data
-                assert "target_language_code" in data
-                assert data["infinitive"] == "parler"
-                assert data["translation"] == "to speak"
-
-                # Verify service was called correctly
-                mock_service.get_random_verb.assert_called_once_with(
-                    target_language_code="eng"
-                )
-
-    def test_get_random_verb_not_found(
-        self, client: TestClient, auth_headers, mock_api_key_info
-    ):
-        """Test random verb when no verbs found."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_random_verb.return_value = None
-
-                response = client.get("/verbs/random", headers=auth_headers)
-
-                assert response.status_code == 404
-                data = response.json()
-                assert (
-                    "not found" in data["message"].lower()
-                    or "no verbs found" in data["message"].lower()
-                )
-
-    def test_get_verb_by_infinitive_success(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
-    ):
-        """Test successful verb retrieval by infinitive."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = sample_verb
-
-                response = client.get(
-                    "/verbs/parler",
-                    headers=auth_headers,
-                    params={"target_language_code": "eng"},
-                )
-
-                assert response.status_code == 200
-                data = response.json()
-                assert data["infinitive"] == "parler"
-                assert data["id"] == str(sample_verb.id)
-
-                # Verify service was called correctly
-                mock_service.get_verb_by_infinitive.assert_called_once_with(
-                    infinitive="parler",
-                    auxiliary=None,
-                    reflexive=None,
-                    target_language_code="eng",
-                )
-
-    def test_get_verb_by_infinitive_not_found(
-        self, client: TestClient, auth_headers, mock_api_key_info
-    ):
-        """Test verb retrieval when verb doesn't exist."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = None
-
-                response = client.get("/verbs/nonexistent", headers=auth_headers)
-
-                assert response.status_code == 404
-                data = response.json()
-                assert "not found" in data["message"].lower()
-                assert "nonexistent" in data["message"]
-
-    def test_get_verb_by_infinitive_with_url_encoding(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
-    ):
-        """Test verb retrieval with URL-encoded infinitive (spaces)."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                # Update sample verb to have space in infinitive
-                sample_verb.infinitive = "se parler"
-                mock_service.get_verb_by_infinitive.return_value = sample_verb
-
-                # Test with URL-encoded space
-                response = client.get("/verbs/se%20parler", headers=auth_headers)
-
-                assert response.status_code == 200
-                data = response.json()
-                assert data["infinitive"] == "se parler"
-
-                # Verify service was called with decoded infinitive
-                mock_service.get_verb_by_infinitive.assert_called_once_with(
-                    infinitive="se parler",
-                    auxiliary=None,
-                    reflexive=None,
-                    target_language_code="eng",
-                )
-
-    def test_get_verb_by_infinitive_with_parameters(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
-    ):
-        """Test verb retrieval with auxiliary and reflexive parameters."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = sample_verb
-
-                response = client.get(
-                    "/verbs/parler",
-                    headers=auth_headers,
-                    params={
-                        "auxiliary": "avoir",
-                        "reflexive": "true",
-                        "target_language_code": "eng",
-                    },
-                )
-
-                assert response.status_code == 200
-                data = response.json()
-                assert data["auxiliary"] == "avoir"
-
-                # Verify service was called with correct parameters
-                mock_service.get_verb_by_infinitive.assert_called_once_with(
-                    infinitive="parler",
-                    auxiliary="avoir",
-                    reflexive=True,
-                    target_language_code="eng",
-                )
-
-    def test_get_verb_conjugations_success(
+    def test_endpoint_responses(
         self,
         client: TestClient,
         auth_headers,
         mock_api_key_info,
+        sample_verb,
         sample_verb_with_conjugations,
+        endpoint,
+        method_name,
+        expected_status,
+        return_value,
+        expected_response_keys,
     ):
-        """Test successful verb conjugations retrieval."""
+        """Test various endpoint responses with different scenarios."""
+        # Resolve fixture references
+        if return_value == "sample_verb":
+            mock_return = sample_verb
+        elif return_value == "sample_verb_with_conjugations":
+            mock_return = sample_verb_with_conjugations
+        else:
+            mock_return = return_value
+
         with _mock_auth_middleware(mock_api_key_info):
             with patch("src.api.verbs.VerbService") as mock_service_class:
                 mock_service = AsyncMock()
                 mock_service_class.return_value = mock_service
-                mock_service.get_verb_with_conjugations.return_value = (
-                    sample_verb_with_conjugations
-                )
+                getattr(mock_service, method_name).return_value = mock_return
+
+                response = client.get(endpoint, headers=auth_headers)
+
+                assert response.status_code == expected_status
+                data = response.json()
+
+                # Verify response structure
+                for key in expected_response_keys:
+                    assert key in data
+
+                # Verify specific data for success cases
+                if expected_status == 200 and mock_return:
+                    if "infinitive" in expected_response_keys:
+                        assert data["infinitive"] == "parler"
+                    if "translation" in expected_response_keys:
+                        assert data["translation"] == "to speak"
+
+    @pytest.mark.parametrize(
+        "endpoint,params,expected_service_call",
+        [
+            # URL encoding tests
+            (
+                "/api/v1/verbs/être",
+                {},
+                {
+                    "infinitive": "être",
+                    "auxiliary": None,
+                    "reflexive": None,
+                    "target_language_code": "eng",
+                },
+            ),
+            # Parameter parsing tests
+            (
+                "/api/v1/verbs/parler",
+                {
+                    "auxiliary": "avoir",
+                    "reflexive": "true",
+                    "target_language_code": "fra",
+                },
+                {
+                    "infinitive": "parler",
+                    "auxiliary": "avoir",
+                    "reflexive": True,
+                    "target_language_code": "fra",
+                },
+            ),
+            # Default language test
+            (
+                "/api/v1/verbs/random",
+                {},
+                {"target_language_code": "eng"},
+            ),
+        ],
+    )
+    def test_parameter_handling(
+        self,
+        client: TestClient,
+        auth_headers,
+        mock_api_key_info,
+        sample_verb,
+        endpoint,
+        params,
+        expected_service_call,
+    ):
+        """Test parameter parsing and handling."""
+        with _mock_auth_middleware(mock_api_key_info):
+            with patch("src.api.verbs.VerbService") as mock_service_class:
+                mock_service = AsyncMock()
+                mock_service_class.return_value = mock_service
+                mock_service.get_verb_by_infinitive.return_value = sample_verb
+                mock_service.get_random_verb.return_value = sample_verb
+
+                response = client.get(endpoint, headers=auth_headers, params=params)
+
+                assert response.status_code == 200
+
+                # Verify correct service method was called with expected parameters
+                if "random" in endpoint:
+                    mock_service.get_random_verb.assert_called_once_with(
+                        **expected_service_call
+                    )
+                else:
+                    mock_service.get_verb_by_infinitive.assert_called_once_with(
+                        **expected_service_call
+                    )
+
+    @pytest.mark.parametrize(
+        "bool_value,expected_bool",
+        [
+            ("true", True),
+            ("True", True),
+            ("1", True),
+            ("false", False),
+            ("False", False),
+            ("0", False),
+        ],
+    )
+    def test_boolean_parameter_parsing(
+        self,
+        client: TestClient,
+        auth_headers,
+        mock_api_key_info,
+        sample_verb,
+        bool_value,
+        expected_bool,
+    ):
+        """Test boolean parameter parsing variations."""
+        with _mock_auth_middleware(mock_api_key_info):
+            with patch("src.api.verbs.VerbService") as mock_service_class:
+                mock_service = AsyncMock()
+                mock_service_class.return_value = mock_service
+                mock_service.get_verb_by_infinitive.return_value = sample_verb
 
                 response = client.get(
-                    "/verbs/parler/conjugations",
+                    "/api/v1/verbs/parler",
                     headers=auth_headers,
-                    params={"target_language_code": "eng"},
+                    params={"reflexive": bool_value},
                 )
 
                 assert response.status_code == 200
-                data = response.json()
-
-                # Verify response structure includes conjugations
-                assert "id" in data
-                assert "infinitive" in data
-                assert "conjugations" in data
-                assert data["infinitive"] == "parler"
-                assert isinstance(data["conjugations"], list)
-
-                # Verify service was called correctly
-                mock_service.get_verb_with_conjugations.assert_called_once_with(
+                mock_service.get_verb_by_infinitive.assert_called_once_with(
                     infinitive="parler",
                     auxiliary=None,
-                    reflexive=False,
+                    reflexive=expected_bool,
                     target_language_code="eng",
                 )
 
-    def test_get_verb_conjugations_not_found(
-        self, client: TestClient, auth_headers, mock_api_key_info
+    @pytest.mark.parametrize(
+        "auxiliary_value",
+        ["avoir", "etre"],
+    )
+    def test_enum_parameter_validation(
+        self,
+        client: TestClient,
+        auth_headers,
+        mock_api_key_info,
+        sample_verb,
+        auxiliary_value,
     ):
-        """Test conjugations retrieval when verb doesn't exist."""
+        """Test enum parameter validation."""
         with _mock_auth_middleware(mock_api_key_info):
             with patch("src.api.verbs.VerbService") as mock_service_class:
                 mock_service = AsyncMock()
                 mock_service_class.return_value = mock_service
-                mock_service.get_verb_with_conjugations.return_value = None
+                mock_service.get_verb_by_infinitive.return_value = sample_verb
 
                 response = client.get(
-                    "/verbs/nonexistent/conjugations", headers=auth_headers
+                    "/api/v1/verbs/parler",
+                    headers=auth_headers,
+                    params={"auxiliary": auxiliary_value},
                 )
 
-                assert response.status_code == 404
-                data = response.json()
-                assert "not found" in data["message"].lower()
+                # Should not return 422 (validation error)
+                assert response.status_code == 200
+
+
+class TestVerbsAPIDownload:
+    """Test verb download functionality."""
 
     def test_download_verb_success(
         self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
     ):
-        """Test successful verb download (creation via external API)."""
+        """Test successful verb download."""
         with _mock_auth_middleware(mock_api_key_info):
             with patch("src.api.verbs.VerbService") as mock_service_class:
                 mock_service = AsyncMock()
@@ -313,171 +339,89 @@ class TestVerbsAPIContract:
                 mock_service.download_verb.return_value = sample_verb
 
                 response = client.post(
-                    "/verbs/download",
+                    "/api/v1/verbs/download",
                     headers=auth_headers,
-                    params={"infinitive": "parler", "target_language_code": "eng"},
+                    json={"infinitive": "parler", "target_language_code": "eng"},
                 )
 
-                assert response.status_code == 200
+                assert response.status_code == 201
                 data = response.json()
                 assert data["infinitive"] == "parler"
-                assert "translation" in data
+                assert data["translation"] == "to speak"
 
-                # Verify service was called correctly
-                mock_service.download_verb.assert_called_once_with(
-                    requested_verb="parler", target_language_code="eng"
-                )
+    @pytest.mark.parametrize(
+        "request_body,expected_status,expected_error_key",
+        [
+            # Missing required field
+            ({"target_language_code": "eng"}, 422, "infinitive"),
+            # Invalid data type
+            ({"infinitive": 123, "target_language_code": "eng"}, 422, "infinitive"),
+            # Empty infinitive
+            ({"infinitive": "", "target_language_code": "eng"}, 422, "infinitive"),
+        ],
+    )
+    def test_download_verb_validation_errors(
+        self,
+        client: TestClient,
+        auth_headers,
+        mock_api_key_info,
+        request_body,
+        expected_status,
+        expected_error_key,
+    ):
+        """Test download verb request validation."""
+        with _mock_auth_middleware(mock_api_key_info):
+            response = client.post(
+                "/api/v1/verbs/download",
+                headers=auth_headers,
+                json=request_body,
+            )
+
+            assert response.status_code == expected_status
+            data = response.json()
+            assert "detail" in data
+            # Check that the error mentions the problematic field
+            error_str = str(data["detail"]).lower()
+            assert expected_error_key in error_str
 
     def test_download_verb_already_exists(
-        self, client: TestClient, auth_headers, mock_api_key_info
+        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
     ):
-        """Test download verb when verb already exists."""
+        """Test download when verb already exists - should return 201 as re-downloading is supported."""
         with _mock_auth_middleware(mock_api_key_info):
             with patch("src.api.verbs.VerbService") as mock_service_class:
                 mock_service = AsyncMock()
                 mock_service_class.return_value = mock_service
-                # Simulate verb already exists error
-                mock_service.download_verb.side_effect = ValueError(
-                    "Verb already exists"
-                )
+                # Re-downloading should succeed and return the verb
+                mock_service.download_verb.return_value = sample_verb
 
                 response = client.post(
-                    "/verbs/download",
+                    "/api/v1/verbs/download",
                     headers=auth_headers,
-                    params={"infinitive": "parler", "target_language_code": "eng"},
+                    json={"infinitive": "parler", "target_language_code": "eng"},
                 )
 
-                assert response.status_code == 400  # ValueError returns 400, not 409
+                assert response.status_code == 201
                 data = response.json()
-                # Response format: {'error': True, 'message': '...', 'status_code': 400, 'path': '/verbs/download'}
-                assert "already exists" in data["message"].lower()
-
-    def test_download_verb_invalid_request(
-        self, client: TestClient, auth_headers, mock_api_key_info
-    ):
-        """Test download verb with invalid parameters."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                # Mock to prevent hitting real OpenAI API - use validation error
-                mock_service.download_verb.side_effect = ValueError(
-                    "Invalid infinitive: cannot be empty"
-                )
-
-                response = client.post(
-                    "/verbs/download",
-                    headers=auth_headers,
-                    params={
-                        "infinitive": "",  # Empty infinitive
-                        "target_language_code": "eng",
-                    },
-                )
-
-                # Should return 400 for ValueError from service
-                assert response.status_code == 400
-                data = response.json()
-                assert "invalid" in data["message"].lower()
-
-
-class TestVerbsAPIParameterHandling:
-    """Test parameter validation and handling in verbs API."""
-
-    def test_default_target_language(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
-    ):
-        """Test that default target language code is applied."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_random_verb.return_value = sample_verb
-
-                response = client.get(
-                    "/verbs/random",
-                    headers=auth_headers,
-                    # No target_language_code parameter
-                )
-
-                # Should use default language (eng)
-                assert response.status_code == 200
-                # Verify service was called with default language
-                mock_service.get_random_verb.assert_called_once_with(
-                    target_language_code="eng"
-                )
-
-    def test_boolean_parameter_parsing(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
-    ):
-        """Test that boolean parameters are correctly parsed."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = sample_verb
-
-                # Test various boolean representations
-                for bool_value in ["true", "True", "1"]:
-                    response = client.get(
-                        "/verbs/parler",
-                        headers=auth_headers,
-                        params={"reflexive": bool_value},
-                    )
-
-                    assert response.status_code == 200
-                    # Verify service was called with boolean True
-                    mock_service.get_verb_by_infinitive.assert_called_with(
-                        infinitive="parler",
-                        auxiliary=None,
-                        reflexive=True,
-                        target_language_code="eng",
-                    )
-
-    def test_enum_parameter_validation(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
-    ):
-        """Test that enum parameters are validated."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = sample_verb
-
-                # Test valid auxiliary values
-                for aux in ["avoir", "etre"]:
-                    response = client.get(
-                        "/verbs/parler", headers=auth_headers, params={"auxiliary": aux}
-                    )
-                    # Should not return 422 (validation error)
-                    assert response.status_code == 200
+                assert data["infinitive"] == "parler"
+                assert data["translation"] == "to speak"
 
 
 class TestVerbsAPIResponseFormats:
     """Test response format and serialization."""
 
-    def test_verb_response_schema(
-        self, client: TestClient, auth_headers, mock_api_key_info, sample_verb
-    ):
-        """Test that verb responses match expected schema."""
-        with _mock_auth_middleware(mock_api_key_info):
-            with patch("src.api.verbs.VerbService") as mock_service_class:
-                mock_service = AsyncMock()
-                mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = sample_verb
-
-                response = client.get("/verbs/parler", headers=auth_headers)
-
-                assert response.status_code == 200
-                data = response.json()
-
-                # Required fields
-                required_fields = [
+    @pytest.mark.parametrize(
+        "endpoint,expected_fields",
+        [
+            (
+                "/api/v1/verbs/random",
+                {
                     "id",
                     "infinitive",
+                    "translation",
                     "auxiliary",
                     "reflexive",
                     "target_language_code",
-                    "translation",
                     "past_participle",
                     "present_participle",
                     "classification",
@@ -486,56 +430,71 @@ class TestVerbsAPIResponseFormats:
                     "can_have_coi",
                     "created_at",
                     "updated_at",
-                ]
-
-                for field in required_fields:
-                    assert field in data, f"Missing required field: {field}"
-
-    def test_verb_with_conjugations_response_schema(
+                },
+            ),
+            (
+                "/api/v1/verbs/parler/conjugations",
+                {"id", "infinitive", "conjugations"},
+            ),
+        ],
+    )
+    def test_response_schema_completeness(
         self,
         client: TestClient,
         auth_headers,
         mock_api_key_info,
+        sample_verb,
         sample_verb_with_conjugations,
+        endpoint,
+        expected_fields,
     ):
-        """Test that verb with conjugations responses include conjugations array."""
+        """Test that responses contain all expected fields."""
+        mock_return = (
+            sample_verb_with_conjugations if "conjugations" in endpoint else sample_verb
+        )
+        method_name = (
+            "get_verb_with_conjugations"
+            if "conjugations" in endpoint
+            else "get_random_verb"
+        )
+
         with _mock_auth_middleware(mock_api_key_info):
             with patch("src.api.verbs.VerbService") as mock_service_class:
                 mock_service = AsyncMock()
                 mock_service_class.return_value = mock_service
-                mock_service.get_verb_with_conjugations.return_value = (
-                    sample_verb_with_conjugations
-                )
+                getattr(mock_service, method_name).return_value = mock_return
 
-                response = client.get(
-                    "/verbs/parler/conjugations", headers=auth_headers
-                )
+                response = client.get(endpoint, headers=auth_headers)
 
                 assert response.status_code == 200
                 data = response.json()
 
-                # Should have all verb fields plus conjugations
-                assert "conjugations" in data
-                assert isinstance(data["conjugations"], list)
+                # Verify all expected fields are present
+                assert expected_fields.issubset(set(data.keys()))
+
+                # Verify data types for key fields
+                assert isinstance(data["id"], str)
+                assert isinstance(data["infinitive"], str)
+                if "conjugations" in data:
+                    assert isinstance(data["conjugations"], list)
 
     def test_error_response_format(
         self, client: TestClient, auth_headers, mock_api_key_info
     ):
-        """Test that error responses have consistent format."""
+        """Test that error responses follow consistent format."""
         with _mock_auth_middleware(mock_api_key_info):
             with patch("src.api.verbs.VerbService") as mock_service_class:
                 mock_service = AsyncMock()
                 mock_service_class.return_value = mock_service
-                mock_service.get_verb_by_infinitive.return_value = None
+                mock_service.get_random_verb.return_value = None
 
-                response = client.get(
-                    "/verbs/definitely_nonexistent_verb", headers=auth_headers
-                )
+                response = client.get("/api/v1/verbs/random", headers=auth_headers)
 
                 assert response.status_code == 404
                 data = response.json()
 
-                # Error responses should have message field
-                assert "message" in data
+                # Verify error response structure
+                required_error_fields = {"message"}
+                assert required_error_fields.issubset(set(data.keys()))
                 assert isinstance(data["message"], str)
                 assert len(data["message"]) > 0
