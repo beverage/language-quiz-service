@@ -1,5 +1,6 @@
-import asyncclick
 import functools
+
+import asyncclick
 
 
 def sentence_options(f):

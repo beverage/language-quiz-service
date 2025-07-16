@@ -1,31 +1,30 @@
 """Unit tests for Pydantic problem schemas."""
 
+from datetime import datetime
+from typing import Any
+from uuid import uuid4
+
 import pytest
 from pydantic import ValidationError
-from datetime import datetime
-from uuid import uuid4
-from typing import Dict, Any, List
 
 from src.schemas.problems import (
-    ProblemType,
     DifficultyLevel,
+    GrammarProblemConstraints,
+    Problem,
     ProblemBase,
     ProblemCreate,
-    ProblemUpdate,
-    Problem,
-    ProblemSummary,
-    ProblemWithMetadata,
-    GrammarProblemConstraints,
-    FunctionalProblemConstraints,
-    VocabularyProblemConstraints,
     ProblemFilters,
     ProblemSearchRequest,
     ProblemSearchResponse,
+    ProblemSummary,
+    ProblemType,
+    ProblemUpdate,
+    ProblemWithMetadata,
 )
 
 
 @pytest.fixture
-def sample_grammar_statements() -> List[Dict[str, Any]]:
+def sample_grammar_statements() -> list[dict[str, Any]]:
     """Sample grammar problem statements."""
     return [
         {
@@ -47,47 +46,9 @@ def sample_grammar_statements() -> List[Dict[str, Any]]:
 
 
 @pytest.fixture
-def sample_functional_statements() -> List[Dict[str, Any]]:
-    """Sample functional problem statements."""
-    return [
-        {
-            "sentence": "Je ne mange _____ de légumes.",
-            "option": "jamais",
-        },
-        {
-            "sentence": "Je ne mange _____ de légumes.",
-            "option": "pas",
-        },
-        {
-            "sentence": "Je ne mange _____ de légumes.",
-            "option": "rien",
-        },
-    ]
-
-
-@pytest.fixture
-def sample_vocabulary_statements() -> List[Dict[str, Any]]:
-    """Sample vocabulary problem statements."""
-    return [
-        {
-            "word": "pomme",
-            "definition": "A round fruit with red or green skin",
-        },
-        {
-            "word": "livre",
-            "definition": "A set of printed pages bound together",
-        },
-        {
-            "word": "chien",
-            "definition": "A four-legged domestic animal",
-        },
-    ]
-
-
-@pytest.fixture
 def sample_problem_data(
-    sample_grammar_statements: List[Dict[str, Any]],
-) -> Dict[str, Any]:
+    sample_grammar_statements: list[dict[str, Any]],
+) -> dict[str, Any]:
     """Sample problem data for testing."""
     return {
         "problem_type": ProblemType.GRAMMAR,
@@ -106,11 +67,10 @@ def sample_problem_data(
 class TestProblemEnums:
     """Test cases for problem-related enums."""
 
-    def test_problem_type_enum(self):
-        """Test the values of the ProblemType enum."""
+    def test_problem_type_enum_values(self):
+        """Test that problem type enum has correct values."""
         assert ProblemType.GRAMMAR == "grammar"
-        assert ProblemType.FUNCTIONAL == "functional"
-        assert ProblemType.VOCABULARY == "vocabulary"
+        # Note: FUNCTIONAL and VOCABULARY types removed as they're not implemented yet
 
     def test_difficulty_level_enum(self):
         """Test the values of the DifficultyLevel enum."""
@@ -126,7 +86,7 @@ class TestProblemEnums:
 class TestProblemBase:
     """Test cases for the ProblemBase schema."""
 
-    def test_valid_problem_creation(self, sample_problem_data: Dict[str, Any]):
+    def test_valid_problem_creation(self, sample_problem_data: dict[str, Any]):
         """Test that a valid ProblemBase model can be created."""
         problem = ProblemBase(**sample_problem_data)
         assert problem.problem_type == ProblemType.GRAMMAR
@@ -141,7 +101,7 @@ class TestProblemBase:
         "field_to_remove", ["problem_type", "instructions", "statements"]
     )
     def test_missing_required_fields_fail(
-        self, field_to_remove: str, sample_problem_data: Dict[str, Any]
+        self, field_to_remove: str, sample_problem_data: dict[str, Any]
     ):
         """Test that missing required fields raise a validation error."""
         invalid_data = sample_problem_data.copy()
@@ -149,7 +109,7 @@ class TestProblemBase:
         with pytest.raises(ValidationError):
             ProblemBase(**invalid_data)
 
-    def test_correct_answer_index_validation(self, sample_problem_data: Dict[str, Any]):
+    def test_correct_answer_index_validation(self, sample_problem_data: dict[str, Any]):
         """Test correct_answer_index validation."""
         # Test valid index
         valid_data = sample_problem_data.copy()
@@ -173,7 +133,7 @@ class TestProblemBase:
         "invalid_code", ["en", "english", "e", "", "1234", "fr-FR"]
     )
     def test_invalid_language_code_validation(
-        self, invalid_code: str, sample_problem_data: Dict[str, Any]
+        self, invalid_code: str, sample_problem_data: dict[str, Any]
     ):
         """Test that invalid language codes raise a validation error."""
         invalid_data = sample_problem_data.copy()
@@ -183,7 +143,7 @@ class TestProblemBase:
 
     @pytest.mark.parametrize("valid_code", ["eng", "fra", "spa", "deu", "ENG"])
     def test_valid_language_code_validation(
-        self, valid_code: str, sample_problem_data: Dict[str, Any]
+        self, valid_code: str, sample_problem_data: dict[str, Any]
     ):
         """Test that valid language codes are accepted."""
         valid_data = sample_problem_data.copy()
@@ -191,7 +151,7 @@ class TestProblemBase:
         problem = ProblemBase(**valid_data)
         assert problem.target_language_code == valid_code
 
-    def test_empty_statements_validation(self, sample_problem_data: Dict[str, Any]):
+    def test_empty_statements_validation(self, sample_problem_data: dict[str, Any]):
         """Test that empty statements array raises validation error."""
         invalid_data = sample_problem_data.copy()
         invalid_data["statements"] = []
@@ -204,7 +164,7 @@ class TestGrammarProblemValidation:
     """Test cases for grammar problem statement validation."""
 
     def test_valid_grammar_statements(
-        self, sample_grammar_statements: List[Dict[str, Any]]
+        self, sample_grammar_statements: list[dict[str, Any]]
     ):
         """Test that valid grammar statements pass validation."""
         problem_data = {
@@ -217,7 +177,7 @@ class TestGrammarProblemValidation:
         assert len(problem.statements) == 3
 
     def test_grammar_statement_missing_content(
-        self, sample_grammar_statements: List[Dict[str, Any]]
+        self, sample_grammar_statements: list[dict[str, Any]]
     ):
         """Test that grammar statements without content field fail validation."""
         invalid_statements = sample_grammar_statements.copy()
@@ -234,7 +194,7 @@ class TestGrammarProblemValidation:
         assert 'must have "content" field' in str(exc_info.value)
 
     def test_grammar_statement_missing_is_correct(
-        self, sample_grammar_statements: List[Dict[str, Any]]
+        self, sample_grammar_statements: list[dict[str, Any]]
     ):
         """Test that grammar statements without is_correct field fail validation."""
         invalid_statements = sample_grammar_statements.copy()
@@ -251,7 +211,7 @@ class TestGrammarProblemValidation:
         assert 'must have "is_correct" field' in str(exc_info.value)
 
     def test_correct_grammar_statement_missing_translation(
-        self, sample_grammar_statements: List[Dict[str, Any]]
+        self, sample_grammar_statements: list[dict[str, Any]]
     ):
         """Test that correct grammar statements without translation fail validation."""
         invalid_statements = sample_grammar_statements.copy()
@@ -268,7 +228,7 @@ class TestGrammarProblemValidation:
         assert 'must have "translation" field' in str(exc_info.value)
 
     def test_incorrect_grammar_statement_missing_explanation(
-        self, sample_grammar_statements: List[Dict[str, Any]]
+        self, sample_grammar_statements: list[dict[str, Any]]
     ):
         """Test that incorrect grammar statements without explanation fail validation."""
         invalid_statements = sample_grammar_statements.copy()
@@ -286,114 +246,10 @@ class TestGrammarProblemValidation:
 
 
 @pytest.mark.unit
-class TestFunctionalProblemValidation:
-    """Test cases for functional problem statement validation."""
-
-    def test_valid_functional_statements(
-        self, sample_functional_statements: List[Dict[str, Any]]
-    ):
-        """Test that valid functional statements pass validation."""
-        problem_data = {
-            "problem_type": ProblemType.FUNCTIONAL,
-            "instructions": "Choose the correct option.",
-            "correct_answer_index": 0,
-            "statements": sample_functional_statements,
-        }
-        problem = ProblemBase(**problem_data)
-        assert len(problem.statements) == 3
-
-    def test_functional_statement_missing_sentence(
-        self, sample_functional_statements: List[Dict[str, Any]]
-    ):
-        """Test that functional statements without sentence field fail validation."""
-        invalid_statements = sample_functional_statements.copy()
-        del invalid_statements[0]["sentence"]
-
-        problem_data = {
-            "problem_type": ProblemType.FUNCTIONAL,
-            "instructions": "Choose the correct option.",
-            "correct_answer_index": 0,
-            "statements": invalid_statements,
-        }
-        with pytest.raises(ValidationError) as exc_info:
-            ProblemBase(**problem_data)
-        assert 'must have "sentence" field' in str(exc_info.value)
-
-    def test_functional_statement_missing_option(
-        self, sample_functional_statements: List[Dict[str, Any]]
-    ):
-        """Test that functional statements without option field fail validation."""
-        invalid_statements = sample_functional_statements.copy()
-        del invalid_statements[0]["option"]
-
-        problem_data = {
-            "problem_type": ProblemType.FUNCTIONAL,
-            "instructions": "Choose the correct option.",
-            "correct_answer_index": 0,
-            "statements": invalid_statements,
-        }
-        with pytest.raises(ValidationError) as exc_info:
-            ProblemBase(**problem_data)
-        assert 'must have "option" field' in str(exc_info.value)
-
-
-@pytest.mark.unit
-class TestVocabularyProblemValidation:
-    """Test cases for vocabulary problem statement validation."""
-
-    def test_valid_vocabulary_statements(
-        self, sample_vocabulary_statements: List[Dict[str, Any]]
-    ):
-        """Test that valid vocabulary statements pass validation."""
-        problem_data = {
-            "problem_type": ProblemType.VOCABULARY,
-            "instructions": "Choose the correct definition.",
-            "correct_answer_index": 0,
-            "statements": sample_vocabulary_statements,
-        }
-        problem = ProblemBase(**problem_data)
-        assert len(problem.statements) == 3
-
-    def test_vocabulary_statement_missing_word(
-        self, sample_vocabulary_statements: List[Dict[str, Any]]
-    ):
-        """Test that vocabulary statements without word field fail validation."""
-        invalid_statements = sample_vocabulary_statements.copy()
-        del invalid_statements[0]["word"]
-
-        problem_data = {
-            "problem_type": ProblemType.VOCABULARY,
-            "instructions": "Choose the correct definition.",
-            "correct_answer_index": 0,
-            "statements": invalid_statements,
-        }
-        with pytest.raises(ValidationError) as exc_info:
-            ProblemBase(**problem_data)
-        assert 'must have "word" field' in str(exc_info.value)
-
-    def test_vocabulary_statement_missing_definition(
-        self, sample_vocabulary_statements: List[Dict[str, Any]]
-    ):
-        """Test that vocabulary statements without definition field fail validation."""
-        invalid_statements = sample_vocabulary_statements.copy()
-        del invalid_statements[0]["definition"]
-
-        problem_data = {
-            "problem_type": ProblemType.VOCABULARY,
-            "instructions": "Choose the correct definition.",
-            "correct_answer_index": 0,
-            "statements": invalid_statements,
-        }
-        with pytest.raises(ValidationError) as exc_info:
-            ProblemBase(**problem_data)
-        assert 'must have "definition" field' in str(exc_info.value)
-
-
-@pytest.mark.unit
 class TestProblemCreate:
     """Test cases for the ProblemCreate schema."""
 
-    def test_valid_problem_create(self, sample_problem_data: Dict[str, Any]):
+    def test_valid_problem_create(self, sample_problem_data: dict[str, Any]):
         """Test that a valid ProblemCreate model can be created."""
         problem = ProblemCreate(**sample_problem_data)
         assert problem.problem_type == ProblemType.GRAMMAR
@@ -401,7 +257,7 @@ class TestProblemCreate:
         assert problem.instructions == "Choose the grammatically correct sentence."
 
     def test_problem_create_inherits_validation(
-        self, sample_problem_data: Dict[str, Any]
+        self, sample_problem_data: dict[str, Any]
     ):
         """Test that ProblemCreate inherits validation from ProblemBase."""
         invalid_data = sample_problem_data.copy()
@@ -433,7 +289,7 @@ class TestProblemUpdate:
         assert problem_update.model_dump(exclude_unset=True) == {}
 
     def test_update_correct_answer_index_validation(
-        self, sample_grammar_statements: List[Dict[str, Any]]
+        self, sample_grammar_statements: list[dict[str, Any]]
     ):
         """Test that correct_answer_index validation works in updates."""
         # Valid update
@@ -465,7 +321,7 @@ class TestProblemUpdate:
 class TestProblem:
     """Test cases for the Problem schema."""
 
-    def test_problem_with_database_fields(self, sample_problem_data: Dict[str, Any]):
+    def test_problem_with_database_fields(self, sample_problem_data: dict[str, Any]):
         """Test that Problem model includes database fields."""
         problem_data = sample_problem_data.copy()
         problem_data.update(
@@ -486,7 +342,7 @@ class TestProblem:
 class TestProblemSummary:
     """Test cases for the ProblemSummary schema."""
 
-    def test_problem_summary_fields(self, sample_problem_data: Dict[str, Any]):
+    def test_problem_summary_fields(self, sample_problem_data: dict[str, Any]):
         """Test that ProblemSummary contains correct fields."""
         summary_data = {
             "id": uuid4(),
@@ -521,32 +377,11 @@ class TestProblemConstraints:
         )
         assert constraints.grammatical_focus == ["articles", "agreement"]
         assert constraints.verb_infinitives == ["être", "avoir"]
+        assert constraints.tenses_used == ["present", "past"]
+        assert constraints.includes_negation is True
+        assert constraints.includes_cod is False
+        assert constraints.includes_coi is True
         assert constraints.difficulty_level == DifficultyLevel.INTERMEDIATE
-
-    def test_functional_problem_constraints(self):
-        """Test FunctionalProblemConstraints model."""
-        constraints = FunctionalProblemConstraints(
-            part_of_speech="adverb",
-            grammatical_function="negation",
-            function_category="temporal_negation",
-            target_construction="ne_jamais",
-            difficulty_level=DifficultyLevel.ADVANCED,
-        )
-        assert constraints.part_of_speech == "adverb"
-        assert constraints.grammatical_function == "negation"
-        assert constraints.difficulty_level == DifficultyLevel.ADVANCED
-
-    def test_vocabulary_problem_constraints(self):
-        """Test VocabularyProblemConstraints model."""
-        constraints = VocabularyProblemConstraints(
-            semantic_field=["animals", "food"],
-            word_difficulty=DifficultyLevel.BEGINNER,
-            includes_pronunciation=True,
-            word_type="noun",
-        )
-        assert constraints.semantic_field == ["animals", "food"]
-        assert constraints.word_difficulty == DifficultyLevel.BEGINNER
-        assert constraints.includes_pronunciation is True
 
 
 @pytest.mark.unit
@@ -602,13 +437,13 @@ class TestProblemSearchModels:
 
     def test_problem_search_request_with_filters(self):
         """Test ProblemSearchRequest with custom filters."""
-        filters = ProblemFilters(problem_type=ProblemType.VOCABULARY, limit=25)
+        filters = ProblemFilters(problem_type=ProblemType.GRAMMAR, limit=25)
         request = ProblemSearchRequest(
             filters=filters,
             include_statements=False,
             include_metadata=False,
         )
-        assert request.filters.problem_type == ProblemType.VOCABULARY
+        assert request.filters.problem_type == ProblemType.GRAMMAR
         assert request.filters.limit == 25
         assert request.include_statements is False
         assert request.include_metadata is False
@@ -632,7 +467,7 @@ class TestProblemSearchModels:
 class TestProblemWithMetadata:
     """Test cases for the ProblemWithMetadata schema."""
 
-    def test_problem_with_metadata_fields(self, sample_problem_data: Dict[str, Any]):
+    def test_problem_with_metadata_fields(self, sample_problem_data: dict[str, Any]):
         """Test that ProblemWithMetadata contains enriched fields."""
         metadata_data = sample_problem_data.copy()
         metadata_data.update(

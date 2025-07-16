@@ -6,10 +6,10 @@ Following the established patterns from sentences and verbs schemas.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ProblemType(str, Enum):
@@ -36,14 +36,14 @@ class ProblemBase(BaseModel):
     """Base problem model with common fields."""
 
     problem_type: ProblemType
-    title: Optional[str] = None
+    title: str | None = None
     instructions: str
     correct_answer_index: int = Field(..., ge=0)
     target_language_code: str = Field(default="eng", max_length=3, min_length=3)
-    statements: List[Dict[str, Any]] = Field(..., min_length=1)
-    topic_tags: List[str] = Field(default_factory=list)
-    source_statement_ids: List[UUID] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    statements: list[dict[str, Any]] = Field(..., min_length=1)
+    topic_tags: list[str] = Field(default_factory=list)
+    source_statement_ids: list[UUID] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("statements")
     @classmethod
@@ -78,8 +78,8 @@ class ProblemBase(BaseModel):
 
     @staticmethod
     def _validate_grammar_statements(
-        statements: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        statements: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Validate grammar problem statements."""
         for i, stmt in enumerate(statements):
             if "content" not in stmt:
@@ -101,8 +101,8 @@ class ProblemBase(BaseModel):
 
     @staticmethod
     def _validate_functional_statements(
-        statements: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        statements: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Validate functional problem statements."""
         for i, stmt in enumerate(statements):
             if "sentence" not in stmt:
@@ -114,8 +114,8 @@ class ProblemBase(BaseModel):
 
     @staticmethod
     def _validate_vocabulary_statements(
-        statements: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        statements: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Validate vocabulary problem statements."""
         for i, stmt in enumerate(statements):
             if "word" not in stmt:
@@ -139,15 +139,15 @@ class ProblemCreate(ProblemBase):
 class ProblemUpdate(BaseModel):
     """Model for updating existing problems."""
 
-    problem_type: Optional[ProblemType] = None
-    title: Optional[str] = None
-    instructions: Optional[str] = None
-    correct_answer_index: Optional[int] = Field(None, ge=0)
-    target_language_code: Optional[str] = Field(None, max_length=3, min_length=3)
-    statements: Optional[List[Dict[str, Any]]] = Field(None, min_length=1)
-    topic_tags: Optional[List[str]] = None
-    source_statement_ids: Optional[List[UUID]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    problem_type: ProblemType | None = None
+    title: str | None = None
+    instructions: str | None = None
+    correct_answer_index: int | None = Field(None, ge=0)
+    target_language_code: str | None = Field(None, max_length=3, min_length=3)
+    statements: list[dict[str, Any]] | None = Field(None, min_length=1)
+    topic_tags: list[str] | None = None
+    source_statement_ids: list[UUID] | None = None
+    metadata: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def validate_correct_answer_index(self):
@@ -182,10 +182,10 @@ class ProblemSummary(BaseModel):
 
     id: UUID
     problem_type: ProblemType
-    title: Optional[str]
+    title: str | None
     instructions: str
     correct_answer_index: int
-    topic_tags: List[str]
+    topic_tags: list[str]
     created_at: datetime
 
     # Derived fields
@@ -200,9 +200,9 @@ class ProblemWithMetadata(Problem):
     """Problem with enriched metadata for analytics."""
 
     # Derived fields that might be computed
-    estimated_difficulty: Optional[str] = None
-    usage_count: Optional[int] = None
-    success_rate: Optional[float] = None
+    estimated_difficulty: str | None = None
+    usage_count: int | None = None
+    success_rate: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -211,52 +211,52 @@ class ProblemWithMetadata(Problem):
 class GrammarProblemConstraints(BaseModel):
     """Constraints for generating grammar problems."""
 
-    grammatical_focus: List[str] = Field(default_factory=list)
-    verb_infinitives: Optional[List[str]] = None
-    tenses_used: Optional[List[str]] = None
-    includes_negation: Optional[bool] = None
-    includes_cod: Optional[bool] = None
-    includes_coi: Optional[bool] = None
-    difficulty_level: Optional[DifficultyLevel] = None
+    grammatical_focus: list[str] = Field(default_factory=list)
+    verb_infinitives: list[str] | None = None
+    tenses_used: list[str] | None = None
+    includes_negation: bool | None = None
+    includes_cod: bool | None = None
+    includes_coi: bool | None = None
+    difficulty_level: DifficultyLevel | None = None
 
 
 class FunctionalProblemConstraints(BaseModel):
     """Constraints for generating functional problems."""
 
-    part_of_speech: Optional[str] = None  # "adverb", "connector", "preposition"
-    grammatical_function: Optional[str] = None  # "negation", "logical_connection"
-    function_category: Optional[str] = None  # "temporal_negation", "causal_connection"
-    target_construction: Optional[str] = None  # "ne_jamais", "mais_opposition"
-    difficulty_level: Optional[DifficultyLevel] = None
+    part_of_speech: str | None = None  # "adverb", "connector", "preposition"
+    grammatical_function: str | None = None  # "negation", "logical_connection"
+    function_category: str | None = None  # "temporal_negation", "causal_connection"
+    target_construction: str | None = None  # "ne_jamais", "mais_opposition"
+    difficulty_level: DifficultyLevel | None = None
 
 
 class VocabularyProblemConstraints(BaseModel):
     """Constraints for generating vocabulary problems."""
 
-    semantic_field: Optional[List[str]] = None  # ["animals", "food"]
-    word_difficulty: Optional[DifficultyLevel] = None
-    includes_pronunciation: Optional[bool] = None
-    word_type: Optional[str] = None  # "noun", "verb", "adjective"
+    semantic_field: list[str] | None = None  # ["animals", "food"]
+    word_difficulty: DifficultyLevel | None = None
+    includes_pronunciation: bool | None = None
+    word_type: str | None = None  # "noun", "verb", "adjective"
 
 
 # Union type for problem constraints
-ProblemConstraints = Union[
-    GrammarProblemConstraints,
-    FunctionalProblemConstraints,
-    VocabularyProblemConstraints,
-]
+ProblemConstraints = (
+    GrammarProblemConstraints
+    | FunctionalProblemConstraints
+    | VocabularyProblemConstraints
+)
 
 
 # Query models
 class ProblemFilters(BaseModel):
     """Filters for problem queries."""
 
-    problem_type: Optional[ProblemType] = None
-    topic_tags: Optional[List[str]] = None
-    target_language_code: Optional[str] = None
-    created_after: Optional[datetime] = None
-    created_before: Optional[datetime] = None
-    metadata_contains: Optional[Dict[str, Any]] = None
+    problem_type: ProblemType | None = None
+    topic_tags: list[str] | None = None
+    target_language_code: str | None = None
+    created_after: datetime | None = None
+    created_before: datetime | None = None
+    metadata_contains: dict[str, Any] | None = None
 
     # Pagination
     limit: int = Field(default=50, ge=1, le=1000)
@@ -278,7 +278,7 @@ class ProblemSearchRequest(BaseModel):
 class ProblemSearchResponse(BaseModel):
     """Response model for problem search."""
 
-    problems: List[Union[Problem, ProblemSummary]]
+    problems: list[Problem | ProblemSummary]
     total_count: int
     has_more: bool
     filters_applied: ProblemFilters

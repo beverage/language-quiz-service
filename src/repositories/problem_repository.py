@@ -1,20 +1,19 @@
 """Problems repository for data access."""
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from uuid import UUID
-
-from supabase import Client
 
 from src.clients.supabase import get_supabase_client
 from src.schemas.problems import (
     Problem,
     ProblemCreate,
-    ProblemUpdate,
-    ProblemType,
     ProblemFilters,
     ProblemSummary,
+    ProblemType,
+    ProblemUpdate,
 )
+from supabase import Client
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +22,7 @@ class ProblemRepository:
     """Repository for problem data access operations."""
 
     @classmethod
-    async def create(cls, client: Optional[Client] = None) -> "ProblemRepository":
+    async def create(cls, client: Client | None = None) -> "ProblemRepository":
         """Asynchronously create an instance of ProblemRepository."""
         if client is None:
             client = await get_supabase_client()
@@ -35,25 +34,17 @@ class ProblemRepository:
 
     async def create_problem(self, problem: ProblemCreate) -> Problem:
         """Create a new problem."""
-        problem_dict = problem.model_dump()
-
-        # Convert enums and UUIDs to string values for storage
-        for key, value in problem_dict.items():
-            if hasattr(value, "value"):
-                problem_dict[key] = value.value
-            elif isinstance(value, UUID):
-                problem_dict[key] = str(value)
-            elif isinstance(value, list) and value and isinstance(value[0], UUID):
-                # Handle UUID arrays (like source_statement_ids)
-                problem_dict[key] = [str(uuid_val) for uuid_val in value]
+        problem_dict = problem.model_dump(
+            mode="json"
+        )  # Use mode="json" to serialize enums correctly
 
         result = await self.client.table("problems").insert(problem_dict).execute()
 
         if result.data:
-            return Problem.model_validate(result.data[0])
+            return Problem.model_validate(self._prepare_problem_data(result.data[0]))
         raise Exception("Failed to create problem")
 
-    async def get_problem(self, problem_id: UUID) -> Optional[Problem]:
+    async def get_problem(self, problem_id: UUID) -> Problem | None:
         """Get a problem by ID."""
         result = (
             await self.client.table("problems")
@@ -63,12 +54,12 @@ class ProblemRepository:
         )
 
         if result.data:
-            return Problem.model_validate(result.data[0])
+            return Problem.model_validate(self._prepare_problem_data(result.data[0]))
         return None
 
     async def get_problems(
         self, filters: ProblemFilters, include_statements: bool = True
-    ) -> Tuple[List[Problem], int]:
+    ) -> tuple[list[Problem], int]:
         """
         Get problems with filtering and pagination.
         Returns tuple of (problems, total_count).
@@ -78,8 +69,8 @@ class ProblemRepository:
             "*"
             if include_statements
             else """
-            id, created_at, updated_at, problem_type, title, instructions, 
-            correct_answer_index, target_language_code, topic_tags, 
+            id, created_at, updated_at, problem_type, title, instructions,
+            correct_answer_index, target_language_code, topic_tags,
             source_statement_ids, metadata
         """
         )
@@ -96,7 +87,9 @@ class ProblemRepository:
         result = await query.execute()
 
         problems = (
-            [Problem.model_validate(p) for p in result.data] if result.data else []
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
         )
         total_count = result.count or 0
 
@@ -104,12 +97,13 @@ class ProblemRepository:
 
     async def get_problem_summaries(
         self, filters: ProblemFilters
-    ) -> Tuple[List[ProblemSummary], int]:
+    ) -> tuple[list[ProblemSummary], int]:
         """Get lightweight problem summaries for list views."""
-        # Select only fields needed for summary
+        # PostgREST approach: First get basic fields, then compute statement_count in Python
+        # This avoids the PostgREST function call issue
         select_fields = """
-            id, problem_type, title, instructions, correct_answer_index, 
-            topic_tags, created_at, jsonb_array_length(statements) as statement_count
+            id, problem_type, title, instructions, correct_answer_index,
+            topic_tags, created_at, statements
         """
 
         query = self.client.table("problems").select(select_fields, count="exact")
@@ -121,26 +115,33 @@ class ProblemRepository:
         summaries = []
         if result.data:
             for p in result.data:
-                # ProblemSummary expects statement_count as a field
-                summary_data = {**p, "statement_count": p.get("statement_count", 0)}
+                # Calculate statement_count in Python from the JSONB data
+                statement_count = (
+                    len(p.get("statements", [])) if p.get("statements") else 0
+                )
+
+                # Create summary data without the statements field (not needed for summary)
+                summary_data = {
+                    "id": p["id"],
+                    "problem_type": p["problem_type"],
+                    "title": p["title"],
+                    "instructions": p["instructions"],
+                    "correct_answer_index": p["correct_answer_index"],
+                    "topic_tags": p["topic_tags"],
+                    "created_at": p["created_at"],
+                    "statement_count": statement_count,
+                }
                 summaries.append(ProblemSummary.model_validate(summary_data))
 
         return summaries, result.count or 0
 
     async def update_problem(
         self, problem_id: UUID, problem_data: ProblemUpdate
-    ) -> Optional[Problem]:
+    ) -> Problem | None:
         """Update a problem."""
-        update_dict = problem_data.model_dump(exclude_unset=True)
-
-        # Convert enums and UUIDs to string values for storage
-        for key, value in update_dict.items():
-            if hasattr(value, "value"):
-                update_dict[key] = value.value
-            elif isinstance(value, UUID):
-                update_dict[key] = str(value)
-            elif isinstance(value, list) and value and isinstance(value[0], UUID):
-                update_dict[key] = [str(uuid_val) for uuid_val in value]
+        update_dict = problem_data.model_dump(
+            exclude_unset=True, mode="json"
+        )  # Use mode="json" for enum serialization
 
         result = (
             await self.client.table("problems")
@@ -150,7 +151,7 @@ class ProblemRepository:
         )
 
         if result.data:
-            return Problem.model_validate(result.data[0])
+            return Problem.model_validate(self._prepare_problem_data(result.data[0]))
         return None
 
     async def delete_problem(self, problem_id: UUID) -> bool:
@@ -163,9 +164,16 @@ class ProblemRepository:
         )
         return len(result.data) > 0
 
+    def _prepare_problem_data(self, problem_data: dict[str, Any]) -> dict[str, Any]:
+        """Prepare problem data from database for model validation."""
+        # Handle null metadata from database
+        if problem_data.get("metadata") is None:
+            problem_data["metadata"] = {}
+        return problem_data
+
     async def get_problems_by_type(
         self, problem_type: ProblemType, limit: int = 50
-    ) -> List[Problem]:
+    ) -> list[Problem]:
         """Get problems by type."""
         result = (
             await self.client.table("problems")
@@ -174,11 +182,15 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
     async def get_problems_by_topic_tags(
-        self, topic_tags: List[str], limit: int = 50
-    ) -> List[Problem]:
+        self, topic_tags: list[str], limit: int = 50
+    ) -> list[Problem]:
         """Get problems that contain any of the specified topic tags."""
         # Use array overlap operator
         result = (
@@ -188,11 +200,15 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
     async def get_problems_using_statement(
         self, statement_id: UUID, limit: int = 50
-    ) -> List[Problem]:
+    ) -> list[Problem]:
         """Get problems that reference a specific source statement."""
         result = (
             await self.client.table("problems")
@@ -201,11 +217,15 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
     async def search_problems_by_metadata(
-        self, metadata_query: Dict[str, Any], limit: int = 50
-    ) -> List[Problem]:
+        self, metadata_query: dict[str, Any], limit: int = 50
+    ) -> list[Problem]:
         """Search problems by metadata containment."""
         result = (
             await self.client.table("problems")
@@ -214,13 +234,17 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
     async def get_random_problem(
         self,
-        problem_type: Optional[ProblemType] = None,
-        topic_tags: Optional[List[str]] = None,
-    ) -> Optional[Problem]:
+        problem_type: ProblemType | None = None,
+        topic_tags: list[str] | None = None,
+    ) -> Problem | None:
         """Get a random problem with optional filters."""
         # Note: Supabase doesn't have native random, this is a simple implementation
         query = self.client.table("problems").select("*")
@@ -236,13 +260,15 @@ class ProblemRepository:
         if result.data:
             import random
 
-            return Problem.model_validate(random.choice(result.data))
+            return Problem.model_validate(
+                self._prepare_problem_data(random.choice(result.data))
+            )
         return None
 
     async def count_problems(
         self,
-        problem_type: Optional[ProblemType] = None,
-        topic_tags: Optional[List[str]] = None,
+        problem_type: ProblemType | None = None,
+        topic_tags: list[str] | None = None,
     ) -> int:
         """Count problems with optional filters."""
         query = self.client.table("problems").select("id", count="exact")
@@ -281,7 +307,7 @@ class ProblemRepository:
         return query
 
     # Analytics and reporting methods
-    async def get_problem_statistics(self) -> Dict[str, Any]:
+    async def get_problem_statistics(self) -> dict[str, Any]:
         """Get basic statistics about problems."""
         # Get total count
         total_result = (
@@ -307,7 +333,7 @@ class ProblemRepository:
 
     async def get_problems_with_topic_tag(
         self, topic_tag: str, limit: int = 50
-    ) -> List[Problem]:
+    ) -> list[Problem]:
         """Get problems that contain a specific topic tag."""
         result = (
             await self.client.table("problems")
@@ -316,9 +342,13 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )
 
-    async def get_recent_problems(self, limit: int = 10) -> List[Problem]:
+    async def get_recent_problems(self, limit: int = 10) -> list[Problem]:
         """Get the most recently created problems."""
         result = (
             await self.client.table("problems")
@@ -327,4 +357,8 @@ class ProblemRepository:
             .limit(limit)
             .execute()
         )
-        return [Problem.model_validate(p) for p in result.data] if result.data else []
+        return (
+            [Problem.model_validate(self._prepare_problem_data(p)) for p in result.data]
+            if result.data
+            else []
+        )

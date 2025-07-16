@@ -48,7 +48,7 @@ Rules:
 
 Field Instructions:
 - direct_object: Return the grammatical gender/number of the direct object ("masculine", "feminine", "plural") or "none" if no direct object
-- indirect_object: Return the grammatical gender/number of the indirect object ("masculine", "feminine", "plural") or "none" if no indirect object  
+- indirect_object: Return the grammatical gender/number of the indirect object ("masculine", "feminine", "plural") or "none" if no indirect object
 - negation: Return ONLY actual negation words ("pas", "jamais", "rien", "personne", "plus", "aucun", "aucune", "encore") or "none" if no negation. Do NOT use positive adverbs like "toujours", "souvent", "déjà" in this field.
 - Do NOT put actual object words (like "un livre", "la porte") in direct_object or indirect_object fields
 - Feel free to use adverbs and other descriptive words to make sentences more interesting, but keep negation field accurate
@@ -88,8 +88,8 @@ replaces the actual indirect object.
         if not sentence.is_correct:
             prompt = [
                 """
-The sentence will contain one or more SUBTLE grammatical errors while maintaining the same level of creativity, 
-complexity, and length as a correct sentence. These errors can include incorrect conjugation, number and 
+The sentence will contain one or more SUBTLE grammatical errors while maintaining the same level of creativity,
+complexity, and length as a correct sentence. These errors can include incorrect conjugation, number and
 gender disagreements, incorrect object agreement, incorrect pronoun agreement, incorrect auxiliary agreement, etc.
 
 IMPORTANT: The incorrect sentence should be just as elaborate, descriptive, and creative as a correct sentence would be.
@@ -136,7 +136,7 @@ Sentence: {sentence.content}
 
 Required properties:
 - Subject: {sentence.pronoun.value}
-- Tense: {sentence.tense.value} 
+- Tense: {sentence.tense.value}
 - Verb: {verb.infinitive}
 - Auxiliary: {verb.auxiliary}
 - COD: {"required" if sentence.direct_object.value != "none" and verb.can_have_cod else "not required"}
@@ -147,7 +147,7 @@ Return JSON with these fields:
 - is_valid: true if sentence meets all requirements above
 - explanation: brief explanation if is_valid is false
 - actual_direct_object: none, masculine, feminine, or plural
-- actual_indirect_object: none, masculine, feminine, or plural  
+- actual_indirect_object: none, masculine, feminine, or plural
 - actual_negation: detected negation type or none
 - direct_object_text: the actual direct object word(s) found
 - indirect_object_text: the actual indirect object word(s) found

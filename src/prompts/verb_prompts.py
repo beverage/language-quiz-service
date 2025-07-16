@@ -43,7 +43,7 @@ Intransitive verbs with no complement objects:
 AUXILIARY-SPECIFIC USAGE:
 For verbs with multiple auxiliaries, consider the specified auxiliary:
 - vivre + avoir: "J'ai vécu une expérience" → COD only
-- sortir + avoir: "J'ai sorti les poubelles" → COD only  
+- sortir + avoir: "J'ai sorti les poubelles" → COD only
 - sortir + être: "Je suis sorti" → NEITHER
 
 Focus on the MOST COMMON usage with the given auxiliary '{auxiliary}'.
@@ -87,7 +87,7 @@ The JSON structure MUST be as follows. Do not deviate.
             "second_person_singular": "",
             "third_person_singular": "",
             "first_person_plural": "",
-            "second_person_formal": "",
+            "second_person_plural": "",
             "third_person_plural": ""
         }},
         {{
@@ -99,7 +99,7 @@ The JSON structure MUST be as follows. Do not deviate.
             "second_person_singular": "",
             "third_person_singular": "",
             "first_person_plural": "",
-            "second_person_formal": "",
+            "second_person_plural": "",
             "third_person_plural": ""
         }}
     ]

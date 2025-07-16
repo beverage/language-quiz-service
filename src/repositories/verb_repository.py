@@ -1,20 +1,18 @@
 """Verb repository for data access with updated Supabase schema."""
 
-from typing import List, Optional
 from uuid import UUID
 
-from supabase import Client
-
 from src.schemas.verbs import (
-    Verb,
-    VerbCreate,
-    VerbUpdate,
-    VerbWithConjugations,
     Conjugation,
     ConjugationCreate,
     ConjugationUpdate,
     Tense,
+    Verb,
+    VerbCreate,
+    VerbUpdate,
+    VerbWithConjugations,
 )
+from supabase import Client
 
 
 class VerbRepository:
@@ -23,7 +21,9 @@ class VerbRepository:
 
     async def create_verb(self, verb: VerbCreate) -> Verb:
         """Create a new verb."""
-        verb_dict = verb.model_dump()
+        verb_dict = verb.model_dump(
+            mode="json"
+        )  # Use mode="json" to serialize enums correctly
         result = await self.client.table("verbs").insert(verb_dict).execute()
 
         if result.data:
@@ -38,8 +38,8 @@ class VerbRepository:
         return len(result.data) > 0
 
     async def get_all_verbs(
-        self, limit: int = 100, target_language_code: Optional[str] = None
-    ) -> List[Verb]:
+        self, limit: int = 100, target_language_code: str | None = None
+    ) -> list[Verb]:
         """Get all verbs, optionally filtered by language."""
         query = self.client.table("verbs").select("*").limit(limit)
 
@@ -49,9 +49,7 @@ class VerbRepository:
         result = await query.execute()
         return [Verb.model_validate(verb) for verb in result.data]
 
-    async def get_random_verb(
-        self, target_language_code: str = "eng"
-    ) -> Optional[Verb]:
+    async def get_random_verb(self, target_language_code: str = "eng") -> Verb | None:
         """
         Get a random verb using the database function.
 
@@ -65,7 +63,7 @@ class VerbRepository:
             return Verb.model_validate(result.data[0])
         return None
 
-    async def get_verb(self, verb_id: UUID) -> Optional[Verb]:
+    async def get_verb(self, verb_id: UUID) -> Verb | None:
         """Get a verb by ID."""
         result = (
             await self.client.table("verbs")
@@ -81,10 +79,10 @@ class VerbRepository:
     async def get_verb_by_infinitive(
         self,
         infinitive: str,
-        auxiliary: Optional[str] = None,
-        reflexive: Optional[bool] = None,
-        target_language_code: Optional[str] = None,
-    ) -> Optional[Verb]:
+        auxiliary: str | None = None,
+        reflexive: bool | None = None,
+        target_language_code: str | None = None,
+    ) -> Verb | None:
         """
         Get a verb by infinitive and optional parameters.
 
@@ -106,7 +104,7 @@ class VerbRepository:
             return Verb.model_validate(result.data[0])
         return None
 
-    async def get_verbs_by_infinitive(self, infinitive: str) -> List[Verb]:
+    async def get_verbs_by_infinitive(self, infinitive: str) -> list[Verb]:
         """Get all verbs with the same infinitive (different auxiliary/reflexive combinations)."""
         result = (
             await self.client.table("verbs")
@@ -122,7 +120,7 @@ class VerbRepository:
         auxiliary: str,
         reflexive: bool = False,
         target_language_code: str = "eng",
-    ) -> Optional[VerbWithConjugations]:
+    ) -> VerbWithConjugations | None:
         """Get a verb with all its conjugations."""
         verb = await self.get_verb_by_infinitive(
             infinitive=infinitive,
@@ -145,9 +143,9 @@ class VerbRepository:
         self,
         query: str,
         search_translation: bool = True,
-        target_language_code: Optional[str] = None,
+        target_language_code: str | None = None,
         limit: int = 20,
-    ) -> List[Verb]:
+    ) -> list[Verb]:
         """
         Search verbs by infinitive or translation.
 
@@ -189,9 +187,11 @@ class VerbRepository:
         )
         return len(result.data) > 0
 
-    async def update_verb(self, verb_id: UUID, verb: VerbUpdate) -> Optional[Verb]:
+    async def update_verb(self, verb_id: UUID, verb: VerbUpdate) -> Verb | None:
         """Update a verb."""
-        verb_dict = verb.model_dump(exclude_unset=True)
+        verb_dict = verb.model_dump(
+            exclude_unset=True, mode="json"
+        )  # Add mode="json" for enum serialization
         result = (
             await self.client.table("verbs")
             .update(verb_dict)
@@ -225,11 +225,9 @@ class VerbRepository:
 
     async def create_conjugation(self, conjugation: ConjugationCreate) -> Conjugation:
         """Create a new conjugation."""
-        conj_dict = conjugation.model_dump()
-
-        # Ensure tense is stored as string value
-        if hasattr(conj_dict["tense"], "value"):
-            conj_dict["tense"] = conj_dict["tense"].value
+        conj_dict = conjugation.model_dump(
+            mode="json"
+        )  # Use mode="json" to serialize enums correctly
 
         result = await self.client.table("conjugations").insert(conj_dict).execute()
 
@@ -253,7 +251,7 @@ class VerbRepository:
 
     async def get_conjugation(
         self, infinitive: str, auxiliary: str, reflexive: bool, tense: Tense
-    ) -> Optional[Conjugation]:
+    ) -> Conjugation | None:
         """Get a specific conjugation by verb parameters and tense."""
         result = (
             await self.client.table("conjugations")
@@ -271,7 +269,7 @@ class VerbRepository:
 
     async def get_conjugation_by_verb_and_tense(
         self, infinitive: str, auxiliary: str, reflexive: bool, tense: Tense
-    ) -> Optional[Conjugation]:
+    ) -> Conjugation | None:
         """Get a specific conjugation by verb parameters and tense."""
         result = (
             await self.client.table("conjugations")
@@ -289,7 +287,7 @@ class VerbRepository:
 
     async def get_conjugations(
         self, infinitive: str, auxiliary: str, reflexive: bool = False
-    ) -> List[Conjugation]:
+    ) -> list[Conjugation]:
         """
         Get all conjugations for a verb identified by infinitive, auxiliary, and reflexive.
 
@@ -312,13 +310,11 @@ class VerbRepository:
         reflexive: bool,
         tense: Tense,
         conjugation: ConjugationUpdate,
-    ) -> Optional[Conjugation]:
+    ) -> Conjugation | None:
         """Update a conjugation by verb parameters and tense."""
-        conj_dict = conjugation.model_dump(exclude_unset=True)
-
-        # Ensure tense is stored as string value if present
-        if "tense" in conj_dict and hasattr(conj_dict["tense"], "value"):
-            conj_dict["tense"] = conj_dict["tense"].value
+        conj_dict = conjugation.model_dump(
+            exclude_unset=True, mode="json"
+        )  # Use mode="json" for enum serialization
 
         result = (
             await self.client.table("conjugations")
@@ -343,7 +339,9 @@ class VerbRepository:
         )
         if existing:
             update_payload = ConjugationUpdate.model_validate(
-                conjugation_data.model_dump()
+                conjugation_data.model_dump(
+                    mode="json"
+                )  # Use mode="json" for enum serialization
             )
             await self.update_conjugation_by_verb_and_tense(
                 conjugation_data.infinitive,

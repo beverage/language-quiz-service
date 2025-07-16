@@ -1,4 +1,4 @@
-.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev build deploy logs up down
+.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev build deploy logs up down start-supabase
 
 # Default target
 help:
@@ -16,6 +16,7 @@ help:
 	@echo "  logs            - Show service logs (ENV=staging|production, default: staging)"
 	@echo "  up              - Start all machines (ENV=staging|production, default: staging)"
 	@echo "  down            - Stop all machines (ENV=staging|production, default: staging)"
+	@echo "  start-supabase  - Start Supabase with minimal containers for testing"
 	@echo "  all             - Run format, lint, and test"
 	@echo ""
 	@echo "Examples:"
@@ -58,6 +59,11 @@ up:
 down:
 	@echo "Stopping $(ENV) machines..."
 	flyctl machine list --json --config fly.$(ENV).toml | jq -r '.[].id' | xargs -I {} flyctl machine stop {} --config fly.$(ENV).toml
+
+# Supabase targets
+start-supabase:
+	@echo "Starting Supabase with minimal containers for testing..."
+	supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
 # Linting targets
 lint-check:

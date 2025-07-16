@@ -1,23 +1,24 @@
 """Comprehensive tests for API key schemas and utilities."""
 
-import pytest
+from datetime import UTC, datetime, timezone
 from unittest.mock import patch
+from uuid import uuid4
+
+import pytest
 from pydantic import ValidationError
 
 from src.schemas.api_keys import (
-    ApiKeyCreate,
-    ApiKeyUpdate,
     ApiKey,
+    ApiKeyCreate,
     ApiKeyResponse,
-    ApiKeyWithPlainText,
     ApiKeyStats,
+    ApiKeyUpdate,
+    ApiKeyWithPlainText,
+    check_ip_allowed,
     generate_api_key,
     hash_api_key,
     verify_api_key,
-    check_ip_allowed,
 )
-from datetime import datetime, timezone
-from uuid import uuid4
 
 
 @pytest.fixture
@@ -45,8 +46,8 @@ def sample_api_key_data():
         "client_name": "Test Client",
         "is_active": True,
         "permissions_scope": ["read"],
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
         "last_used_at": None,
         "usage_count": 0,
         "rate_limit_rpm": 100,

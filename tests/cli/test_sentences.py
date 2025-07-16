@@ -1,7 +1,10 @@
 """Tests for CLI sentence functionality."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
+
+import pytest
+
 from src.cli.sentences.create import create_sentence
 from src.schemas.sentences import (
     DirectObject,
@@ -11,8 +14,7 @@ from src.schemas.sentences import (
     Sentence,
     Tense,
 )
-from src.schemas.verbs import Verb, AuxiliaryType, VerbClassification
-from uuid import UUID
+from src.schemas.verbs import AuxiliaryType, Verb, VerbClassification
 
 
 @pytest.fixture

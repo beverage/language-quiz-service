@@ -1,4 +1,5 @@
 from openai import AsyncOpenAI
+
 from src.core.config import settings
 
 

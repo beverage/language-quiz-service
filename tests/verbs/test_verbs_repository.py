@@ -1,428 +1,306 @@
-"""Unit tests for the verb repository."""
+"""Test cases for verb repository using Supabase client only."""
 
-from unittest.mock import MagicMock, AsyncMock
+from uuid import uuid4
 
 import pytest
 
-from src.repositories.verb_repository import VerbRepository
-from src.schemas.verbs import VerbCreate, VerbUpdate
-
-
-@pytest.fixture
-def mock_supabase_client() -> MagicMock:
-    """Provides a mock Supabase client for testing."""
-    mock_client = MagicMock()
-
-    # Mock the chain of calls for select
-    select_mock = MagicMock()
-    select_mock.eq.return_value = select_mock
-    select_mock.limit.return_value = select_mock
-    select_mock.execute = AsyncMock()
-
-    # Mock the chain of calls for update
-    update_mock = MagicMock()
-    update_mock.eq.return_value = update_mock
-    update_mock.execute = AsyncMock()
-
-    # Mock the chain of calls for insert
-    insert_mock = MagicMock()
-    insert_mock.execute = AsyncMock()
-
-    # Mock the chain of calls for delete
-    delete_mock = MagicMock()
-    delete_mock.eq.return_value = delete_mock
-    delete_mock.execute = AsyncMock()
-
-    # Mock the rpc call
-    rpc_mock = MagicMock()
-    rpc_mock.execute = AsyncMock()
-
-    # Mock the table method to return a mock that has the chained methods
-    table_mock = MagicMock()
-    table_mock.select.return_value = select_mock
-    table_mock.update.return_value = update_mock
-    table_mock.insert.return_value = insert_mock
-    table_mock.delete.return_value = delete_mock
-
-    mock_client.table.return_value = table_mock
-    mock_client.rpc.return_value = rpc_mock
-    return mock_client
-
-
-@pytest.fixture
-def repository(mock_supabase_client: MagicMock) -> VerbRepository:
-    """Provides a VerbRepository instance with a mocked Supabase client."""
-    return VerbRepository(client=mock_supabase_client)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "method,setup_fn,call_args,expected_result,raises",
-    [
-        (
-            "create_verb",
-            lambda repo,
-            client,
-            verb: client.table.return_value.insert.return_value.execute.return_value.__setattr__(
-                "data", [verb.model_dump()]
-            ),
-            lambda verb: (VerbCreate(**verb.model_dump()),),
-            lambda verb: verb.infinitive,
-            None,
-        ),
-        (
-            "get_verb",
-            lambda repo,
-            client,
-            verb: client.table.return_value.select.return_value.eq.return_value.execute.return_value.__setattr__(
-                "data", [verb.model_dump()]
-            ),
-            lambda verb: (verb.id,),
-            lambda verb: verb.id,
-            None,
-        ),
-        (
-            "update_verb",
-            lambda repo,
-            client,
-            verb: client.table.return_value.update.return_value.eq.return_value.execute.return_value.__setattr__(
-                "data",
-                [
-                    verb.model_copy(
-                        update={"infinitive": "new infinitive", "reflexive": True}
-                    ).model_dump()
-                ],
-            ),
-            lambda verb: (
-                verb.id,
-                VerbUpdate(infinitive="new infinitive", reflexive=True),
-            ),
-            lambda verb: "new infinitive",
-            None,
-        ),
-        (
-            "delete_verb",
-            lambda repo,
-            client,
-            verb: client.table.return_value.delete.return_value.eq.return_value.execute.return_value.__setattr__(
-                "data", [1]
-            ),
-            lambda verb: (verb.id,),
-            lambda verb: True,
-            None,
-        ),
-    ],
+from src.schemas.verbs import (
+    ConjugationCreate,
+    ConjugationUpdate,
+    Tense,
+    Verb,
+    VerbClassification,
+    VerbCreate,
+    VerbUpdate,
 )
-async def test_verb_repository_crud(
-    repository,
-    mock_supabase_client,
-    sample_db_verb,
-    method,
-    setup_fn,
-    call_args,
-    expected_result,
-    raises,
-):
-    setup_fn(repository, mock_supabase_client, sample_db_verb)
-    args = call_args(sample_db_verb)
-    if raises:
-        with pytest.raises(raises):
-            await getattr(repository, method)(*args)
-    else:
-        result = await getattr(repository, method)(*args)
-        if method == "create_verb":
-            assert result.infinitive == expected_result(sample_db_verb)
-        elif method == "get_verb":
-            assert result.id == expected_result(sample_db_verb)
-        elif method == "update_verb":
-            assert result.infinitive == expected_result(sample_db_verb)
-        elif method == "delete_verb":
-            assert result is expected_result(sample_db_verb)
-
-
-@pytest.fixture
-def chainable_mock_supabase_client():
-    mock_client = MagicMock()
-    mock_chain = MagicMock()
-    mock_chain.select.return_value = mock_chain
-    mock_chain.insert.return_value = mock_chain
-    mock_chain.update.return_value = mock_chain
-    mock_chain.delete.return_value = mock_chain
-    mock_chain.eq.return_value = mock_chain
-    mock_chain.in_.return_value = mock_chain
-    mock_chain.limit.return_value = mock_chain
-    mock_chain.or_.return_value = mock_chain
-    mock_chain.ilike.return_value = mock_chain
-    mock_chain.execute = AsyncMock()
-    mock_client.table.return_value = mock_chain
-    mock_client.rpc.return_value.execute = AsyncMock()
-    return mock_client
-
-
-@pytest.fixture
-def extended_repository(chainable_mock_supabase_client):
-    return VerbRepository(client=chainable_mock_supabase_client)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "method,setup_fn,call_args,expected_result,raises",
-    [
-        (
-            "get_verb_by_infinitive",
-            lambda repo, client, verb: client.table.return_value.execute.__setattr__(
-                "return_value", MagicMock(data=[verb.model_dump()])
-            ),
-            lambda verb: ("aller", "être", False, "fra"),
-            lambda verb: verb.infinitive,
-            None,
-        ),
-        (
-            "get_verbs_by_infinitive",
-            lambda repo, client, verb: client.table.return_value.execute.__setattr__(
-                "return_value",
-                MagicMock(
-                    data=[verb.model_dump(), verb.model_dump() | {"reflexive": True}]
-                ),
-            ),
-            lambda verb: ("aller",),
-            lambda verb: 2,
-            None,
-        ),
-        (
-            "get_all_verbs",
-            lambda repo, client, verb: client.table.return_value.execute.__setattr__(
-                "return_value", MagicMock(data=[verb.model_dump()])
-            ),
-            lambda verb: (50, "fra"),
-            lambda verb: 1,
-            None,
-        ),
-        (
-            "get_random_verb",
-            lambda repo, client, verb: client.rpc.return_value.execute.__setattr__(
-                "return_value", MagicMock(data=[verb.model_dump()])
-            ),
-            lambda verb: ("fra",),
-            lambda verb: verb.infinitive,
-            None,
-        ),
-    ],
+from tests.verbs.fixtures import (
+    generate_random_conjugation_data,
+    generate_random_verb_data,
+    verb_repository,  # Import the fixture
 )
-async def test_verb_repository_retrieval_variants(
-    extended_repository,
-    chainable_mock_supabase_client,
-    sample_db_verb,
-    method,
-    setup_fn,
-    call_args,
-    expected_result,
-    raises,
-):
-    setup_fn(extended_repository, chainable_mock_supabase_client, sample_db_verb)
-    args = call_args(sample_db_verb)
-    if raises:
-        with pytest.raises(raises):
-            await getattr(extended_repository, method)(*args)
-    else:
-        result = await getattr(extended_repository, method)(*args)
-        if method == "get_verbs_by_infinitive":
-            assert len(result) == expected_result(sample_db_verb)
-        elif method == "get_all_verbs":
-            assert len(result) == expected_result(sample_db_verb)
-        else:
-            assert result.infinitive == expected_result(sample_db_verb)
 
 
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_conjugation_by_verb_and_tense(
-    repository, mock_supabase_client, sample_db_conjugation
-):
-    mock_response = MagicMock()
-    mock_response.data = [sample_db_conjugation.model_dump()]
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
-    result = await repository.get_conjugation_by_verb_and_tense(
-        sample_db_conjugation.infinitive,
-        sample_db_conjugation.auxiliary.value,
-        sample_db_conjugation.reflexive,
-        sample_db_conjugation.tense,
+class TestVerbRepository:
+    """Test cases for VerbRepository using Supabase client operations only."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_create_repository_with_supabase_client(self, verb_repository):
+        """Test that VerbRepository can be instantiated with Supabase client."""
+        assert verb_repository.client is not None
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_create_verb_failure_with_invalid_data(self, verb_repository):
+        """Test that creating a verb with invalid data raises an exception."""
+        # Create invalid verb data (missing required fields)
+        invalid_verb_data = {"infinitive": ""}  # Empty infinitive should fail
+
+        with pytest.raises(Exception):
+            await verb_repository.create_verb(VerbCreate(**invalid_verb_data))
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_verb_crud_operations_create(self, verb_repository):
+        """Test creating a verb using repository."""
+        verb_data = generate_random_verb_data()
+        verb_create = VerbCreate(**verb_data)
+
+        result = await verb_repository.create_verb(verb_create)
+
+        assert result.infinitive == verb_data["infinitive"]
+        assert result.auxiliary == verb_data["auxiliary"]
+        assert result.target_language_code == verb_data["target_language_code"]
+        assert result.translation == verb_data["translation"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_verb_crud_operations_get(self, verb_repository):
+        """Test getting a verb by ID using repository."""
+        # First create a verb
+        verb_data = generate_random_verb_data()
+        created_verb = await verb_repository.create_verb(VerbCreate(**verb_data))
+
+        # Then retrieve it
+        result = await verb_repository.get_verb(created_verb.id)
+
+        assert result is not None
+        assert result.id == created_verb.id
+        assert result.infinitive == verb_data["infinitive"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_verb_crud_operations_update(self, verb_repository):
+        """Test updating a verb using repository."""
+        # First create a verb
+        verb_data = generate_random_verb_data()
+        created_verb = await verb_repository.create_verb(VerbCreate(**verb_data))
+
+        # Then update it
+        update_data = VerbUpdate(translation="updated translation")
+        result = await verb_repository.update_verb(created_verb.id, update_data)
+
+        assert result is not None
+        assert result.translation == "updated translation"
+        assert result.infinitive == verb_data["infinitive"]  # Unchanged
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_verb_crud_operations_delete(self, verb_repository):
+        """Test deleting a verb using repository."""
+        # First create a verb
+        verb_data = generate_random_verb_data()
+        created_verb = await verb_repository.create_verb(VerbCreate(**verb_data))
+
+        # Then delete it
+        result = await verb_repository.delete_verb(created_verb.id)
+        assert result is True
+
+        # Verify it's deleted
+        deleted_verb = await verb_repository.get_verb(created_verb.id)
+        assert deleted_verb is None
+
+    @pytest.mark.integration
+    @pytest.mark.asyncio
+    async def test_verb_retrieval_variants(self, verb_repository):
+        """Test different ways of retrieving verbs using repository."""
+        # Create a unique verb for this test
+        unique_suffix = uuid4().hex[:8]
+        verb_data = generate_random_verb_data()
+        verb_data["infinitive"] = f"test_verb_{unique_suffix}"
+
+        created_verb = await verb_repository.create_verb(VerbCreate(**verb_data))
+
+        # Test get by ID
+        retrieved_verb = await verb_repository.get_verb(created_verb.id)
+        assert retrieved_verb.id == created_verb.id
+
+        # Test get by infinitive
+        retrieved_by_infinitive = await verb_repository.get_verb_by_infinitive(
+            created_verb.infinitive
+        )
+        assert retrieved_by_infinitive.id == created_verb.id
+
+        # Test get all verbs - just ensure we get at least one verb (our created one)
+        all_verbs = await verb_repository.get_all_verbs()
+        assert len(all_verbs) >= 1  # At least our created verb should be there
+
+        # Test get all verbs with limit
+        limited_verbs = await verb_repository.get_all_verbs(limit=1)
+        assert len(limited_verbs) == 1
+
+        # Test get random verb
+        random_verb = await verb_repository.get_random_verb()
+        assert random_verb is not None
+
+        # Test not found cases
+        non_existent_verb = await verb_repository.get_verb(uuid4())
+        assert non_existent_verb is None
+
+        non_existent_by_infinitive = await verb_repository.get_verb_by_infinitive(
+            "non_existent_verb_xyz"
+        )
+        assert non_existent_by_infinitive is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_conjugation_operations(self, verb_repository):
+        """Test conjugation CRUD operations using repository."""
+        # Create conjugation data
+        conjugation_data = generate_random_conjugation_data()
+        conjugation_create = ConjugationCreate(**conjugation_data)
+
+        # Test create conjugation
+        await verb_repository.upsert_conjugation(conjugation_create)
+
+        # Test get conjugation by verb and tense
+        retrieved_conjugation = await verb_repository.get_conjugation_by_verb_and_tense(
+            conjugation_data["infinitive"],
+            conjugation_data["auxiliary"],
+            conjugation_data["reflexive"],
+            Tense(conjugation_data["tense"]),  # Convert string to Tense enum
+        )
+        assert retrieved_conjugation is not None
+        assert retrieved_conjugation.infinitive == conjugation_data["infinitive"]
+        assert retrieved_conjugation.tense == conjugation_data["tense"]
+
+        # Test get conjugations by verb
+        conjugations = await verb_repository.get_conjugations(
+            conjugation_data["infinitive"],
+            conjugation_data["auxiliary"],  # Add required auxiliary parameter
+            conjugation_data["reflexive"],  # Add required reflexive parameter
+        )
+        assert len(conjugations) >= 1
+        found_tenses = [c.tense for c in conjugations]
+        assert conjugation_data["tense"] in found_tenses
+
+        # Test update conjugation
+        update_data = ConjugationUpdate(first_person_singular="updated_form")
+        updated_conjugation = (
+            await verb_repository.update_conjugation_by_verb_and_tense(
+                conjugation_data["infinitive"],
+                conjugation_data["auxiliary"],
+                conjugation_data["reflexive"],
+                Tense(conjugation_data["tense"]),  # Convert string to Tense enum
+                update_data,
+            )
+        )
+        assert updated_conjugation is not None
+        assert updated_conjugation.first_person_singular == "updated_form"
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_search_verbs(self, verb_repository):
+        """Test verb search functionality using repository."""
+        # Create test verbs with known values for searching
+        unique_suffix = uuid4().hex[:8]
+
+        search_verb_data = generate_random_verb_data()
+        search_verb_data["infinitive"] = f"chercher_{unique_suffix}"
+        search_verb_data["translation"] = f"to_search_{unique_suffix}"
+
+        regular_verb_data = generate_random_verb_data()
+        regular_verb_data["infinitive"] = f"manger_{unique_suffix}"
+        regular_verb_data["translation"] = f"to_eat_{unique_suffix}"
+
+        search_verb = await verb_repository.create_verb(VerbCreate(**search_verb_data))
+        await verb_repository.create_verb(VerbCreate(**regular_verb_data))
+
+        # Test search by infinitive
+        search_results_infinitive = await verb_repository.search_verbs(
+            f"chercher_{unique_suffix}"
+        )
+        assert len(search_results_infinitive) >= 1
+        found_ids = [v.id for v in search_results_infinitive]
+        assert search_verb.id in found_ids
+
+        # Test search by translation
+        search_results_translation = await verb_repository.search_verbs(
+            f"search_{unique_suffix}"
+        )
+        assert len(search_results_translation) >= 1
+        found_ids = [v.id for v in search_results_translation]
+        assert search_verb.id in found_ids
+
+        # Test empty search
+        no_results = await verb_repository.search_verbs("nonexistent_verb_12345")
+        assert len(no_results) == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_get_verb_with_conjugations(self, verb_repository):
+        """Test getting verbs with their conjugations using repository."""
+        # Create a verb
+        verb_data = generate_random_verb_data()
+        verb = await verb_repository.create_verb(VerbCreate(**verb_data))
+
+        # Create conjugations for the verb
+        present_data = generate_random_conjugation_data()
+        present_data["infinitive"] = verb.infinitive
+        present_data["auxiliary"] = verb.auxiliary.value  # Convert enum to string value
+        present_data["reflexive"] = verb.reflexive
+        present_data["tense"] = "present"
+
+        future_data = generate_random_conjugation_data()
+        future_data["infinitive"] = verb.infinitive
+        future_data["auxiliary"] = verb.auxiliary.value  # Convert enum to string value
+        future_data["reflexive"] = verb.reflexive
+        future_data["tense"] = "future_simple"
+
+        await verb_repository.upsert_conjugation(ConjugationCreate(**present_data))
+        await verb_repository.upsert_conjugation(ConjugationCreate(**future_data))
+
+        # Test getting verb with conjugations
+        verb_with_conjugations = await verb_repository.get_verb_with_conjugations(
+            verb.infinitive,
+            verb.auxiliary.value,  # Convert enum to string value
+            verb.reflexive,
+            verb.target_language_code,  # Include target language code to match the created verb
+        )
+
+        assert verb_with_conjugations is not None
+        assert verb_with_conjugations.id == verb.id  # Access verb fields directly
+        assert len(verb_with_conjugations.conjugations) >= 2
+
+        conjugation_tenses = [c.tense for c in verb_with_conjugations.conjugations]
+        assert "present" in conjugation_tenses
+        assert "future_simple" in conjugation_tenses
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_update_last_used(self, verb_repository):
+        """Test updating last used timestamp using repository."""
+        # Create a verb
+        verb_data = generate_random_verb_data()
+        verb = await verb_repository.create_verb(VerbCreate(**verb_data))
+
+        original_last_used = verb.last_used_at
+        assert original_last_used is None
+
+        # Update last used
+        result = await verb_repository.update_last_used(verb.id)
+        assert result is True
+
+        # Verify the timestamp was updated
+        updated_verb = await verb_repository.get_verb(verb.id)
+        assert updated_verb.last_used_at is not None
+        assert updated_verb.last_used_at != original_last_used
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    @pytest.mark.parametrize(
+        "operation,args,expected_result",
+        [
+            ("get_verb", (uuid4(),), None),
+            ("get_verb_by_infinitive", ("nonexistent_verb",), None),
+            ("update_verb", (uuid4(), VerbUpdate(translation="test")), None),
+            ("delete_verb", (uuid4(),), False),
+        ],
     )
-    assert result == sample_db_conjugation
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_conjugation(repository, mock_supabase_client, sample_db_conjugation):
-    mock_response = MagicMock()
-    mock_response.data = [sample_db_conjugation.model_dump()]
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.execute.return_value = mock_response
-    result = await repository.get_conjugation(
-        sample_db_conjugation.infinitive,
-        sample_db_conjugation.auxiliary.value,
-        sample_db_conjugation.reflexive,
-        sample_db_conjugation.tense,
-    )
-    assert result == sample_db_conjugation
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_upsert_verb_create(
-    repository, mock_supabase_client, sample_verb_create, sample_db_verb
-):
-    # Simulate no existing verb
-    repository.get_verb_by_infinitive = AsyncMock(return_value=None)
-    repository.create_verb = AsyncMock(return_value=sample_db_verb)
-    result = await repository.upsert_verb(sample_verb_create)
-    assert result == sample_db_verb
-    repository.create_verb.assert_awaited_once_with(sample_verb_create)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_upsert_verb_update(
-    repository, mock_supabase_client, sample_verb_create, sample_db_verb
-):
-    # Simulate existing verb
-    repository.get_verb_by_infinitive = AsyncMock(return_value=sample_db_verb)
-    repository.update_verb = AsyncMock(return_value=sample_db_verb)
-    result = await repository.upsert_verb(sample_verb_create)
-    assert result == sample_db_verb
-    repository.update_verb.assert_awaited()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_create_conjugation(
-    repository, mock_supabase_client, sample_conjugation_create, sample_db_conjugation
-):
-    mock_response = MagicMock()
-    mock_response.data = [sample_db_conjugation.model_dump()]
-    mock_supabase_client.table.return_value.insert.return_value.execute.return_value = (
-        mock_response
-    )
-    result = await repository.create_conjugation(sample_conjugation_create)
-    assert result == sample_db_conjugation
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_update_conjugation_by_verb_and_tense(
-    repository, mock_supabase_client, sample_conjugation_create, sample_db_conjugation
-):
-    from src.schemas.verbs import ConjugationUpdate
-
-    update_data = ConjugationUpdate(first_person_singular="nouvelle forme")
-    mock_response = MagicMock()
-    mock_response.data = [sample_db_conjugation.model_dump()]
-    mock_supabase_client.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_response
-    result = await repository.update_conjugation_by_verb_and_tense(
-        sample_db_conjugation.infinitive,
-        sample_db_conjugation.auxiliary.value,
-        sample_db_conjugation.reflexive,
-        sample_db_conjugation.tense,
-        update_data,
-    )
-    assert result == sample_db_conjugation
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_delete_conjugations_by_verb(
-    repository, mock_supabase_client, sample_db_conjugation
-):
-    mock_response = MagicMock()
-    mock_response.data = [1]
-    mock_supabase_client.table.return_value.delete.return_value.eq.return_value.execute.return_value = mock_response
-    result = await repository.delete_conjugations_by_verb(
-        sample_db_conjugation.infinitive,
-        sample_db_conjugation.auxiliary.value,
-        sample_db_conjugation.reflexive,
-    )
-    assert result is True
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_verb_with_conjugations(
-    repository, mock_supabase_client, sample_db_verb, sample_db_conjugation
-):
-    repository.get_verb_by_infinitive = AsyncMock(return_value=sample_db_verb)
-    repository.get_conjugations = AsyncMock(return_value=[sample_db_conjugation])
-    from src.schemas.verbs import VerbWithConjugations
-
-    expected = VerbWithConjugations(
-        **sample_db_verb.model_dump(), conjugations=[sample_db_conjugation]
-    )
-    result = await repository.get_verb_with_conjugations(
-        sample_db_verb.infinitive,
-        auxiliary=sample_db_verb.auxiliary.value,
-        reflexive=sample_db_verb.reflexive,
-        target_language_code=sample_db_verb.target_language_code,
-    )
-    assert result == expected
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "search_translation,query_chain",
-    [
-        (True, ["select", "or_", "limit"]),
-        (False, ["select", "ilike", "limit"]),
-    ],
-)
-async def test_search_verbs(
-    repository, mock_supabase_client, sample_db_verb, search_translation, query_chain
-):
-    mock_response = MagicMock()
-    mock_response.data = [sample_db_verb.model_dump()]
-    # Setup the chain so that all chained calls return the same mock, and .execute is an AsyncMock
-    async_execute = AsyncMock(return_value=mock_response)
-    chain = MagicMock()
-    for method in ["select", "or_", "ilike", "eq", "limit"]:
-        setattr(chain, method, MagicMock(return_value=chain))
-    chain.execute = async_execute
-    mock_supabase_client.table.return_value = chain
-    result = await repository.search_verbs(
-        query="parl",
-        search_translation=search_translation,
-        target_language_code="eng",
-        limit=5,
-    )
-    assert result[0].infinitive == sample_db_verb.infinitive
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_update_last_used(repository, mock_supabase_client, sample_db_verb):
-    mock_response = MagicMock()
-    mock_response.data = [1]
-    mock_supabase_client.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_response
-    result = await repository.update_last_used(sample_db_verb.id)
-    assert result is True
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_upsert_conjugation_create(
-    repository, mock_supabase_client, sample_conjugation_create, sample_db_conjugation
-):
-    repository.get_conjugation = AsyncMock(return_value=None)
-    repository.create_conjugation = AsyncMock(return_value=sample_db_conjugation)
-    await repository.upsert_conjugation(sample_conjugation_create)
-    repository.create_conjugation.assert_awaited_once_with(sample_conjugation_create)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_upsert_conjugation_update(
-    repository, mock_supabase_client, sample_conjugation_create, sample_db_conjugation
-):
-    repository.get_conjugation = AsyncMock(return_value=sample_db_conjugation)
-    repository.update_conjugation_by_verb_and_tense = AsyncMock()
-    await repository.upsert_conjugation(sample_conjugation_create)
-    repository.update_conjugation_by_verb_and_tense.assert_awaited()
+    async def test_not_found_cases(
+        self, verb_repository, operation, args, expected_result
+    ):
+        """Test operations with non-existent resources using repository."""
+        method = getattr(verb_repository, operation)
+        result = await method(*args)
+        assert result == expected_result

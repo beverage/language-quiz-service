@@ -5,10 +5,10 @@ Updated to work with Pydantic models instead of SQLAlchemy.
 """
 
 import enum
-from typing import Any, Dict
+from typing import Any
 
 
-def object_as_dict(obj) -> Dict[str, Any]:
+def object_as_dict(obj) -> dict[str, Any]:
     """Convert an object to a dictionary for display."""
     if obj is None:
         return {}

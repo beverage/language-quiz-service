@@ -1,13 +1,15 @@
 """Unit tests for the database initialization script."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+
 from src.cli.database.init import (
-    init_verbs,
-    ETRE_VERBS,
     AVOIR_VERBS,
-    PRONOMINAL_VERBS,
     COI_TEST_VERBS,
+    ETRE_VERBS,
+    PRONOMINAL_VERBS,
+    init_verbs,
 )
 
 

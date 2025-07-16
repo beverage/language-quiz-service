@@ -1,35 +1,51 @@
 #!/usr/bin/env python3
-import asyncclick as click
 import logging
 import traceback
 from pprint import pprint
 
+import asyncclick as click
+from dotenv import load_dotenv
+
+from src.cli.api_keys.commands import (
+    create as api_keys_create,
+)
+from src.cli.api_keys.commands import (
+    list_keys as api_keys_list,
+)
+from src.cli.api_keys.commands import (
+    revoke as api_keys_revoke,
+)
 from src.cli.cli.options import random_options, sentence_options
 from src.cli.cloud.database import (
     down as database_down,
-    up as database_up,
+)
+from src.cli.cloud.database import (
     status as database_status,
 )
-from src.cli.cloud.service import down as service_down, up as service_up
+from src.cli.cloud.database import (
+    up as database_up,
+)
+from src.cli.cloud.service import down as service_down
+from src.cli.cloud.service import up as service_up
 from src.cli.database.clear import clear_database
 from src.cli.database.init import init_verbs
 from src.cli.database.utils import object_as_dict
 from src.cli.problems.create import (
     create_random_problem,
-    create_random_problems_batch,
     create_random_problem_with_delay,
+    create_random_problems_batch,
+    get_problem_statistics,
     list_problems,
     search_problems_by_focus,
     search_problems_by_topic,
-    get_problem_statistics,
 )
-from src.schemas.problems import GrammarProblemConstraints
 from src.cli.sentences.create import create_random_sentence, create_sentence
 from src.cli.sentences.database import get_random_sentence
 from src.cli.sentences.utils import problem_formatter
-from src.cli.verbs.get import download_verb, get_verb, get_random_verb
 from src.cli.utils.console import Style
 from src.cli.utils.queues import batch_operation
+from src.cli.verbs.get import download_verb, get_random_verb, get_verb
+from src.schemas.problems import GrammarProblemConstraints
 
 
 @click.group()
@@ -37,6 +53,9 @@ from src.cli.utils.queues import batch_operation
 @click.option("--debug-openai", default=False, is_flag=True)
 @click.option("--debug-recovery", default=False, is_flag=True)
 async def cli(debug=False, debug_openai=False, debug_recovery=True):
+    # Load environment variables from .env file
+    load_dotenv()
+
     logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
 
     # Suppress httpx logging to reduce noise
@@ -434,6 +453,18 @@ async def start():
         "⚠️  Legacy webserver command - use 'uvicorn src.main:app --host 0.0.0.0 --port 8000' instead"
     )
     click.echo("   or 'make serve' for development")
+
+
+@cli.group("api-keys")
+async def api_keys():
+    """API key management commands."""
+    pass
+
+
+# Add API key commands to the group
+api_keys.add_command(api_keys_create, name="create")
+api_keys.add_command(api_keys_list, name="list")
+api_keys.add_command(api_keys_revoke, name="revoke")
 
 
 def main():

@@ -2,27 +2,26 @@
 
 import json
 import logging
-from typing import List, Optional
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from src.clients.openai_client import OpenAIClient
-from src.repositories.verb_repository import VerbRepository
+from src.clients.supabase import get_supabase_client
 from src.prompts.verb_prompts import VerbPromptGenerator
+from src.repositories.verb_repository import VerbRepository
 from src.schemas.verbs import (
-    VerbCreate,
-    VerbUpdate,
-    Verb,
-    VerbWithConjugations,
     Conjugation,
     ConjugationCreate,
     ConjugationUpdate,
-    Tense,
     LLMVerbPayload,
+    Tense,
+    Verb,
+    VerbCreate,
+    VerbUpdate,
+    VerbWithConjugations,
 )
-from pydantic import ValidationError
 from supabase import Client
-
-from src.clients.supabase import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +31,8 @@ class VerbService:
         """Initialize the verb service with injectable dependencies."""
         self.openai_client: OpenAIClient = OpenAIClient()
         self.verb_prompt_generator: VerbPromptGenerator = VerbPromptGenerator()
-        self.verb_repository: Optional[VerbRepository] = None
-        self.db_client: Optional[Client] = None
+        self.verb_repository: VerbRepository | None = None
+        self.db_client: Client | None = None
 
     async def _get_db_client(self):
         if not self.db_client:
@@ -72,17 +71,15 @@ class VerbService:
         return await repo.delete_verb(verb_id)
 
     async def get_all_verbs(
-        self, limit: int = 100, target_language_code: Optional[str] = None
-    ) -> List[Verb]:
+        self, limit: int = 100, target_language_code: str | None = None
+    ) -> list[Verb]:
         """Get all verbs, optionally filtered by language."""
         repo = await self._get_verb_repository()
         return await repo.get_all_verbs(
             limit=limit, target_language_code=target_language_code
         )
 
-    async def get_random_verb(
-        self, target_language_code: str = "eng"
-    ) -> Optional[Verb]:
+    async def get_random_verb(self, target_language_code: str = "eng") -> Verb | None:
         """Get a random verb."""
         repo = await self._get_verb_repository()
         verb = await repo.get_random_verb(target_language_code)
@@ -91,7 +88,7 @@ class VerbService:
             await repo.update_last_used(verb.id)
         return verb
 
-    async def get_verb(self, verb_id: UUID) -> Optional[Verb]:
+    async def get_verb(self, verb_id: UUID) -> Verb | None:
         """Get a verb by ID."""
         repo = await self._get_verb_repository()
         return await repo.get_verb(verb_id)
@@ -99,10 +96,10 @@ class VerbService:
     async def get_verb_by_infinitive(
         self,
         infinitive: str,
-        auxiliary: Optional[str] = None,
-        reflexive: Optional[bool] = None,
+        auxiliary: str | None = None,
+        reflexive: bool | None = None,
         target_language_code: str = "eng",
-    ) -> Optional[Verb]:
+    ) -> Verb | None:
         """
         Get a verb by infinitive and optional parameters.
 
@@ -117,12 +114,12 @@ class VerbService:
             target_language_code=target_language_code,
         )
 
-    async def get_verbs_by_infinitive(self, infinitive: str) -> List[Verb]:
+    async def get_verbs_by_infinitive(self, infinitive: str) -> list[Verb]:
         """Get all verb variants with the same infinitive."""
         repo = await self._get_verb_repository()
         return await repo.get_verbs_by_infinitive(infinitive)
 
-    async def update_verb(self, verb_id: UUID, verb_data: VerbUpdate) -> Optional[Verb]:
+    async def update_verb(self, verb_id: UUID, verb_data: VerbUpdate) -> Verb | None:
         """Update a verb."""
         repo = await self._get_verb_repository()
         return await repo.update_verb(verb_id, verb_data)
@@ -136,14 +133,14 @@ class VerbService:
 
     async def get_conjugations(
         self, infinitive: str, auxiliary: str, reflexive: bool = False
-    ) -> List[Conjugation]:
+    ) -> list[Conjugation]:
         """Get all conjugations for a verb."""
         repo = await self._get_verb_repository()
         return await repo.get_conjugations(
             infinitive=infinitive, auxiliary=auxiliary, reflexive=reflexive
         )
 
-    async def get_conjugations_by_verb_id(self, verb_id: UUID) -> List[Conjugation]:
+    async def get_conjugations_by_verb_id(self, verb_id: UUID) -> list[Conjugation]:
         """Get conjugations by verb ID (backwards compatibility)."""
         await self._get_verb_repository()
         verb = await self.get_verb(verb_id)
@@ -163,7 +160,7 @@ class VerbService:
         reflexive: bool,
         tense: Tense,
         conjugation_data: ConjugationUpdate,
-    ) -> Optional[Conjugation]:
+    ) -> Conjugation | None:
         """Update a conjugation by verb parameters and tense."""
         repo = await self._get_verb_repository()
         return await repo.update_conjugation_by_verb_and_tense(
@@ -179,10 +176,10 @@ class VerbService:
     async def get_verb_with_conjugations(
         self,
         infinitive: str,
-        auxiliary: Optional[str] = None,
+        auxiliary: str | None = None,
         reflexive: bool = False,
         target_language_code: str = "eng",
-    ) -> Optional[VerbWithConjugations]:
+    ) -> VerbWithConjugations | None:
         """Get a verb with all its conjugations."""
         repo = await self._get_verb_repository()
         # If auxiliary not specified, try to find any variant
@@ -205,9 +202,9 @@ class VerbService:
         self,
         query: str,
         search_translation: bool = True,
-        target_language_code: Optional[str] = None,
+        target_language_code: str | None = None,
         limit: int = 20,
-    ) -> List[Verb]:
+    ) -> list[Verb]:
         """Search verbs by infinitive or translation."""
         repo = await self._get_verb_repository()
         return await repo.search_verbs(

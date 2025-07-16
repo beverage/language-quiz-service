@@ -1,519 +1,347 @@
-"""Unit tests for the Sentence Service."""
+"""Integration tests for SentenceService.
 
-import uuid
-from unittest.mock import MagicMock
+Simple tests focused on business logic, using real repository connections.
+No complex mocking - we trust the repository layer works with local Supabase.
+"""
+
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
-from src.repositories.sentence_repository import SentenceRepository
-from src.services.sentence_service import SentenceService
+
 from src.schemas.sentences import (
     DirectObject,
     IndirectObject,
     Negation,
     Pronoun,
-    Sentence,
     SentenceCreate,
     SentenceUpdate,
     Tense,
 )
-from src.schemas.verbs import Verb
-from src.services.verb_service import VerbService
-from src.clients.openai_client import OpenAIClient
-import json
-from uuid import UUID
+from src.schemas.verbs import VerbCreate
+from src.services.sentence_service import SentenceService
+from tests.sentences.fixtures import generate_random_sentence_data
+from tests.verbs.fixtures import generate_random_verb_data
 
 
 @pytest.fixture
-def mock_sentence_repository():
-    """Fixture for a mocked SentenceRepository."""
-    return MagicMock(spec=SentenceRepository)
+async def sentence_service(test_supabase_client):
+    """Create a SentenceService with real repository connection."""
+    from src.repositories.sentence_repository import SentenceRepository
+    from src.services.verb_service import VerbService
+
+    # Create repository with test client
+    repo = SentenceRepository(client=test_supabase_client)
+
+    # Create verb service with test client
+    verb_service = VerbService()
+    verb_service.db_client = test_supabase_client
+
+    # Create service with real repository and verb service
+    service = SentenceService(sentence_repository=repo, verb_service=verb_service)
+    return service
 
 
 @pytest.fixture
-def mock_openai_client():
-    """Fixture for a mocked OpenAIClient."""
-    return MagicMock(spec=OpenAIClient)
+async def sample_verb(test_supabase_client):
+    """Create a sample verb for sentence tests."""
+    from src.services.verb_service import VerbService
+
+    verb_service = VerbService()
+    verb_service.db_client = test_supabase_client
+
+    verb_data = VerbCreate(**generate_random_verb_data())
+    return await verb_service.create_verb(verb_data)
 
 
-@pytest.fixture
-def sentence_service(
-    mock_sentence_repository: MagicMock,
-    mock_verb_service: MagicMock,
-    mock_openai_client: MagicMock,
-) -> SentenceService:
-    """Fixture for a SentenceService with a mocked repository."""
-    return SentenceService(
-        sentence_repository=mock_sentence_repository,
-        verb_service=mock_verb_service,
-        openai_client=mock_openai_client,
+@pytest.mark.asyncio
+async def test_create_sentence(sentence_service, sample_verb):
+    """Test creating a sentence."""
+    sentence_data_dict = generate_random_sentence_data(verb_id=sample_verb.id)
+    sentence_data = SentenceCreate(**sentence_data_dict)
+    created_sentence = await sentence_service.create_sentence(sentence_data)
+
+    assert created_sentence.content == sentence_data.content
+    assert created_sentence.translation == sentence_data.translation
+    assert created_sentence.verb_id == sample_verb.id
+
+
+@pytest.mark.asyncio
+async def test_get_sentence(sentence_service, sample_verb):
+    """Test retrieving a sentence by ID."""
+    # Create a sentence first
+    sentence_data_dict = generate_random_sentence_data(verb_id=sample_verb.id)
+    sentence_data = SentenceCreate(**sentence_data_dict)
+    created_sentence = await sentence_service.create_sentence(sentence_data)
+
+    # Retrieve it
+    retrieved_sentence = await sentence_service.get_sentence(created_sentence.id)
+    assert retrieved_sentence == created_sentence
+
+
+@pytest.mark.asyncio
+async def test_update_sentence(sentence_service, sample_verb):
+    """Test updating a sentence."""
+    # Create a sentence
+    sentence_data_dict = generate_random_sentence_data(verb_id=sample_verb.id)
+    sentence_data = SentenceCreate(**sentence_data_dict)
+    created_sentence = await sentence_service.create_sentence(sentence_data)
+
+    # Update it
+    update_data = SentenceUpdate(
+        content="updated content", translation="updated translation"
+    )
+    updated_sentence = await sentence_service.update_sentence(
+        created_sentence.id, update_data
     )
 
-
-@pytest.fixture
-def mock_verb_service():
-    """Fixture for a mocked VerbService."""
-    return MagicMock(spec=VerbService)
+    assert updated_sentence.content == "updated content"
+    assert updated_sentence.translation == "updated translation"
+    assert updated_sentence.verb_id == created_sentence.verb_id  # unchanged
 
 
-@pytest.mark.unit
-class TestSentenceService:
-    """Test suite for the SentenceService."""
+@pytest.mark.asyncio
+async def test_delete_sentence(sentence_service, sample_verb):
+    """Test deleting a sentence."""
+    # Create a sentence
+    sentence_data_dict = generate_random_sentence_data(verb_id=sample_verb.id)
+    sentence_data = SentenceCreate(**sentence_data_dict)
+    created_sentence = await sentence_service.create_sentence(sentence_data)
 
-    async def test_create_sentence(
-        self,
-        sentence_service: SentenceService,
-        mock_sentence_repository: MagicMock,
-        sample_db_sentence: Sentence,
-    ):
-        """Test creating a sentence."""
-        mock_sentence_repository.create_sentence.return_value = sample_db_sentence
-        sentence_create = SentenceCreate(**sample_db_sentence.model_dump())
+    # Delete it
+    result = await sentence_service.delete_sentence(created_sentence.id)
+    assert result is True
 
-        created_sentence = await sentence_service.create_sentence(sentence_create)
+    # Verify it's gone
+    retrieved_sentence = await sentence_service.get_sentence(created_sentence.id)
+    assert retrieved_sentence is None
 
-        assert created_sentence == sample_db_sentence
-        mock_sentence_repository.create_sentence.assert_awaited_once_with(
-            sentence_create
-        )
 
-    async def test_get_sentence(
-        self,
-        sentence_service: SentenceService,
-        mock_sentence_repository: MagicMock,
-        sample_db_sentence: Sentence,
-    ):
-        """Test getting a sentence by ID."""
-        mock_sentence_repository.get_sentence.return_value = sample_db_sentence
-        sentence_id = sample_db_sentence.id
+@pytest.mark.asyncio
+async def test_delete_nonexistent_sentence(sentence_service):
+    """Test deleting a sentence that doesn't exist."""
+    result = await sentence_service.delete_sentence(uuid4())
+    assert result is False
 
-        sentence = await sentence_service.get_sentence(sentence_id)
 
-        assert sentence == sample_db_sentence
-        mock_sentence_repository.get_sentence.assert_awaited_once_with(sentence_id)
+@pytest.mark.asyncio
+async def test_get_sentences_by_verb(sentence_service, sample_verb):
+    """Test getting all sentences for a specific verb."""
+    # Create multiple sentences for the verb
+    sentences = []
+    for i in range(3):
+        sentence_data_dict = generate_random_sentence_data(verb_id=sample_verb.id)
+        sentence_data_dict["content"] = f"Test sentence {i}"
+        sentence_data = SentenceCreate(**sentence_data_dict)
+        sentence = await sentence_service.create_sentence(sentence_data)
+        sentences.append(sentence)
 
-    async def test_get_all_sentences(
-        self,
-        sentence_service: SentenceService,
-        mock_sentence_repository: MagicMock,
-        sample_db_sentence: Sentence,
-    ):
-        """Test getting all sentences."""
-        mock_sentence_repository.get_all_sentences.return_value = [sample_db_sentence]
+    # Get sentences by verb
+    retrieved_sentences = await sentence_service.get_sentences_by_verb(sample_verb.id)
 
-        sentences = await sentence_service.get_all_sentences()
+    assert len(retrieved_sentences) >= 3
+    sentence_ids = {s.id for s in retrieved_sentences}
+    for sentence in sentences:
+        assert sentence.id in sentence_ids
 
-        assert sentences == [sample_db_sentence]
-        mock_sentence_repository.get_all_sentences.assert_awaited_once()
 
-    async def test_update_sentence(
-        self,
-        sentence_service: SentenceService,
-        mock_sentence_repository: MagicMock,
-        sample_db_sentence: Sentence,
-    ):
-        """Test updating a sentence."""
-        updated_sentence = sample_db_sentence.model_copy(
-            update={"content": "new content"}
-        )
-        mock_sentence_repository.update_sentence.return_value = updated_sentence
-        sentence_id = sample_db_sentence.id
-        update_data = SentenceUpdate(content="new content")
+@pytest.mark.asyncio
+async def test_get_sentences_with_filters(sentence_service, sample_verb):
+    """Test getting sentences with various filters."""
+    # Create a sentence with specific properties
+    unique_id = uuid4().hex[:8]
 
-        sentence = await sentence_service.update_sentence(sentence_id, update_data)
-
-        assert sentence == updated_sentence
-        mock_sentence_repository.update_sentence.assert_awaited_once_with(
-            sentence_id, update_data
-        )
-
-    async def test_delete_sentence(
-        self, sentence_service: SentenceService, mock_sentence_repository: MagicMock
-    ):
-        """Test deleting a sentence."""
-        mock_sentence_repository.delete_sentence.return_value = True
-        sentence_id = uuid.uuid4()
-
-        result = await sentence_service.delete_sentence(sentence_id)
-
-        assert result is True
-        mock_sentence_repository.delete_sentence.assert_awaited_once_with(sentence_id)
-
-    async def test_generate_sentence_incorrect_from_ai(
-        self,
-        sentence_service: SentenceService,
-        mock_verb_service: MagicMock,
-        mock_openai_client: MagicMock,
-        mock_sentence_repository: MagicMock,
-        sample_db_verb: Verb,
-        sample_db_sentence: Sentence,
-    ):
-        """Test generating a sentence that the AI marks as incorrect."""
-        verb_id = sample_db_verb.id
-        mock_verb_service.get_verb.return_value = sample_db_verb
-
-        ai_response = {
-            "sentence": "This is a wrong sentence.",
-            "translation": "Ceci est une phrase incorrecte.",
-            "is_correct": False,
-            "explanation": "The verb conjugation is wrong.",
-            "negation": "none",
-        }
-        mock_openai_client.handle_request.return_value = json.dumps(ai_response)
-
-        # We need to create a sentence object that reflects the AI response for assertion
-        expected_created_sentence = sample_db_sentence.model_copy(
-            update={
-                "content": ai_response["sentence"],
-                "translation": ai_response["translation"],
-                "is_correct": False,
-                "explanation": ai_response["explanation"],
-            }
-        )
-        mock_sentence_repository.create_sentence.return_value = (
-            expected_created_sentence
-        )
-
-        generated_sentence = await sentence_service.generate_sentence(verb_id=verb_id)
-
-        assert not generated_sentence.is_correct
-        assert generated_sentence.explanation == "The verb conjugation is wrong."
-
-        # Verify that the data passed to create_sentence is correct
-        call_args = mock_sentence_repository.create_sentence.call_args[0][0]
-        assert isinstance(call_args, SentenceCreate)
-        assert call_args.is_correct is False
-        assert call_args.explanation == "The verb conjugation is wrong."
-
-    async def test_generate_sentence_with_ai_modifications(
-        self,
-        sentence_service: SentenceService,
-        mock_verb_service: MagicMock,
-        mock_openai_client: MagicMock,
-        mock_sentence_repository: MagicMock,
-        sample_db_verb: Verb,
-        sample_db_sentence: Sentence,
-    ):
-        """Test generating a sentence where the AI modifies grammatical elements."""
-        verb_id = sample_db_verb.id
-        mock_verb_service.get_verb.return_value = sample_db_verb
-
-        ai_response = {
-            "sentence": "Il ne le leur a jamais dit.",
-            "translation": "He never told it to them.",
-            "is_correct": "true",  # Test string boolean
-            "direct_object": "masculine",
-            "indirect_object": "plural",
-            "negation": "jamais",
-            "has_compliment_object_direct": True,
-            "has_compliment_object_indirect": True,
-        }
-        mock_openai_client.handle_request.return_value = json.dumps(ai_response)
-
-        expected_sentence = sample_db_sentence.model_copy(update=ai_response)
-        mock_sentence_repository.create_sentence.return_value = expected_sentence
-
-        await sentence_service.generate_sentence(verb_id=verb_id)
-
-        # Verify that create_sentence was called with the modified values
-        call_args = mock_sentence_repository.create_sentence.call_args[0][0]
-        assert isinstance(call_args, SentenceCreate)
-        assert call_args.is_correct is True
-        assert call_args.direct_object == DirectObject.MASCULINE
-        assert call_args.indirect_object == IndirectObject.PLURAL
-        assert call_args.negation == Negation.JAMAIS
-
-    @pytest.mark.parametrize(
-        "pronoun, tense, direct_object, indirect_object, negation",
-        [
-            (
-                Pronoun.FIRST_PERSON,
-                Tense.PRESENT,
-                DirectObject.NONE,
-                IndirectObject.NONE,
-                Negation.NONE,
-            ),
-            (
-                Pronoun.SECOND_PERSON_PLURAL,
-                Tense.FUTURE_SIMPLE,
-                DirectObject.MASCULINE,
-                IndirectObject.NONE,
-                Negation.PAS,
-            ),
-            (
-                Pronoun.THIRD_PERSON,
-                Tense.PASSE_COMPOSE,
-                DirectObject.FEMININE,
-                IndirectObject.PLURAL,
-                Negation.JAMAIS,
-            ),
-        ],
+    correct_sentence_data_dict = generate_random_sentence_data(
+        verb_id=sample_verb.id,
+        is_correct=True,
+        tense=Tense.PRESENT.value,
+        content=f"Correct sentence {unique_id}",
     )
-    async def test_generate_sentence_parameterized(
-        self,
-        sentence_service: SentenceService,
-        mock_verb_service: MagicMock,
-        mock_openai_client: MagicMock,
-        mock_sentence_repository: MagicMock,
-        sample_db_verb: Verb,
-        sample_db_sentence: Sentence,
-        pronoun: Pronoun,
-        tense: Tense,
-        direct_object: DirectObject,
-        indirect_object: IndirectObject,
-        negation: Negation,
-    ):
-        """Test generating a sentence with different parameters."""
-        verb_id = sample_db_verb.id
-        mock_verb_service.get_verb.return_value = sample_db_verb
+    correct_sentence_data = SentenceCreate(**correct_sentence_data_dict)
+    correct_sentence = await sentence_service.create_sentence(correct_sentence_data)
 
-        # Only sentence generation (validation disabled)
-        ai_response = {
-            "sentence": sample_db_sentence.content,
-            "translation": sample_db_sentence.translation,
-            "is_correct": True,
-            "negation": "none",
-        }
+    # Verify the sentence was created correctly
+    assert correct_sentence.is_correct is True
+    assert correct_sentence.tense == Tense.PRESENT
 
-        # Mock single API call: sentence generation only
-        mock_openai_client.handle_request.return_value = json.dumps(ai_response)
-        mock_sentence_repository.create_sentence.return_value = sample_db_sentence
+    # Test filtering - get sentences for this specific verb to narrow the results
+    verb_sentences = await sentence_service.get_sentences_by_verb(sample_verb.id)
+    assert len(verb_sentences) >= 1
+    assert any(s.id == correct_sentence.id for s in verb_sentences)
 
-        generated_sentence = await sentence_service.generate_sentence(
-            verb_id=verb_id,
-            pronoun=pronoun,
-            tense=tense,
-            direct_object=direct_object,
-            indirect_object=indirect_object,
-            negation=negation,
+    # Test filter by verb_id and correctness
+    correct_sentences_for_verb = await sentence_service.get_sentences(
+        verb_id=sample_verb.id, is_correct=True
+    )
+    assert any(s.id == correct_sentence.id for s in correct_sentences_for_verb)
+
+
+@pytest.mark.asyncio
+async def test_count_sentences(sentence_service, sample_verb):
+    """Test counting sentences with filters."""
+    # Create sentences with different properties
+    for is_correct in [True, False]:
+        sentence_data_dict = generate_random_sentence_data(
+            verb_id=sample_verb.id, is_correct=is_correct
         )
+        sentence_data = SentenceCreate(**sentence_data_dict)
+        await sentence_service.create_sentence(sentence_data)
 
-        assert generated_sentence == sample_db_sentence
-        mock_verb_service.get_verb.assert_awaited_with(verb_id)
-        assert mock_openai_client.handle_request.await_count == 1  # Single API call
-        mock_sentence_repository.create_sentence.assert_awaited_once()
+    # Count all sentences for the verb
+    total_count = await sentence_service.count_sentences(verb_id=sample_verb.id)
+    assert total_count >= 2
 
-    async def test_generate_sentence_verb_not_found(
-        self, sentence_service: SentenceService, mock_verb_service: MagicMock
-    ):
-        """Test error when verb is not found."""
-        mock_verb_service.get_verb.return_value = None
+    # Count correct sentences for the verb
+    correct_count = await sentence_service.count_sentences(
+        verb_id=sample_verb.id, is_correct=True
+    )
+    assert correct_count >= 1
 
-        with pytest.raises(ValueError, match="Verb with ID .* not found"):
-            await sentence_service.generate_sentence(
-                verb_id=UUID("12345678-1234-5678-1234-567812345678")
-            )
+    # Count incorrect sentences for the verb
+    incorrect_count = await sentence_service.count_sentences(
+        verb_id=sample_verb.id, is_correct=False
+    )
+    assert incorrect_count >= 1
 
-    async def test_generate_sentence_validation_disabled_by_default(
-        self,
-        sentence_service: SentenceService,
-        mock_verb_service: MagicMock,
-        mock_openai_client: MagicMock,
-        mock_sentence_repository: MagicMock,
-        sample_db_verb: Verb,
-        sample_db_sentence: Sentence,
-    ):
-        """Test that validation is disabled by default."""
-        # Setup mocks
-        mock_verb_service.get_verb.return_value = sample_db_verb
-        mock_openai_client.handle_request.return_value = json.dumps(
-            {
-                "sentence": "J'ai un livre.",
-                "translation": "I have a book.",
-                "is_correct": True,
-                "explanation": "",
-                "negation": "none",
-                "direct_object": "masculine",
-                "indirect_object": "none",
-                "has_compliment_object_direct": False,
-                "has_compliment_object_indirect": False,
-            }
-        )
-        mock_sentence_repository.create_sentence.return_value = sample_db_sentence
 
-        # Call without validate parameter (should default to False)
-        result = await sentence_service.generate_sentence(verb_id=sample_db_verb.id)
+@pytest.mark.asyncio
+async def test_get_random_sentence(sentence_service, sample_verb):
+    """Test getting a random sentence."""
+    # Create a sentence to ensure there's at least one
+    sentence_data_dict = generate_random_sentence_data(verb_id=sample_verb.id)
+    sentence_data = SentenceCreate(**sentence_data_dict)
+    await sentence_service.create_sentence(sentence_data)
 
-        # Verify validation method was not called
-        # (We can't directly test this without refactoring, but we can verify the result)
-        assert result == sample_db_sentence
-        mock_sentence_repository.create_sentence.assert_called_once()
+    # Get random sentence
+    random_sentence = await sentence_service.get_random_sentence()
+    assert random_sentence is not None
 
-    async def test_generate_sentence_validation_enabled_success(
-        self,
-        sentence_service: SentenceService,
-        mock_verb_service: MagicMock,
-        mock_openai_client: MagicMock,
-        mock_sentence_repository: MagicMock,
-        sample_db_verb: Verb,
-        sample_db_sentence: Sentence,
-    ):
-        """Test sentence generation with validation enabled when validation passes."""
+    # Get random sentence with filters
+    random_correct = await sentence_service.get_random_sentence(is_correct=True)
+    if random_correct:  # May be None if no correct sentences exist
+        assert random_correct.is_correct is True
 
-        # Setup mocks
-        mock_verb_service.get_verb.return_value = sample_db_verb
 
-        # Mock the sentence generation response
-        mock_openai_client.handle_request.side_effect = [
-            json.dumps(
-                {
-                    "sentence": "J'ai un livre.",
-                    "translation": "I have a book.",
-                    "is_correct": True,
-                    "explanation": "",
-                    "negation": "none",
-                    "direct_object": "masculine",
-                    "indirect_object": "none",
-                    "has_compliment_object_direct": False,
-                    "has_compliment_object_indirect": False,
-                }
-            ),
-            # Mock validation response
-            json.dumps(
-                {
-                    "is_valid": True,
-                    "explanation": None,
-                    "actual_direct_object": "masculine",
-                    "actual_indirect_object": "none",
-                    "actual_negation": "none",
-                    "direct_object_text": "un livre",
-                    "indirect_object_text": None,
-                }
-            ),
-        ]
+@pytest.mark.asyncio
+async def test_get_all_sentences(sentence_service, sample_verb):
+    """Test getting all sentences with limit."""
+    # Create some sentences
+    for i in range(3):
+        sentence_data_dict = generate_random_sentence_data(verb_id=sample_verb.id)
+        sentence_data = SentenceCreate(**sentence_data_dict)
+        await sentence_service.create_sentence(sentence_data)
 
-        mock_sentence_repository.create_sentence.return_value = sample_db_sentence
+    # Get all sentences
+    all_sentences = await sentence_service.get_all_sentences(limit=10)
+    assert len(all_sentences) >= 3
 
-        # Call with validation enabled
-        result = await sentence_service.generate_sentence(
-            verb_id=sample_db_verb.id, validate=True
-        )
 
-        # Verify validation was called (2 OpenAI calls: generation + validation)
-        assert mock_openai_client.handle_request.call_count == 2
-        assert result == sample_db_sentence
-        mock_sentence_repository.create_sentence.assert_called_once()
+# AI Integration Tests (with mocking)
 
-    async def test_generate_sentence_validation_enabled_failure(
-        self,
-        sentence_service: SentenceService,
-        mock_verb_service: MagicMock,
-        mock_openai_client: MagicMock,
-        mock_sentence_repository: MagicMock,
-        sample_db_verb: Verb,
-    ):
-        """Test sentence generation with validation enabled when validation fails."""
-        # Setup mocks
-        mock_verb_service.get_verb.return_value = sample_db_verb
 
-        # Mock the sentence generation response
-        mock_openai_client.handle_request.side_effect = [
-            json.dumps(
-                {
-                    "sentence": "J'ai un livre.",
-                    "translation": "I have a book.",
-                    "is_correct": True,
-                    "explanation": "",
-                    "negation": "none",
-                    "direct_object": "masculine",
-                    "indirect_object": "none",
-                    "has_compliment_object_direct": False,
-                    "has_compliment_object_indirect": False,
-                }
-            ),
-            # Mock validation failure response
-            json.dumps(
-                {
-                    "is_valid": False,
-                    "explanation": "The sentence has incorrect verb conjugation.",
-                    "actual_direct_object": "masculine",
-                    "actual_indirect_object": "none",
-                    "actual_negation": "none",
-                    "direct_object_text": "un livre",
-                    "indirect_object_text": None,
-                }
-            ),
-        ]
+@pytest.mark.asyncio
+async def test_generate_sentence_success(sentence_service, sample_verb):
+    """Test successful sentence generation with mocked AI."""
+    # Mock the AI client and prompt generator
+    mock_client = AsyncMock()
+    mock_prompt_gen = AsyncMock()
 
-        # Call with validation enabled - should raise ValueError
-        with pytest.raises(
-            ValueError,
-            match="Sentence validation failed: The sentence has incorrect verb conjugation.",
-        ):
-            await sentence_service.generate_sentence(
-                verb_id=sample_db_verb.id, validate=True
-            )
+    # Setup mocks
+    mock_prompt_gen.generate_sentence_prompt.return_value = "sentence prompt"
+    mock_client.handle_request.return_value = '{"sentence": "Je parle français", "translation": "I speak French", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "negation": "none"}'
 
-        # Verify validation was called but sentence was not saved
-        assert mock_openai_client.handle_request.call_count == 2
-        mock_sentence_repository.create_sentence.assert_not_called()
+    # Inject mocks
+    sentence_service.openai_client = mock_client
+    sentence_service.prompt_generator = mock_prompt_gen
 
-    async def test_generate_sentence_validation_parameter_passed_through(
-        self,
-        sentence_service: SentenceService,
-        mock_verb_service: MagicMock,
-        mock_openai_client: MagicMock,
-        mock_sentence_repository: MagicMock,
-        sample_db_verb: Verb,
-        sample_db_sentence: Sentence,
-    ):
-        """Test that validate parameter is properly handled in different scenarios."""
-        # Setup mocks
-        mock_verb_service.get_verb.return_value = sample_db_verb
-        mock_openai_client.handle_request.return_value = json.dumps(
-            {
-                "sentence": "J'ai un livre.",
-                "translation": "I have a book.",
-                "is_correct": True,
-                "explanation": "",
-                "negation": "none",
-                "direct_object": "masculine",
-                "indirect_object": "none",
-                "has_compliment_object_direct": False,
-                "has_compliment_object_indirect": False,
-            }
-        )
-        mock_sentence_repository.create_sentence.return_value = sample_db_sentence
+    # Generate sentence
+    result = await sentence_service.generate_sentence(
+        verb_id=sample_verb.id,
+        pronoun=Pronoun.FIRST_PERSON,
+        tense=Tense.PRESENT,
+        validate=False,  # Skip validation for simplicity
+    )
 
-        # Test with validate=False explicitly
+    assert result.content == "Je parle français"
+    assert result.translation == "I speak French"
+    assert result.verb_id == sample_verb.id
+    assert result.is_correct is True
+
+
+@pytest.mark.asyncio
+async def test_generate_sentence_with_validation(sentence_service, sample_verb):
+    """Test sentence generation with validation enabled."""
+    # Mock the AI client and prompt generator
+    mock_client = AsyncMock()
+    mock_prompt_gen = AsyncMock()
+
+    # Setup mocks for both generation and validation
+    mock_prompt_gen.generate_sentence_prompt.return_value = "sentence prompt"
+    mock_prompt_gen.generate_correctness_prompt.return_value = "validation prompt"
+
+    mock_client.handle_request.side_effect = [
+        # First call: sentence generation
+        '{"sentence": "Je parle français", "translation": "I speak French", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "negation": "none"}',
+        # Second call: validation
+        '{"is_valid": true, "explanation": "Sentence is correct", "actual_direct_object": "none", "actual_indirect_object": "none", "actual_negation": "none"}',
+    ]
+
+    # Inject mocks
+    sentence_service.openai_client = mock_client
+    sentence_service.prompt_generator = mock_prompt_gen
+
+    # Generate sentence with validation
+    result = await sentence_service.generate_sentence(
+        verb_id=sample_verb.id,
+        pronoun=Pronoun.FIRST_PERSON,
+        tense=Tense.PRESENT,
+        validate=True,
+    )
+
+    assert result.content == "Je parle français"
+    assert result.translation == "I speak French"
+    assert result.is_correct is True
+
+    # Verify both generation and validation prompts were called
+    assert mock_client.handle_request.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_generate_sentence_validation_failure(sentence_service, sample_verb):
+    """Test sentence generation when validation fails."""
+    # Mock the AI client and prompt generator
+    mock_client = AsyncMock()
+    mock_prompt_gen = AsyncMock()
+
+    # Setup mocks
+    mock_prompt_gen.generate_sentence_prompt.return_value = "sentence prompt"
+    mock_prompt_gen.generate_correctness_prompt.return_value = "validation prompt"
+
+    mock_client.handle_request.side_effect = [
+        # First call: sentence generation
+        '{"sentence": "Je parle français", "translation": "I speak French", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "negation": "none"}',
+        # Second call: validation failure
+        '{"is_valid": false, "explanation": "Grammar error detected", "actual_direct_object": "none", "actual_indirect_object": "none", "actual_negation": "none"}',
+    ]
+
+    # Inject mocks
+    sentence_service.openai_client = mock_client
+    sentence_service.prompt_generator = mock_prompt_gen
+
+    # Generate sentence with validation - should raise error
+    with pytest.raises(ValueError, match="Sentence validation failed"):
         await sentence_service.generate_sentence(
-            verb_id=sample_db_verb.id, validate=False
+            verb_id=sample_verb.id,
+            pronoun=Pronoun.FIRST_PERSON,
+            tense=Tense.PRESENT,
+            validate=True,
         )
 
-        # Should only call OpenAI once (no validation)
-        assert mock_openai_client.handle_request.call_count == 1
-        mock_openai_client.handle_request.reset_mock()
 
-        # Test with validate=True and successful validation
-        mock_openai_client.handle_request.side_effect = [
-            json.dumps(
-                {
-                    "sentence": "J'ai un livre.",
-                    "translation": "I have a book.",
-                    "is_correct": True,
-                    "explanation": "",
-                    "negation": "none",
-                    "direct_object": "masculine",
-                    "indirect_object": "none",
-                    "has_compliment_object_direct": False,
-                    "has_compliment_object_indirect": False,
-                }
-            ),
-            json.dumps(
-                {
-                    "is_valid": True,
-                    "explanation": None,
-                    "actual_direct_object": "masculine",
-                    "actual_indirect_object": "none",
-                    "actual_negation": "none",
-                    "direct_object_text": "un livre",
-                    "indirect_object_text": None,
-                }
-            ),
-        ]
-
+@pytest.mark.asyncio
+async def test_generate_sentence_nonexistent_verb(sentence_service):
+    """Test sentence generation with non-existent verb."""
+    with pytest.raises(ValueError, match="Verb with ID .* not found"):
         await sentence_service.generate_sentence(
-            verb_id=sample_db_verb.id, validate=True
+            verb_id=uuid4(), pronoun=Pronoun.FIRST_PERSON, tense=Tense.PRESENT
         )
-
-        # Should call OpenAI twice (generation + validation)
-        assert mock_openai_client.handle_request.call_count == 2

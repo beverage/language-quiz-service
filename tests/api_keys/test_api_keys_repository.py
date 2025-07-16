@@ -1,13 +1,13 @@
 """Unit tests for the API keys repository."""
 
 import uuid
-from unittest.mock import MagicMock, AsyncMock
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from src.repositories.api_keys_repository import ApiKeyRepository
-from src.schemas.api_keys import ApiKey, ApiKeyCreate, ApiKeyUpdate, ApiKeyStats
+from src.schemas.api_keys import ApiKey, ApiKeyCreate, ApiKeyStats, ApiKeyUpdate
 
 
 @pytest.fixture
@@ -41,8 +41,8 @@ def sample_api_key():
         client_name="Test Client",
         is_active=True,
         permissions_scope=["read", "write"],
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
         last_used_at=None,
         usage_count=0,
         rate_limit_rpm=100,

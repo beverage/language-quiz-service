@@ -8,22 +8,21 @@ import logging
 import random
 import traceback
 from asyncio import sleep
-from typing import List, Optional, Tuple
 
-from src.services.problem_service import ProblemService
 from src.schemas.problems import (
-    Problem,
-    ProblemType,
-    ProblemFilters,
     GrammarProblemConstraints,
+    Problem,
+    ProblemFilters,
+    ProblemType,
 )
+from src.services.problem_service import ProblemService
 
 logger = logging.getLogger(__name__)
 
 
 async def create_random_problem_with_delay(
     statement_count: int = 4,
-    constraints: Optional[GrammarProblemConstraints] = None,
+    constraints: GrammarProblemConstraints | None = None,
     display: bool = True,
 ) -> Problem:
     """Create a random problem with a delay (for batch operations)."""
@@ -36,7 +35,7 @@ async def create_random_problem_with_delay(
 
 async def create_random_problem(
     statement_count: int = 4,
-    constraints: Optional[GrammarProblemConstraints] = None,
+    constraints: GrammarProblemConstraints | None = None,
     display: bool = False,
 ) -> Problem:
     """Create a random grammar problem using the ProblemsService."""
@@ -65,10 +64,10 @@ async def create_random_problem(
 async def create_random_problems_batch(
     quantity: int,
     statement_count: int = 4,
-    constraints: Optional[GrammarProblemConstraints] = None,
+    constraints: GrammarProblemConstraints | None = None,
     workers: int = 10,
     display: bool = True,
-) -> List[Problem]:
+) -> list[Problem]:
     """Create multiple random problems in parallel."""
     from src.cli.utils.queues import parallel_execute
 
@@ -106,11 +105,11 @@ async def create_random_problems_batch(
 
 # Problem listing and search functions
 async def list_problems(
-    problem_type: Optional[str] = None,
-    topic_tags: Optional[List[str]] = None,
+    problem_type: str | None = None,
+    topic_tags: list[str] | None = None,
     limit: int = 10,
     verbose: bool = False,
-) -> Tuple[List[Problem], int]:
+) -> tuple[list[Problem], int]:
     """List problems with optional filtering."""
     problems_service = ProblemService()
 
@@ -141,7 +140,7 @@ async def list_problems(
 async def search_problems_by_focus(
     grammatical_focus: str,
     limit: int = 10,
-) -> List[Problem]:
+) -> list[Problem]:
     """Search problems by grammatical focus."""
     problems_service = ProblemService()
 
@@ -157,9 +156,9 @@ async def search_problems_by_focus(
 
 
 async def search_problems_by_topic(
-    topic_tags: List[str],
+    topic_tags: list[str],
     limit: int = 10,
-) -> List[Problem]:
+) -> list[Problem]:
     """Search problems by topic tags."""
     problems_service = ProblemService()
 
@@ -191,7 +190,7 @@ async def get_problem_statistics() -> dict:
 # Display functions
 def display_problem(problem: Problem):
     """Display a complete problem in formatted output."""
-    from src.cli.utils.console import Style, Color
+    from src.cli.utils.console import Color, Style
 
     print(f"\n{'='*60}")
     print(f"🎯 {problem.title or 'Untitled Problem'}")

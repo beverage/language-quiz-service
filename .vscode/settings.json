@@ -1,18 +1,40 @@
 {
-    "python.defaultInterpreterPath": "/Users/alexbeverage/Code/LanguageApps/DatabaseTests/.venv/bin/python3 ",
-    "sqltools.connections": [
-        {
-            "previewLimit": 50,
-            "server": "localhost",
-            "port": 5432,
-            "driver": "PostgreSQL",
-            "name": "Language App Test",
-            "database": "language_app",
-            "username": "postgres",
-            "password": "postgres"
-        }
-    ],
-    "python.analysis.extraPaths": [
-        "./src/cli"
-    ]
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  },
+  "deno.enablePaths": [
+    "supabase/functions"
+  ],
+  "deno.lint": true,
+  "deno.unstable": [
+    "bare-node-builtins",
+    "byonm",
+    "sloppy-imports",
+    "unsafe-proto",
+    "webgpu",
+    "broadcast-channel",
+    "worker-options",
+    "cron",
+    "kv",
+    "ffi",
+    "fs",
+    "http",
+    "net"
+  ],
+  "python.analysis.extraPaths": [
+    "./src/cli"
+  ],
+  "python.defaultInterpreterPath": "/Users/alexbeverage/Code/LanguageApps/DatabaseTests/.venv/bin/python3 ",
+  "sqltools.connections": [
+    {
+      "database": "language_app",
+      "driver": "PostgreSQL",
+      "name": "Language App Test",
+      "password": "postgres",
+      "port": 5432,
+      "previewLimit": 50,
+      "server": "localhost",
+      "username": "postgres"
+    }
+  ]
 }

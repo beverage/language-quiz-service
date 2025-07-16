@@ -21,7 +21,7 @@ CREATE TYPE tense AS ENUM (
 CREATE TABLE verbs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     infinitive TEXT NOT NULL,
-    auxiliary auxiliary NOT NULL,
+    auxiliary auxiliary_type NOT NULL,
     reflexive BOOLEAN NOT NULL DEFAULT FALSE,
     target_language_code TEXT NOT NULL CHECK (target_language_code ~ '^[a-z]{3}$'),
     translation TEXT NOT NULL,
@@ -49,14 +49,14 @@ COMMENT ON COLUMN verbs.can_have_coi IS 'Whether this verb can take an indirect 
 CREATE TABLE conjugations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     infinitive TEXT NOT NULL,
-    auxiliary auxiliary NOT NULL,
+    auxiliary auxiliary_type NOT NULL,
     reflexive BOOLEAN NOT NULL,
     tense tense NOT NULL,
     first_person_singular TEXT,
     second_person_singular TEXT,
     third_person_singular TEXT,
     first_person_plural TEXT,
-    second_person_formal TEXT,
+    second_person_plural TEXT,
     third_person_plural TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -75,7 +75,7 @@ CREATE INDEX idx_verbs_past_participle ON verbs(past_participle);
 CREATE INDEX idx_verbs_present_participle ON verbs(present_participle);
 CREATE INDEX idx_verbs_infinitive_language ON verbs(infinitive, target_language_code);
 CREATE INDEX idx_verbs_language_translation ON verbs(target_language_code, translation);
-CREATE INDEX idx_verbs_cod_coi_support ON verbs(can_have_cod, can_have_coi) 
+CREATE INDEX idx_verbs_cod_coi_support ON verbs(can_have_cod, can_have_coi);
 
 CREATE INDEX idx_conjugations_tense ON conjugations(tense);
 CREATE INDEX idx_conjugations_infinitive ON conjugations(infinitive);
@@ -108,7 +108,7 @@ CREATE OR REPLACE FUNCTION get_random_verb_simple(
 RETURNS TABLE (
     id UUID,
     infinitive TEXT,
-    auxiliary auxiliary,
+    auxiliary auxiliary_type,
     reflexive BOOLEAN,
     translation TEXT,
     past_participle TEXT,

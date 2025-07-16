@@ -3,29 +3,29 @@
 import asyncio
 import logging
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 from uuid import UUID
 
 from src.repositories.problem_repository import ProblemRepository
-from src.services.sentence_service import SentenceService
-from src.services.verb_service import VerbService
 from src.schemas.problems import (
+    GrammarProblemConstraints,
     Problem,
     ProblemCreate,
-    ProblemUpdate,
-    ProblemType,
     ProblemFilters,
     ProblemSummary,
-    GrammarProblemConstraints,
+    ProblemType,
+    ProblemUpdate,
 )
 from src.schemas.sentences import (
-    Pronoun,
-    Tense,
     DirectObject,
     IndirectObject,
     Negation,
+    Pronoun,
     Sentence,
+    Tense,
 )
+from src.services.sentence_service import SentenceService
+from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,9 @@ class ProblemService:
 
     def __init__(
         self,
-        problem_repository: Optional[ProblemRepository] = None,
-        sentence_service: Optional[SentenceService] = None,
-        verb_service: Optional[VerbService] = None,
+        problem_repository: ProblemRepository | None = None,
+        sentence_service: SentenceService | None = None,
+        verb_service: VerbService | None = None,
     ):
         """Initialize the problems service with injectable dependencies."""
         self.problem_repository = problem_repository
@@ -55,28 +55,28 @@ class ProblemService:
         repo = await self._get_problem_repository()
         return await repo.create_problem(problem_data)
 
-    async def get_problem(self, problem_id: UUID) -> Optional[Problem]:
+    async def get_problem(self, problem_id: UUID) -> Problem | None:
         """Get a problem by ID."""
         repo = await self._get_problem_repository()
         return await repo.get_problem(problem_id)
 
     async def get_problems(
         self, filters: ProblemFilters, include_statements: bool = True
-    ) -> Tuple[List[Problem], int]:
+    ) -> tuple[list[Problem], int]:
         """Get problems with filtering and pagination."""
         repo = await self._get_problem_repository()
         return await repo.get_problems(filters, include_statements)
 
     async def get_problem_summaries(
         self, filters: ProblemFilters
-    ) -> Tuple[List[ProblemSummary], int]:
+    ) -> tuple[list[ProblemSummary], int]:
         """Get lightweight problem summaries for list views."""
         repo = await self._get_problem_repository()
         return await repo.get_problem_summaries(filters)
 
     async def update_problem(
         self, problem_id: UUID, problem_data: ProblemUpdate
-    ) -> Optional[Problem]:
+    ) -> Problem | None:
         """Update a problem."""
         repo = await self._get_problem_repository()
         return await repo.update_problem(problem_id, problem_data)
@@ -88,7 +88,7 @@ class ProblemService:
 
     async def create_random_grammar_problem(
         self,
-        constraints: Optional[GrammarProblemConstraints] = None,
+        constraints: GrammarProblemConstraints | None = None,
         statement_count: int = 4,
         target_language_code: str = "eng",
     ) -> Problem:
@@ -164,7 +164,7 @@ class ProblemService:
 
     def _generate_grammatical_parameters(
         self, verb, constraints: GrammarProblemConstraints
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate base grammatical parameters for the problem."""
         # Use constraints if provided, otherwise randomize
         pronoun = random.choice(list(Pronoun))
@@ -221,11 +221,11 @@ class ProblemService:
 
     def _vary_parameters_for_statement(
         self,
-        base_params: Dict[str, Any],
+        base_params: dict[str, Any],
         statement_index: int,
         is_correct: bool,
         verb,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create parameter variations for each statement."""
         params = base_params.copy()
 
@@ -290,7 +290,7 @@ class ProblemService:
 
     def _package_grammar_problem(
         self,
-        sentences: List[Sentence],
+        sentences: list[Sentence],
         correct_answer_index: int,
         verb,
         constraints: GrammarProblemConstraints,
@@ -334,10 +334,10 @@ class ProblemService:
 
     def _derive_grammar_metadata(
         self,
-        sentences: List[Sentence],
+        sentences: list[Sentence],
         verb,
         constraints: GrammarProblemConstraints,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Derive searchable metadata from sentence generation parameters."""
 
         # Analyze what grammatical features are present
@@ -381,8 +381,8 @@ class ProblemService:
         self,
         verb,
         constraints: GrammarProblemConstraints,
-        metadata: Dict[str, Any],
-    ) -> List[str]:
+        metadata: dict[str, Any],
+    ) -> list[str]:
         """Derive topic tags for searchability."""
         tags = []
 
@@ -414,15 +414,15 @@ class ProblemService:
 
     # Analytics and search methods
     async def get_problems_by_topic(
-        self, topic_tags: List[str], limit: int = 50
-    ) -> List[Problem]:
+        self, topic_tags: list[str], limit: int = 50
+    ) -> list[Problem]:
         """Get problems by topic tags."""
         repo = await self._get_problem_repository()
         return await repo.get_problems_by_topic_tags(topic_tags, limit)
 
     async def get_problems_using_verb(
         self, verb_id: UUID, limit: int = 50
-    ) -> List[Problem]:
+    ) -> list[Problem]:
         """Get problems that use a specific verb."""
         repo = await self._get_problem_repository()
         metadata_query = {"source_verb_ids": [str(verb_id)]}
@@ -430,7 +430,7 @@ class ProblemService:
 
     async def get_problems_by_grammatical_focus(
         self, focus: str, limit: int = 50
-    ) -> List[Problem]:
+    ) -> list[Problem]:
         """Get problems focusing on specific grammatical concepts."""
         repo = await self._get_problem_repository()
         metadata_query = {"grammatical_focus": [focus]}
@@ -438,23 +438,23 @@ class ProblemService:
 
     async def get_random_problem(
         self,
-        problem_type: Optional[ProblemType] = None,
-        topic_tags: Optional[List[str]] = None,
-    ) -> Optional[Problem]:
+        problem_type: ProblemType | None = None,
+        topic_tags: list[str] | None = None,
+    ) -> Problem | None:
         """Get a random problem with optional filters."""
         repo = await self._get_problem_repository()
         return await repo.get_random_problem(problem_type, topic_tags)
 
     async def count_problems(
         self,
-        problem_type: Optional[ProblemType] = None,
-        topic_tags: Optional[List[str]] = None,
+        problem_type: ProblemType | None = None,
+        topic_tags: list[str] | None = None,
     ) -> int:
         """Count problems with optional filters."""
         repo = await self._get_problem_repository()
         return await repo.count_problems(problem_type, topic_tags)
 
-    async def get_problem_statistics(self) -> Dict[str, Any]:
+    async def get_problem_statistics(self) -> dict[str, Any]:
         """Get problem statistics for analytics."""
         repo = await self._get_problem_repository()
         return await repo.get_problem_statistics()

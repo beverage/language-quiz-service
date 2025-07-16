@@ -1,4 +1,4 @@
-from schemas.sentences import Sentence, DirectObject, IndirectObject, Negation
+from schemas.sentences import DirectObject, IndirectObject, Negation, Sentence
 
 
 class SentencePromptGenerator:
@@ -17,7 +17,7 @@ The sentence must not contain a COD (direct object) unless the verb {sentence.in
     def __complement_pronoun_indirect(self, sentence: Sentence) -> str:
         if sentence.indirect_object != IndirectObject.NONE:
             return """
-The sentence must return a COI (indirect pronoun) of gender {sentence.indirect_object} with the verb {sentence.infinitive} 
+The sentence must return a COI (indirect pronoun) of gender {sentence.indirect_object} with the verb {sentence.infinitive}
 if possible to do with the verb {sentence.infinitive}.
 """
         else:
@@ -27,7 +27,7 @@ The sentence must not contain a COI (indirect object) unless the verb {sentence.
 
     def __pronoun_ordering(self):
         return """
-If the sentence has a COD (direct object) and a COI (indirect pronoun), put them in the right order.  
+If the sentence has a COD (direct object) and a COI (indirect pronoun), put them in the right order.
 Switch them if necessary.
 """
 
@@ -44,7 +44,7 @@ Switch them if necessary.
 
     def __verb_properties(self, sentence: Sentence) -> str:
         return """
-The sentence has the verb infinitive {sentence.infinitive} in the {sentence.tense.value} tense, and may start 
+The sentence has the verb infinitive {sentence.infinitive} in the {sentence.tense.value} tense, and may start
 with a {sentence.pronoun.value} subject pronoun.
 """
 
@@ -78,7 +78,7 @@ All prepositions match their indirect, or subordinate pronouns.
             # If content exists, use it in the error message; otherwise use a generic message
             if hasattr(sentence, "content") and sentence.content:
                 return """
-The 'translation' field should be a short reason why '{sentence.content}' is incorrect.  Do not repeat 
+The 'translation' field should be a short reason why '{sentence.content}' is incorrect.  Do not repeat
 '{sentence.content}' in the output.  Return only the reason.
 """
             else:
@@ -87,7 +87,7 @@ The 'translation' field should be a short reason why '{sentence.content}' is inc
     def __detect_negations(self):
         #   TODO: This needs to be smarter, and plug in supported negations directly.
         return """
-If the sentence has any French language negation present, set is_negated in the response to 'True'.  
+If the sentence has any French language negation present, set is_negated in the response to 'True'.
 Otherwise set it to 'False'."""
 
     def __json_format(self):

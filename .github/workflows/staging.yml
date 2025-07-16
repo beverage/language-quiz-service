@@ -41,7 +41,10 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
-    
+    - uses: supabase/setup-cli@v1
+      with:
+        version: latest
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
@@ -68,6 +71,12 @@ jobs:
     - name: Install project
       run: poetry install --no-interaction
       
+    - name: Install Supabase
+      run: make start-supabase
+
+    - name: Load database schemas
+      run: ./scripts/load-schemas.sh
+
     - name: Run quality checks (format, lint, test)
       run: |
         make format lint
