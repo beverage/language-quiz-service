@@ -4,10 +4,9 @@ import logging
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
 
+from src.api.models.verbs import VerbDownloadRequest, VerbResponse, VerbWithConjugationsResponse, ConjugationResponse
 from src.core.auth import get_current_api_key
-from src.schemas.verbs import Verb, VerbWithConjugations
 from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
@@ -15,20 +14,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/verbs", tags=["verbs"])
 
 
-class VerbDownloadRequest(BaseModel):
-    """Request model for verb download."""
-
-    infinitive: str = Field(
-        ..., min_length=1, description="French verb in infinitive form"
-    )
-    target_language_code: str = Field(
-        default="eng", description="Target language code (ISO 639-3)"
-    )
-
-
 @router.post(
     "/download",
-    response_model=Verb,
+    response_model=VerbResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Download and store a new French verb",
     description="""
@@ -99,7 +87,7 @@ class VerbDownloadRequest(BaseModel):
 async def download_verb(
     request: VerbDownloadRequest,
     current_key: dict = Depends(get_current_api_key),
-) -> Verb:
+) -> VerbResponse:
     """
     Download a verb from LLM and store it.
 
@@ -123,7 +111,9 @@ async def download_verb(
         logger.info(
             f"Downloaded verb {request.infinitive} by {current_key.get('name', 'unknown')}"
         )
-        return verb
+        
+        # Convert service schema to API response model
+        return VerbResponse(**verb.model_dump())
 
     except ValueError as e:
         logger.warning(f"Invalid verb download request: {e}")
@@ -138,7 +128,7 @@ async def download_verb(
 
 @router.get(
     "/random",
-    response_model=Verb,
+    response_model=VerbResponse,
     summary="Get a random French verb",
     description="""
     Retrieve a random French verb from the database.
@@ -209,7 +199,7 @@ async def get_random_verb(
         "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
-) -> Verb:
+) -> VerbResponse:
     """
     Get a random verb.
 
@@ -236,7 +226,7 @@ async def get_random_verb(
                 status_code=status.HTTP_404_NOT_FOUND, detail="No verbs found"
             )
 
-        return verb
+        return VerbResponse(**verb.model_dump())
 
     except HTTPException:
         raise
@@ -250,7 +240,7 @@ async def get_random_verb(
 
 @router.get(
     "/{infinitive}",
-    response_model=Verb,
+    response_model=VerbResponse,
     summary="Get specific French verb by infinitive",
     description="""
     Retrieve a specific French verb by its infinitive form.
@@ -329,7 +319,7 @@ async def get_verb_by_infinitive(
         "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
-) -> Verb:
+) -> VerbResponse:
     """
     Get a verb by infinitive (supports URL encoding for spaces).
 
@@ -365,7 +355,7 @@ async def get_verb_by_infinitive(
                 detail=f"Verb '{decoded_infinitive}' not found",
             )
 
-        return verb
+        return VerbResponse(**verb.model_dump())
 
     except HTTPException:
         raise
@@ -379,7 +369,7 @@ async def get_verb_by_infinitive(
 
 @router.get(
     "/{infinitive}/conjugations",
-    response_model=VerbWithConjugations,
+    response_model=VerbWithConjugationsResponse,
     summary="Get verb conjugations for all tenses",
     description="""
     Retrieve comprehensive conjugation information for a specific French verb.
@@ -482,7 +472,7 @@ async def get_verb_conjugations(
         "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
-) -> VerbWithConjugations:
+) -> VerbWithConjugationsResponse:
     """
     Get verb conjugations (supports URL encoding for spaces).
 
@@ -518,7 +508,7 @@ async def get_verb_conjugations(
                 detail=f"Verb '{decoded_infinitive}' not found",
             )
 
-        return verb_with_conjugations
+        return VerbWithConjugationsResponse(**verb_with_conjugations.model_dump())
 
     except HTTPException:
         raise

@@ -3,12 +3,16 @@ API Key management endpoints.
 """
 
 import logging
+import ipaddress
+from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPBearer
 
-from src.core.auth import get_current_api_key
+from src.api.models.api_keys import ApiKeyUpdateRequest
+from src.core.auth import get_current_api_key, require_permission
 from src.schemas.api_keys import (
     ApiKeyCreate,
     ApiKeyResponse,
@@ -21,6 +25,8 @@ from src.services.api_key_service import ApiKeyService
 logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api-keys"
+ROUTER_PREFIX = f"/api/v1{API_PREFIX}"
+
 router = APIRouter(prefix=API_PREFIX, tags=["api-keys"])
 security = HTTPBearer()
 
@@ -447,7 +453,7 @@ async def get_api_key(
 @router.put("/{api_key_id}", response_model=ApiKeyResponse)
 async def update_api_key(
     api_key_id: UUID,
-    api_key_data: ApiKeyUpdate,
+    api_key_data: ApiKeyUpdateRequest,
     current_key: dict = Depends(get_current_api_key),
 ) -> ApiKeyResponse:
     """
@@ -465,7 +471,19 @@ async def update_api_key(
 
     try:
         service = ApiKeyService()
-        result = await service.update_api_key(api_key_id, api_key_data)
+        
+        # Convert API request model to service model
+        service_update_data = ApiKeyUpdate(
+            name=api_key_data.name,
+            description=api_key_data.description,
+            client_name=api_key_data.client_name,
+            permissions_scope=api_key_data.permissions_scope,
+            is_active=api_key_data.is_active,
+            rate_limit_rpm=api_key_data.rate_limit_rpm,
+            allowed_ips=api_key_data.allowed_ips,
+        )
+        
+        result = await service.update_api_key(api_key_id, service_update_data)
 
         if not result:
             raise HTTPException(

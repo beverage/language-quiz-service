@@ -16,7 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .api import api_keys, health, verbs
+from .api import api_keys, health, sentences, verbs
 from .core.auth import ApiKeyAuthMiddleware
 from .core.config import get_settings
 
@@ -179,9 +179,10 @@ ROUTER_PREFIX = "/api/v1"
 v1_router = APIRouter(prefix=ROUTER_PREFIX)
 v1_router.include_router(api_keys.router)
 v1_router.include_router(verbs.router)
+v1_router.include_router(sentences.router)
+
 # TODO: Uncomment these when endpoints are implemented
 # v1_router.include_router(problems.router)
-# v1_router.include_router(sentences.router)
 
 # Include the v1 router in the main app
 app.include_router(v1_router)

@@ -10,9 +10,6 @@ from uuid import uuid4
 import pytest
 
 from src.schemas.sentences import (
-    DirectObject,
-    IndirectObject,
-    Negation,
     Pronoun,
     SentenceCreate,
     SentenceUpdate,
