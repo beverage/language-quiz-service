@@ -1,30 +1,12 @@
-🧹 Major codebase cleanup and test coverage improvements
+🚀 Implement API versioning with /api/v1 base prefix
 
-## Test Coverage & Reliability Improvements
-- Fix verb service test failures and achieve 89% coverage (19 passed, 2 appropriately skipped)
-- Fix test_get_verb_by_infinitive_exact_match using UUID-based unique infinitive
-- Fix test_get_verb_with_conjugations with correct tense enum values
-- Fix test_search_verbs with unique identifiers to avoid database conflicts
-- Comprehensive problems service tests added (895+ lines, 80%+ coverage)
-- Enhanced API keys test coverage with 598+ lines of comprehensive tests
-- Improved test organization and fixture management across domains
+- Create v1 API router to group all API endpoints under /api/v1
+- Keep health endpoints at root level (/health, /) for monitoring
+- Update API endpoint URLs:
+  • /verbs/* → /api/v1/verbs/*
+  • /api-keys/* → /api/v1/api-keys/*
+- Update OpenAPI documentation with new server URLs
+- Update all tests to use new versioned endpoints
+- All 25 verbs API tests passing with new URL structure ✅
 
-## Schema & Type Safety Improvements  
-- Remove unused Union imports and modernize to Python 3.10+ union syntax (|)
-- Enhanced schema validation and field definitions across all domains
-- Improved type annotations and Pydantic model configurations
-- Fixed UP007 linting errors for modern union syntax
-
-## Repository & Service Layer Enhancements
-- Enhanced error handling and validation in repositories
-- Improved service layer reliability and consistency
-- Better separation of concerns across service methods
-- Enhanced database interaction patterns
-
-## Code Organization & Cleanup
-- Reorganized test fixtures by domain (verbs, sentences, problems, api_keys)
-- Improved import organization and dependency management
-- Enhanced CLI command structure and error handling
-- Better configuration management and client initialization
-
-Result: 62 files improved, significantly enhanced test coverage across all domains, modern Python type annotations, and improved codebase maintainability. 
+Enables clean API versioning strategy for future development. 

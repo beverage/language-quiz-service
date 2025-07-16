@@ -92,7 +92,7 @@ class TestVerbsAPIEndpoints:
         [
             # Success cases
             (
-                "/verbs/random?target_language_code=eng",
+                "/api/v1/verbs/random?target_language_code=eng",
                 "get_random_verb",
                 200,
                 "sample_verb",
@@ -105,14 +105,14 @@ class TestVerbsAPIEndpoints:
                 ],
             ),
             (
-                "/verbs/parler",
+                "/api/v1/verbs/parler",
                 "get_verb_by_infinitive",
                 200,
                 "sample_verb",
                 ["id", "infinitive", "translation", "auxiliary"],
             ),
             (
-                "/verbs/parler/conjugations",
+                "/api/v1/verbs/parler/conjugations",
                 "get_verb_with_conjugations",
                 200,
                 "sample_verb_with_conjugations",
@@ -120,21 +120,21 @@ class TestVerbsAPIEndpoints:
             ),
             # Not found cases
             (
-                "/verbs/random",
+                "/api/v1/verbs/random",
                 "get_random_verb",
                 404,
                 None,
                 ["message"],
             ),
             (
-                "/verbs/nonexistent",
+                "/api/v1/verbs/nonexistent",
                 "get_verb_by_infinitive",
                 404,
                 None,
                 ["message"],
             ),
             (
-                "/verbs/nonexistent/conjugations",
+                "/api/v1/verbs/nonexistent/conjugations",
                 "get_verb_with_conjugations",
                 404,
                 None,
@@ -191,7 +191,7 @@ class TestVerbsAPIEndpoints:
         [
             # URL encoding tests
             (
-                "/verbs/être",
+                "/api/v1/verbs/être",
                 {},
                 {
                     "infinitive": "être",
@@ -202,7 +202,7 @@ class TestVerbsAPIEndpoints:
             ),
             # Parameter parsing tests
             (
-                "/verbs/parler",
+                "/api/v1/verbs/parler",
                 {
                     "auxiliary": "avoir",
                     "reflexive": "true",
@@ -217,7 +217,7 @@ class TestVerbsAPIEndpoints:
             ),
             # Default language test
             (
-                "/verbs/random",
+                "/api/v1/verbs/random",
                 {},
                 {"target_language_code": "eng"},
             ),
@@ -283,7 +283,7 @@ class TestVerbsAPIEndpoints:
                 mock_service.get_verb_by_infinitive.return_value = sample_verb
 
                 response = client.get(
-                    "/verbs/parler",
+                    "/api/v1/verbs/parler",
                     headers=auth_headers,
                     params={"reflexive": bool_value},
                 )
@@ -316,7 +316,7 @@ class TestVerbsAPIEndpoints:
                 mock_service.get_verb_by_infinitive.return_value = sample_verb
 
                 response = client.get(
-                    "/verbs/parler",
+                    "/api/v1/verbs/parler",
                     headers=auth_headers,
                     params={"auxiliary": auxiliary_value},
                 )
@@ -339,7 +339,7 @@ class TestVerbsAPIDownload:
                 mock_service.download_verb.return_value = sample_verb
 
                 response = client.post(
-                    "/verbs/download",
+                    "/api/v1/verbs/download",
                     headers=auth_headers,
                     json={"infinitive": "parler", "target_language_code": "eng"},
                 )
@@ -372,7 +372,7 @@ class TestVerbsAPIDownload:
         """Test download verb request validation."""
         with _mock_auth_middleware(mock_api_key_info):
             response = client.post(
-                "/verbs/download",
+                "/api/v1/verbs/download",
                 headers=auth_headers,
                 json=request_body,
             )
@@ -396,7 +396,7 @@ class TestVerbsAPIDownload:
                 mock_service.download_verb.return_value = sample_verb
 
                 response = client.post(
-                    "/verbs/download",
+                    "/api/v1/verbs/download",
                     headers=auth_headers,
                     json={"infinitive": "parler", "target_language_code": "eng"},
                 )
@@ -414,7 +414,7 @@ class TestVerbsAPIResponseFormats:
         "endpoint,expected_fields",
         [
             (
-                "/verbs/random",
+                "/api/v1/verbs/random",
                 {
                     "id",
                     "infinitive",
@@ -433,7 +433,7 @@ class TestVerbsAPIResponseFormats:
                 },
             ),
             (
-                "/verbs/parler/conjugations",
+                "/api/v1/verbs/parler/conjugations",
                 {"id", "infinitive", "conjugations"},
             ),
         ],
@@ -488,7 +488,7 @@ class TestVerbsAPIResponseFormats:
                 mock_service_class.return_value = mock_service
                 mock_service.get_random_verb.return_value = None
 
-                response = client.get("/verbs/random", headers=auth_headers)
+                response = client.get("/api/v1/verbs/random", headers=auth_headers)
 
                 assert response.status_code == 404
                 data = response.json()

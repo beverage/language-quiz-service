@@ -8,7 +8,7 @@ middleware, and route handlers.
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -54,13 +54,18 @@ app = FastAPI(
     This API provides endpoints for managing French verbs, generating language learning content,
     and creating personalized quizzes using AI technology.
 
+    ### 🌐 API Versioning
+
+    - **Health endpoints**: Available at root level (`/health`, `/`)
+    - **API endpoints**: Versioned under `/api/v1/` (e.g., `/api/v1/verbs`, `/api/v1/api-keys`)
+
     ### 🔐 Authentication
 
     All API endpoints require authentication using API keys. Include your API key in the
-    `Authorization` header as a Bearer token:
+    `X-API-Key` header:
 
     ```
-    Authorization: Bearer sk_live_your_api_key_here
+    X-API-Key: sk_live_your_api_key_here
     ```
 
     ### 📋 Permission Levels
@@ -73,8 +78,8 @@ app = FastAPI(
 
     1. **Obtain an API Key**: Contact your administrator to get an API key
     2. **Test Authentication**: Use the `/health` endpoint to verify your setup
-    3. **Explore Verbs**: Start with `/verbs/random` to get a random French verb
-    4. **Download Content**: Use `/verbs/download` to add new verbs to the database
+    3. **Explore Verbs**: Start with `/api/v1/verbs/random` to get a random French verb
+    4. **Download Content**: Use `/api/v1/verbs/download` to add new verbs to the database
 
     ### 📊 Rate Limiting
 
@@ -114,14 +119,17 @@ app = FastAPI(
     license_info={"name": "MIT License", "url": "https://opensource.org/licenses/MIT"},
     servers=[
         {
-            "url": "https://api.languagequizservice.com",
+            "url": "https://api.languagequizservice.com/api/v1",
             "description": "Production server",
         },
         {
-            "url": "https://staging-api.languagequizservice.com",
+            "url": "https://staging-api.languagequizservice.com/api/v1",
             "description": "Staging server",
         },
-        {"url": "http://localhost:8000", "description": "Local development server"},
+        {
+            "url": "http://localhost:8000/api/v1",
+            "description": "Local development server",
+        },
     ],
     openapi_tags=[
         {"name": "health", "description": "Health check and system status endpoints"},
@@ -164,8 +172,17 @@ app.add_middleware(ApiKeyAuthMiddleware)
 
 # Include API routers
 app.include_router(health.router)
-app.include_router(api_keys.router)
-app.include_router(verbs.router)
+
+# Create v1 API router
+v1_router = APIRouter(prefix="/api/v1")
+v1_router.include_router(api_keys.router)
+v1_router.include_router(verbs.router)
+# TODO: Uncomment these when endpoints are implemented
+# v1_router.include_router(problems.router)
+# v1_router.include_router(sentences.router)
+
+# Include the v1 router in the main app
+app.include_router(v1_router)
 
 
 @app.exception_handler(StarletteHTTPException)
