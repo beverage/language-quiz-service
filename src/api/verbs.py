@@ -4,6 +4,7 @@ import logging
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from src.core.auth import get_current_api_key
 from src.schemas.verbs import Verb, VerbWithConjugations
@@ -14,9 +15,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/verbs", tags=["verbs"])
 
 
+class VerbDownloadRequest(BaseModel):
+    """Request model for verb download."""
+
+    infinitive: str = Field(
+        ..., min_length=1, description="French verb in infinitive form"
+    )
+    target_language_code: str = Field(
+        default="eng", description="Target language code (ISO 639-3)"
+    )
+
+
 @router.post(
     "/download",
     response_model=Verb,
+    status_code=status.HTTP_201_CREATED,
     summary="Download and store a new French verb",
     description="""
     Download a French verb from AI service and store it in the database.
@@ -31,7 +44,7 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
     **Required Permission**: `write` or `admin`
     """,
     responses={
-        200: {
+        201: {
             "description": "Verb successfully downloaded and stored",
             "content": {
                 "application/json": {
@@ -84,12 +97,7 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
     },
 )
 async def download_verb(
-    infinitive: str = Query(
-        ..., description="French verb in infinitive form", examples=["parler"]
-    ),
-    target_language_code: str = Query(
-        "eng", description="Target language code (ISO 639-3)", examples=["eng"]
-    ),
+    request: VerbDownloadRequest,
     current_key: dict = Depends(get_current_api_key),
 ) -> Verb:
     """
@@ -108,11 +116,12 @@ async def download_verb(
     try:
         service = VerbService()
         verb = await service.download_verb(
-            requested_verb=infinitive, target_language_code=target_language_code
+            requested_verb=request.infinitive,
+            target_language_code=request.target_language_code,
         )
 
         logger.info(
-            f"Downloaded verb {infinitive} by {current_key.get('name', 'unknown')}"
+            f"Downloaded verb {request.infinitive} by {current_key.get('name', 'unknown')}"
         )
         return verb
 
@@ -120,7 +129,7 @@ async def download_verb(
         logger.warning(f"Invalid verb download request: {e}")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        logger.error(f"Error downloading verb {infinitive}: {e}")
+        logger.error(f"Error downloading verb {request.infinitive}: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to download verb",
