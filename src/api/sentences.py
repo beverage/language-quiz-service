@@ -1,9 +1,22 @@
-"""Sentence management endpoints."""
+"""
+Sentence management endpoints.
 
-from typing import List, Optional
+Provides read-only access to sentence data with filtering capabilities.
+Sentence creation and updates are handled through internal services only.
+
+**Available Endpoints:**
+- GET /random - Retrieve a random sentence
+- GET /{sentence_id} - Get specific sentence by ID
+- GET / - List sentences with optional filters
+- DELETE /{sentence_id} - Remove a sentence from the database
+
+**Note**: Creation and update endpoints have been removed as sentence
+generation requires complex grammatical validation best handled by AI services.
+"""
+
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.models.sentences import SentenceResponse
 from src.services.sentence_service import SentenceService
@@ -17,15 +30,79 @@ async def get_sentence_service() -> SentenceService:
     return SentenceService()
 
 
-@router.get("/random", response_model=SentenceResponse, summary="Get random sentence")
+@router.get(
+    "/random",
+    response_model=SentenceResponse,
+    summary="Get random sentence",
+    description="""
+    Retrieve a random sentence from the database with optional filtering.
+
+    This endpoint is useful for:
+    - Language learning applications requiring random content
+    - Quiz generation with diverse sentence structures
+    - Vocabulary practice with varied contexts
+    - Content discovery and exploration
+
+    **Filtering Options:**
+    - Filter by correctness to get only valid sentences for learning
+    - Filter by verb to focus on specific vocabulary
+
+    **Required Permission**: `read`, `write`, or `admin`
+    """,
+    responses={
+        200: {
+            "description": "Random sentence retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "789e1234-e89b-12d3-a456-426614174333",
+                        "target_language_code": "eng",
+                        "content": "Je parle français couramment.",
+                        "translation": "I speak French fluently.",
+                        "verb_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "pronoun": "first_person",
+                        "tense": "present",
+                        "direct_object": "masculine",
+                        "indirect_object": "none",
+                        "negation": "none",
+                        "is_correct": True,
+                        "explanation": "Present tense with adverb of manner",
+                        "source": "AI_GENERATED",
+                        "created_at": "2024-01-15T11:30:00Z",
+                        "updated_at": "2024-01-15T11:30:00Z",
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "No sentences found matching criteria",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "No sentences found matching criteria",
+                        "status_code": 404,
+                        "path": "/api/v1/sentences/random",
+                    }
+                }
+            },
+        },
+    },
+)
 async def get_random_sentence(
-    is_correct: Optional[bool] = Query(None, description="Filter by correctness"),
-    verb_id: Optional[UUID] = Query(None, description="Filter by verb ID"),
+    is_correct: bool | None = Query(
+        None,
+        description="Filter by correctness (true for grammatically correct sentences only)",
+    ),
+    verb_id: UUID | None = Query(
+        None,
+        description="Filter by specific verb UUID to get sentences using that verb",
+    ),
     service: SentenceService = Depends(get_sentence_service),
 ) -> SentenceResponse:
     """
     Get a random sentence from the database.
-    
+
     Optionally filter by correctness and/or verb ID.
     """
     try:
@@ -33,18 +110,75 @@ async def get_random_sentence(
             is_correct=is_correct,
             verb_id=verb_id,
         )
-        
+
         if not sentence:
-            raise HTTPException(status_code=404, detail="No sentences found matching criteria")
-        
+            raise HTTPException(
+                status_code=404, detail="No sentences found matching criteria"
+            )
+
         # Convert service schema to API response model
         return SentenceResponse(**sentence.model_dump())
-    
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get random sentence: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get random sentence: {str(e)}"
+        )
 
 
-@router.get("/{sentence_id}", response_model=SentenceResponse, summary="Get sentence by ID")
+@router.get(
+    "/{sentence_id}",
+    response_model=SentenceResponse,
+    summary="Get sentence by ID",
+    description="""
+    Retrieve a specific sentence using its unique identifier.
+
+    **Use Cases:**
+    - Display detailed sentence information in learning interfaces
+    - Retrieve sentences for analysis or modification workflows
+    - Access specific content referenced by ID from other systems
+
+    **Required Permission**: `read`, `write`, or `admin`
+    """,
+    responses={
+        200: {
+            "description": "Sentence found and retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "789e1234-e89b-12d3-a456-426614174333",
+                        "target_language_code": "eng",
+                        "content": "Nous avons parlé de littérature.",
+                        "translation": "We talked about literature.",
+                        "verb_id": "123e4567-e89b-12d3-a456-426614174000",
+                        "pronoun": "first_person_plural",
+                        "tense": "passe_compose",
+                        "direct_object": "none",
+                        "indirect_object": "thing",
+                        "negation": "none",
+                        "is_correct": True,
+                        "explanation": "Passé composé with indirect object 'de quelque chose'",
+                        "source": "AI_GENERATED",
+                        "created_at": "2024-01-15T11:30:00Z",
+                        "updated_at": "2024-01-15T11:30:00Z",
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Sentence not found",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Sentence not found",
+                        "status_code": 404,
+                        "path": "/api/v1/sentences/789e1234-e89b-12d3-a456-426614174333",
+                    }
+                }
+            },
+        },
+    },
+)
 async def get_sentence(
     sentence_id: UUID,
     service: SentenceService = Depends(get_sentence_service),
@@ -52,30 +186,114 @@ async def get_sentence(
     """Get a specific sentence by its ID."""
     try:
         sentence = await service.get_sentence(sentence_id)
-        
+
         if not sentence:
             raise HTTPException(status_code=404, detail="Sentence not found")
-        
+
         # Convert service schema to API response model
         return SentenceResponse(**sentence.model_dump())
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get sentence: {str(e)}")
 
 
-@router.get("/", response_model=List[SentenceResponse], summary="List sentences with filters")
+@router.get(
+    "/",
+    response_model=list[SentenceResponse],
+    summary="List sentences with filters",
+    description="""
+    Retrieve a filtered list of sentences from the database.
+
+    **Advanced Filtering:**
+    Combine multiple filters to create targeted queries:
+    - Verb-specific sentences for focused vocabulary practice
+    - Tense-based filtering for grammar lessons
+    - Correctness filtering for quality control
+    - Language-specific content for multi-language support
+
+    **Pagination:**
+    Use the `limit` parameter to control result size (1-100 sentences).
+
+    **Use Cases:**
+    - Build vocabulary exercises focused on specific verbs
+    - Create grammar lessons targeting particular tenses
+    - Generate quiz content with known difficulty levels
+    - Analyze sentence patterns and structures
+
+    **Required Permission**: `read`, `write`, or `admin`
+    """,
+    responses={
+        200: {
+            "description": "List of sentences matching the filters",
+            "content": {
+                "application/json": {
+                    "example": [
+                        {
+                            "id": "789e1234-e89b-12d3-a456-426614174333",
+                            "target_language_code": "eng",
+                            "content": "Je parle français.",
+                            "translation": "I speak French.",
+                            "verb_id": "123e4567-e89b-12d3-a456-426614174000",
+                            "pronoun": "first_person",
+                            "tense": "present",
+                            "direct_object": "masculine",
+                            "indirect_object": "none",
+                            "negation": "none",
+                            "is_correct": True,
+                            "explanation": "Simple present tense with direct object",
+                            "source": "AI_GENERATED",
+                            "created_at": "2024-01-15T11:30:00Z",
+                            "updated_at": "2024-01-15T11:30:00Z",
+                        },
+                        {
+                            "id": "789e1234-e89b-12d3-a456-426614174334",
+                            "target_language_code": "eng",
+                            "content": "Tu parles très bien.",
+                            "translation": "You speak very well.",
+                            "verb_id": "123e4567-e89b-12d3-a456-426614174000",
+                            "pronoun": "second_person",
+                            "tense": "present",
+                            "direct_object": "none",
+                            "indirect_object": "none",
+                            "negation": "none",
+                            "is_correct": True,
+                            "explanation": "Present tense with adverb of manner",
+                            "source": "AI_GENERATED",
+                            "created_at": "2024-01-15T11:31:00Z",
+                            "updated_at": "2024-01-15T11:31:00Z",
+                        },
+                    ]
+                }
+            },
+        }
+    },
+)
 async def list_sentences(
-    verb_id: Optional[UUID] = Query(None, description="Filter by verb ID"),
-    is_correct: Optional[bool] = Query(None, description="Filter by correctness"),
-    tense: Optional[str] = Query(None, description="Filter by tense"),
-    pronoun: Optional[str] = Query(None, description="Filter by pronoun"),
-    target_language_code: Optional[str] = Query(None, description="Filter by target language"),
-    limit: int = Query(50, ge=1, le=100, description="Maximum number of results"),
+    verb_id: UUID | None = Query(
+        None, description="Filter sentences by specific verb UUID"
+    ),
+    is_correct: bool | None = Query(
+        None, description="Filter by grammatical correctness (true/false)"
+    ),
+    tense: str | None = Query(
+        None,
+        description="Filter by verb tense (present, passe_compose, imparfait, etc.)",
+    ),
+    pronoun: str | None = Query(
+        None,
+        description="Filter by subject pronoun (first_person, second_person, etc.)",
+    ),
+    target_language_code: str | None = Query(
+        None, description="Filter by target language code for translations"
+    ),
+    limit: int = Query(
+        50, ge=1, le=100, description="Maximum number of results to return (1-100)"
+    ),
     service: SentenceService = Depends(get_sentence_service),
-) -> List[SentenceResponse]:
+) -> list[SentenceResponse]:
     """
     List sentences with optional filters.
-    
+
     Supports filtering by verb, correctness, grammatical features, and language.
     """
     try:
@@ -87,15 +305,55 @@ async def list_sentences(
             target_language_code=target_language_code,
             limit=limit,
         )
-        
+
         # Convert service schemas to API response models
         return [SentenceResponse(**sentence.model_dump()) for sentence in sentences]
-    
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list sentences: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to list sentences: {str(e)}"
+        )
 
 
-@router.delete("/{sentence_id}", summary="Delete sentence")
+@router.delete(
+    "/{sentence_id}",
+    summary="Delete sentence",
+    description="""
+    Remove a sentence from the database.
+
+    **Use Cases:**
+    - Content moderation and quality control
+    - Removing outdated or incorrect sentences
+    - Database maintenance and cleanup
+
+    **Required Permission**: `write` or `admin`
+
+    **Note**: This operation is irreversible. Deleted sentences cannot be recovered.
+    """,
+    responses={
+        200: {
+            "description": "Sentence deleted successfully",
+            "content": {
+                "application/json": {
+                    "example": {"message": "Sentence deleted successfully"}
+                }
+            },
+        },
+        404: {
+            "description": "Sentence not found",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Sentence not found",
+                        "status_code": 404,
+                        "path": "/api/v1/sentences/789e1234-e89b-12d3-a456-426614174333",
+                    }
+                }
+            },
+        },
+    },
+)
 async def delete_sentence(
     sentence_id: UUID,
     service: SentenceService = Depends(get_sentence_service),
@@ -103,11 +361,13 @@ async def delete_sentence(
     """Delete a sentence."""
     try:
         deleted = await service.delete_sentence(sentence_id)
-        
+
         if not deleted:
             raise HTTPException(status_code=404, detail="Sentence not found")
-        
+
         return {"message": "Sentence deleted successfully"}
-    
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete sentence: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete sentence: {str(e)}"
+        )

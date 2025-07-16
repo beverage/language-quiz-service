@@ -4,17 +4,16 @@ These tests focus on HTTP request/response behavior, parameter handling,
 and API contract validation without complex dependency injection.
 """
 
-import pytest
-
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.api.api_keys import API_PREFIX
-from src.main import app, ROUTER_PREFIX
+from src.main import ROUTER_PREFIX, app
 from src.schemas.api_keys import (
     ApiKeyResponse,
     ApiKeyStats,
@@ -275,7 +274,9 @@ class TestApiKeysAPIContract:
                 mock_service_class.return_value = mock_service
                 mock_service.get_api_key.return_value = sample_api_key_response
 
-                response = client.get(f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers)
+                response = client.get(
+                    f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers
+                )
 
                 assert response.status_code == 200
                 data = response.json()
@@ -294,7 +295,9 @@ class TestApiKeysAPIContract:
                 mock_service_class.return_value = mock_service
                 mock_service.get_api_key.return_value = None
 
-                response = client.get(f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers)
+                response = client.get(
+                    f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers
+                )
 
                 assert response.status_code == 404
                 data = response.json()
@@ -322,7 +325,9 @@ class TestApiKeysAPIContract:
                 }
 
                 response = client.put(
-                    f"{API_KEY_PREFIX}/{key_id}", json=update_data, headers=admin_headers
+                    f"{API_KEY_PREFIX}/{key_id}",
+                    json=update_data,
+                    headers=admin_headers,
                 )
 
                 assert response.status_code == 200
@@ -361,9 +366,7 @@ class TestApiKeysAPIContract:
                     sample_api_key_response
                 ]
 
-                response = client.get(
-                    f"{API_KEY_PREFIX}/search?name=test"
-                )
+                response = client.get(f"{API_KEY_PREFIX}/search?name=test")
 
                 assert response.status_code == 200
                 data = response.json()

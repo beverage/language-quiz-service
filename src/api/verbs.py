@@ -5,7 +5,11 @@ from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from src.api.models.verbs import VerbDownloadRequest, VerbResponse, VerbWithConjugationsResponse, ConjugationResponse
+from src.api.models.verbs import (
+    VerbDownloadRequest,
+    VerbResponse,
+    VerbWithConjugationsResponse,
+)
 from src.core.auth import get_current_api_key
 from src.services.verb_service import VerbService
 
@@ -23,11 +27,30 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
     Download a French verb from AI service and store it in the database.
 
     This endpoint uses AI to generate comprehensive verb information including:
-    - Conjugations for all tenses
-    - Auxiliary verb information
-    - Participle forms
-    - Classification and irregularity status
-    - Translation to target language
+    - **Conjugations**: Complete conjugation tables for all supported tenses
+    - **Auxiliary Information**: Whether the verb uses avoir or être
+    - **Participle Forms**: Past participle (for compound tenses) and present participle
+    - **Classification**: French verb group (1st, 2nd, or 3rd group)
+    - **Grammatical Properties**: Irregularity status, direct/indirect object compatibility
+    - **Translation**: Target language translation with language code support
+
+    **Input Requirements:**
+    - `infinitive`: French verb in infinitive form (e.g., "parler", "être", "se lever")
+    - `target_language_code`: ISO 639-3 language code for translation (default: "eng")
+
+    **AI Processing:**
+    The endpoint leverages advanced language models to:
+    1. Validate the French verb exists and is properly formed
+    2. Generate complete conjugation patterns for all tenses
+    3. Determine auxiliary verb requirements and reflexivity
+    4. Classify the verb according to French grammar rules
+    5. Provide accurate translations in the target language
+
+    **Use Cases:**
+    - Expanding vocabulary database with new verbs
+    - Educational content creation for language learning
+    - Automated curriculum development
+    - Language analysis and linguistic research
 
     **Required Permission**: `write` or `admin`
     """,
@@ -57,14 +80,28 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
             },
         },
         400: {
-            "description": "Invalid request parameters",
+            "description": "Invalid request parameters or verb not found",
             "content": {
                 "application/json": {
-                    "example": {
-                        "error": True,
-                        "message": "Invalid verb or language code",
-                        "status_code": 400,
-                        "path": "/verbs/download",
+                    "examples": {
+                        "invalid_verb": {
+                            "summary": "Invalid French verb",
+                            "value": {
+                                "error": True,
+                                "message": "Invalid French verb 'xyz123' - not found in French dictionary",
+                                "status_code": 400,
+                                "path": "/api/v1/verbs/download",
+                            },
+                        },
+                        "invalid_language": {
+                            "summary": "Invalid language code",
+                            "value": {
+                                "error": True,
+                                "message": "Invalid language code 'xyz' - must be ISO 639-3 format",
+                                "status_code": 400,
+                                "path": "/api/v1/verbs/download",
+                            },
+                        },
                     }
                 }
             },
@@ -77,7 +114,40 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
                         "error": True,
                         "message": "Write or admin permission required to download verbs",
                         "status_code": 403,
-                        "path": "/verbs/download",
+                        "path": "/api/v1/verbs/download",
+                    }
+                }
+            },
+        },
+        422: {
+            "description": "Request validation failed",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Request validation failed",
+                        "status_code": 422,
+                        "path": "/api/v1/verbs/download",
+                        "details": [
+                            {
+                                "field": "infinitive",
+                                "message": "String should have at least 1 character",
+                                "type": "string_too_short",
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "AI service error or internal server error",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Failed to download verb - AI service temporarily unavailable",
+                        "status_code": 500,
+                        "path": "/api/v1/verbs/download",
                     }
                 }
             },
@@ -111,7 +181,7 @@ async def download_verb(
         logger.info(
             f"Downloaded verb {request.infinitive} by {current_key.get('name', 'unknown')}"
         )
-        
+
         # Convert service schema to API response model
         return VerbResponse(**verb.model_dump())
 

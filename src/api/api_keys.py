@@ -3,16 +3,13 @@ API Key management endpoints.
 """
 
 import logging
-import ipaddress
-from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPBearer
 
 from src.api.models.api_keys import ApiKeyUpdateRequest
-from src.core.auth import get_current_api_key, require_permission
+from src.core.auth import get_current_api_key
 from src.schemas.api_keys import (
     ApiKeyCreate,
     ApiKeyResponse,
@@ -450,7 +447,136 @@ async def get_api_key(
         )
 
 
-@router.put("/{api_key_id}", response_model=ApiKeyResponse)
+@router.put(
+    "/{api_key_id}",
+    response_model=ApiKeyResponse,
+    summary="Update API key",
+    description="""
+    Update an existing API key's properties.
+
+    **Partial Updates Supported**: Only provide the fields you want to update.
+    All fields are optional, and unchanged fields will retain their current values.
+
+    **Updatable Properties:**
+    - **Name & Description**: Update human-readable identification
+    - **Client Information**: Modify associated client application details
+    - **Permissions**: Grant or revoke access levels (read/write/admin)
+    - **Status**: Activate or deactivate the key
+    - **Rate Limiting**: Adjust request limits (1-10,000 RPM)
+    - **IP Restrictions**: Modify allowed IP addresses or CIDR blocks
+
+    **Security Considerations:**
+    - Permission changes take effect immediately
+    - Deactivated keys cannot authenticate until reactivated
+    - IP restrictions apply to all requests using the key
+    - Rate limit changes affect ongoing usage patterns
+
+    **Use Cases:**
+    - Rotate permissions for security compliance
+    - Adjust rate limits based on usage patterns
+    - Update client information for better tracking
+    - Implement IP-based access controls
+    - Temporarily disable compromised keys
+
+    **Required Permission**: `admin` (only administrators can modify API keys)
+    """,
+    responses={
+        200: {
+            "description": "API key updated successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "123e4567-e89b-12d3-a456-426614174000",
+                        "key_prefix": "sk_live_prod",
+                        "name": "Updated Production Key",
+                        "description": "Updated API key for production web application",
+                        "client_name": "Language Learning Web App v2",
+                        "is_active": True,
+                        "permissions_scope": ["read", "write"],
+                        "created_at": "2024-01-15T10:30:00Z",
+                        "last_used_at": "2024-01-15T16:45:00Z",
+                        "usage_count": 1250,
+                        "rate_limit_rpm": 2000,
+                        "allowed_ips": ["192.168.1.0/24", "10.0.0.0/8"],
+                    }
+                }
+            },
+        },
+        400: {
+            "description": "Invalid request data",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "invalid_permissions": {
+                            "summary": "Invalid permission values",
+                            "value": {
+                                "error": True,
+                                "message": "Invalid permission 'invalid_perm'. Valid permissions: read, write, admin",
+                                "status_code": 400,
+                                "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000",
+                            },
+                        },
+                        "invalid_ip": {
+                            "summary": "Invalid IP address format",
+                            "value": {
+                                "error": True,
+                                "message": "Invalid IP address '999.999.999.999' in allowed_ips",
+                                "status_code": 400,
+                                "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000",
+                            },
+                        },
+                    }
+                }
+            },
+        },
+        403: {
+            "description": "Insufficient permissions",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Admin permission required to update API keys",
+                        "status_code": 403,
+                        "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000",
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "API key not found",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "API key not found",
+                        "status_code": 404,
+                        "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000",
+                    }
+                }
+            },
+        },
+        422: {
+            "description": "Request validation failed",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Request validation failed",
+                        "status_code": 422,
+                        "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000",
+                        "details": [
+                            {
+                                "field": "rate_limit_rpm",
+                                "message": "Input should be greater than or equal to 1",
+                                "type": "greater_than_equal",
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+    },
+)
 async def update_api_key(
     api_key_id: UUID,
     api_key_data: ApiKeyUpdateRequest,
@@ -471,7 +597,7 @@ async def update_api_key(
 
     try:
         service = ApiKeyService()
-        
+
         # Convert API request model to service model
         service_update_data = ApiKeyUpdate(
             name=api_key_data.name,
@@ -482,7 +608,7 @@ async def update_api_key(
             rate_limit_rpm=api_key_data.rate_limit_rpm,
             allowed_ips=api_key_data.allowed_ips,
         )
-        
+
         result = await service.update_api_key(api_key_id, service_update_data)
 
         if not result:

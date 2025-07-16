@@ -14,10 +14,10 @@ __all__ = [
     "ApiKeyUpdateRequest",
     # Sentences
     "SentenceGenerateRequest",
-    "SentenceListRequest", 
+    "SentenceListRequest",
     "SentenceResponse",
     # Verbs
     "VerbDownloadRequest",
     "VerbResponse",
     "VerbWithConjugationsResponse",
-] 
+]
