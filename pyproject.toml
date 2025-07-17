@@ -25,6 +25,7 @@ slowapi = "^0.1.9"
 bcrypt = "^4.3.0"
 pytest-xdist = "^3.8.0"
 python-dotenv = "^1.1.1"
+bump-pydantic = "^0.8.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

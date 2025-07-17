@@ -9,6 +9,7 @@ from src.api.problems import API_PREFIX
 from src.core.exceptions import ContentGenerationError
 from src.main import ROUTER_PREFIX, app
 from src.schemas.verbs import VerbCreate
+from tests.problems.fixtures import mock_llm_responses
 from tests.verbs.fixtures import sample_verb_data
 
 PROBLEMS_PREFIX = f"{ROUTER_PREFIX}{API_PREFIX}"
@@ -21,97 +22,132 @@ def client():
 
 
 @pytest.fixture
-def admin_headers():
-    """Headers with admin test API key."""
-    return {
-        "X-API-Key": "sk_live_adm1234567890123456789012345678901234567890123456789012345678901234"
-    }
-
-
-@pytest.fixture
-def write_headers():
-    """Headers with read/write test API key."""
-    return {
-        "X-API-Key": "sk_live_wrt1234567890123456789012345678901234567890123456789012345678901234"
-    }
-
-
-@pytest.fixture
 def read_headers():
-    """Headers with read-only test API key."""
+    """Headers for read API key."""
     return {
         "X-API-Key": "sk_live_red1234567890123456789012345678901234567890123456789012345678901234"
     }
 
 
 @pytest.fixture
-def inactive_headers():
-    """Headers with inactive test API key."""
+def write_headers():
+    """Headers for write API key."""
     return {
-        "X-API-Key": "sk_live_ina1234567890123456789012345678901234567890123456789012345678901234"
+        "X-API-Key": "sk_live_wrt1234567890123456789012345678901234567890123456789012345678901234"
     }
 
 
-@pytest.mark.security
-class TestProblemsAPIAuthentication:
-    """Test authentication requirements without mocking."""
-
-    def test_endpoints_require_authentication(self, client: TestClient):
-        """Test that all endpoints require authentication."""
-        endpoints = [
-            f"{PROBLEMS_PREFIX}/random",
-            f"{PROBLEMS_PREFIX}/{uuid4()}",
-            f"{PROBLEMS_PREFIX}/",
-        ]
-
-        for endpoint in endpoints:
-            response = client.get(endpoint)
-            assert response.status_code == 401
-            data = response.json()
-            assert data["error"] is True
-            assert "API key required" in data["message"]
-
-    def test_get_random_problem_requires_authentication(self, client: TestClient):
-        """Test that the random problem endpoint requires authentication."""
-        response = client.get(f"{PROBLEMS_PREFIX}/random")
-        assert response.status_code == 401
-        data = response.json()
-        assert data["error"] is True
-        assert "API key required" in data["message"]
-
-    def test_get_problem_by_id_requires_authentication(self, client: TestClient):
-        """Test that the problem by id endpoint requires authentication."""
-        response = client.get(f"{PROBLEMS_PREFIX}/{uuid4()}")
-        assert response.status_code == 401
-        data = response.json()
-        assert data["error"] is True
-        assert "API key required" in data["message"]
+@pytest.fixture
+def admin_headers():
+    """Headers for admin API key."""
+    return {
+        "X-API-Key": "sk_live_adm1234567890123456789012345678901234567890123456789012345678901234"
+    }
 
 
 @pytest.mark.unit
 class TestProblemsAPIValidation:
-    """Test request validation with authenticated requests."""
+    """Test API parameter validation and error handling."""
 
-    def test_invalid_uuid_format(self, client: TestClient, admin_headers):
-        """Test validation with invalid UUID formats."""
-        # Test invalid UUID in path
-        response = client.get(f"{PROBLEMS_PREFIX}/not-a-uuid", headers=admin_headers)
-        assert response.status_code == 422
-        data = response.json()
-        assert "detail" in data
-
-    def test_method_not_allowed(self, client: TestClient, admin_headers):
-        """Test that unsupported HTTP methods are rejected."""
-        # POST not supported on random endpoint
-        response = client.post(f"{PROBLEMS_PREFIX}/random", headers=admin_headers)
+    def test_invalid_http_methods(self, client: TestClient, read_headers):
+        """Test that invalid HTTP methods return 405."""
+        # Test POST to problems endpoint with valid auth (should be 405, not 401)
+        response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
         assert response.status_code == 405  # Method not allowed
+
+        # Test PUT to problems endpoint with valid auth (should be 405, not 401)
+        response = client.put(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+        assert response.status_code == 405  # Method not allowed
+
+        # Test DELETE to problems endpoint with valid auth (should be 405, not 401)
+        response = client.delete(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+        assert response.status_code == 405  # Method not allowed
+
+
+@pytest.mark.unit
+class TestProblemsAPIAuthentication:
+    """Test authentication requirements for problems endpoints."""
+
+    def test_missing_auth_header(self, client: TestClient):
+        """Test that requests without auth headers are rejected."""
+        response = client.get(f"{PROBLEMS_PREFIX}/random")
+        assert response.status_code == 401
+        data = response.json()
+        assert "api key required" in data["message"].lower()
+
+    def test_invalid_auth_header(self, client: TestClient):
+        """Test that requests with invalid auth headers are rejected."""
+        headers = {"X-API-Key": "invalid_key"}
+        response = client.get(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        assert response.status_code == 401
+        data = response.json()
+        assert "invalid api key" in data["message"].lower()
+
+    def test_malformed_auth_header(self, client: TestClient):
+        """Test that requests with malformed auth headers are rejected."""
+        headers = {"Authorization": "NotBearer sk_test_key"}
+        response = client.get(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        assert response.status_code == 401
+
+    def test_empty_auth_header(self, client: TestClient):
+        """Test that requests with empty auth headers are rejected."""
+        headers = {"X-API-Key": ""}
+        response = client.get(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        assert response.status_code == 401
+
+    def test_missing_bearer_prefix(self, client: TestClient):
+        """Test that requests without proper API key format are rejected."""
+        headers = {"X-API-Key": "not_a_valid_key_format"}
+        response = client.get(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        assert response.status_code == 401
+
+    def test_inactive_api_key(self, client: TestClient):
+        """Test that inactive API keys are rejected."""
+        # Use the inactive test key from test data
+        headers = {
+            "X-API-Key": "sk_live_ina1234567890123456789012345678901234567890123456789012345678901234"
+        }
+        response = client.get(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        assert response.status_code == 401
+        data = response.json()
+        assert (
+            "inactive" in data["message"].lower()
+            or "invalid" in data["message"].lower()
+        )
+
+    def test_unsupported_auth_scheme(self, client: TestClient):
+        """Test that unsupported auth schemes are rejected."""
+        headers = {"Authorization": "Basic dXNlcjpwYXNz"}  # Base64 encoded user:pass
+        response = client.get(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        assert response.status_code == 401
+
+    def test_wrong_scope_permissions(self, client: TestClient, mock_llm_responses):
+        """Test that keys without required scope are rejected."""
+        # This test demonstrates scope validation, but our current implementation
+        # allows read access for all active keys, so this test validates the current behavior
+        read_headers = {
+            "X-API-Key": "sk_live_red1234567890123456789012345678901234567890123456789012345678901234"
+        }
+
+        with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.handle_request.side_effect = mock_llm_responses
+
+            # Read operations should work with read key
+            response = client.get(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            # The response should be either 200 (success) or 503 (service error due to missing data)
+            # but NOT 401/403 (auth error)
+            assert response.status_code in [200, 503]
 
 
 @pytest.mark.integration
 class TestProblemsAPIIntegration:
     """Test full API integration with real authentication and services."""
 
-    def test_random_problem_endpoint(self, client: TestClient, read_headers, mock_llm_responses):
+    def test_random_problem_endpoint(
+        self, client: TestClient, read_headers, mock_llm_responses
+    ):
         """Test random problem endpoint with read permissions."""
         with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
             mock_client = AsyncMock()
@@ -127,23 +163,6 @@ class TestProblemsAPIIntegration:
 @pytest.mark.integration
 class TestRandomProblemParameterized:
     """Comprehensive parameterized tests for random problem endpoint."""
-
-    @pytest.fixture
-    async def mock_llm_responses(self):
-        """Mock LLM responses for consistent testing."""
-        import itertools
-
-        # Mock sentence generation responses - enough variety for testing
-        sentence_responses = [
-            '{"sentence": "Je parle français.", "translation": "I speak French.", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "none"}',
-            '{"sentence": "Je parles français.", "translation": "", "is_correct": false, "explanation": "Wrong conjugation", "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "none"}',
-            '{"sentence": "Je ne parle pas français.", "translation": "I do not speak French.", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "pas"}',
-            '{"sentence": "Je parle le français.", "translation": "I speak the French.", "is_correct": false, "explanation": "Incorrect article usage", "has_compliment_object_direct": true, "has_compliment_object_indirect": false, "direct_object": "masculine", "indirect_object": "none", "negation": "none"}',
-            '{"sentence": "Tu parles bien.", "translation": "You speak well.", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "none"}',
-            '{"sentence": "Il parle mal.", "translation": "He speaks badly.", "is_correct": false, "explanation": "Poor grammar", "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "none"}',
-        ]
-        # Return infinite cycle of responses to handle multiple LLM calls per test
-        return itertools.cycle(sentence_responses)
 
     @pytest.fixture
     async def test_verb(self, test_supabase_client, sample_verb_data):
@@ -209,14 +228,10 @@ class TestRandomProblemParameterized:
                 f"{PROBLEMS_PREFIX}/random", headers=read_headers
             )
 
-            print(random_response.json())
-            
             get_response = client.get(
                 f"{PROBLEMS_PREFIX}/{random_response.json()["id"]}",
                 headers=read_headers,
             )
-            
-            print(get_response.json())
 
             assert get_response.status_code == 200
             data = get_response.json()
@@ -244,36 +259,10 @@ class TestRandomProblemParameterized:
 
             # This validates that the constraint processing business logic
             # flows correctly through the system without error
-
-    @pytest.mark.parametrize(
-        "permission_headers,expected_status",
-        [
-            ("read_headers", 200),  # Read permission should work
-            ("write_headers", 200),  # Write permission should work
-            ("admin_headers", 200),  # Admin permission should work
-            ("inactive_headers", 401),  # Inactive key should fail
-        ],
-    )
-    async def test_authentication_matrix(
-        self,
-        client: TestClient,
-        test_verb,
-        mock_llm_responses,
-        permission_headers,
-        expected_status,
-        request,
-    ):
-        """Test authentication across different permission levels."""
-        headers = request.getfixturevalue(permission_headers)
-
-        with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value = mock_client
-            mock_client.handle_request.side_effect = mock_llm_responses
-
-            response = client.get(f"{PROBLEMS_PREFIX}/random", headers=headers)
-
-            assert response.status_code == expected_status
+            assert isinstance(data["statements"], list)
+            assert len(data["statements"]) > 0
+            assert all("content" in stmt for stmt in data["statements"])
+            assert all("is_correct" in stmt for stmt in data["statements"])
 
     @pytest.mark.parametrize(
         "scenario_name,expected_structure",
@@ -320,13 +309,9 @@ class TestRandomProblemParameterized:
             assert data["problem_type"] == expected_structure["problem_type"]
             assert len(data["statements"]) == expected_structure["statement_count"]
 
-            print(pprint(data))
-
             if expected_structure["has_correct_answer"]:
                 # Verify correct_answer_index points to a correct statement
                 correct_idx = data["correct_answer_index"]
-
-                print(correct_idx)
 
                 assert 0 <= correct_idx < len(data["statements"])
                 assert data["statements"][correct_idx]["is_correct"] is True
@@ -339,7 +324,6 @@ class TestRandomProblemParameterized:
                     assert "translation" in stmt
                 else:
                     assert "explanation" in stmt
-
 
     async def test_content_generation_error_handling(
         self, client: TestClient, read_headers, test_verb

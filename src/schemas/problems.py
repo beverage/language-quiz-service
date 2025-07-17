@@ -182,7 +182,7 @@ class ProblemSummary(BaseModel):
 
     id: UUID
     problem_type: ProblemType
-    title: str | None
+    title: str | None = None
     instructions: str
     correct_answer_index: int
     topic_tags: list[str]

@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.schemas.problems import (
     GrammarProblemConstraints,
@@ -23,9 +23,8 @@ class ProblemRandomRequest(BaseModel):
     target_language_code: str = Field(
         "eng", description="Target language code for translations"
     )
-
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "examples": [
                 # Complete example
                 {
@@ -47,6 +46,7 @@ class ProblemRandomRequest(BaseModel):
                 {},
             ]
         }
+    )
 
 
 class ProblemStatementResponse(BaseModel):

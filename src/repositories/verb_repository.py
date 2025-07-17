@@ -246,9 +246,7 @@ class VerbRepository:
 
         if result.data:
             return Conjugation.model_validate(result.data[0])
-        raise RepositoryError(
-            "Failed to create conjugation: No data returned."
-        )
+        raise RepositoryError("Failed to create conjugation: No data returned.")
 
     async def delete_conjugations_by_verb(
         self, infinitive: str, auxiliary: str, reflexive: bool

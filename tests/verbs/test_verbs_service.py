@@ -135,7 +135,7 @@ async def test_get_all_verbs_with_limit(verb_service):
     # Create a couple of verbs with unique names per test run
     from uuid import uuid4
 
-    test_id = uuid4().hex[:8]
+    uuid4().hex[:8]
     for i in range(2):
         verb_data = VerbCreate(**generate_random_verb_data())
         verb_data.infinitive = uuid4().hex[:8]

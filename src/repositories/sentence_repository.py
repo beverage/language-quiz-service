@@ -62,9 +62,7 @@ class SentenceRepository:
 
         if result.data:
             return Sentence.model_validate(result.data[0])
-        raise RepositoryError(
-            "Failed to create sentence: No data returned."
-        )
+        raise RepositoryError("Failed to create sentence: No data returned.")
 
     async def delete_sentence(self, sentence_id: UUID) -> bool:
         """Delete a sentence."""
