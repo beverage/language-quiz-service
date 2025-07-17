@@ -14,11 +14,21 @@ env:
   FLY_API_TOKEN: ${{ secrets.FLY_DEPLOY_TOKEN }}
 
 jobs:
-  check-service:
-    name: "🔍 Pre-Deploy Health Check"
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/staging'
-    environment: staging
+  test-badge:
+    - name: Create Awesome Badge
+    uses: schneegans/dynamic-badges-action@v1.7.0
+    with:
+      auth: ${{ secrets.BADGES_GIST_TOKEN }}
+      gistID: <gist-ID>
+      filename: badges.json # Use test.svg if you want to use the SVG mode.
+      label: Hello
+      message: World
+      color: orange
+    check-service:
+      name: "🔍 Pre-Deploy Health Check"
+      runs-on: ubuntu-latest
+      if: github.ref == 'refs/heads/staging'
+      environment: staging
     
     steps:
     - uses: actions/checkout@v4

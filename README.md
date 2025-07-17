@@ -6,6 +6,8 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.112+-green.svg)](https://fastapi.tiangolo.com)
 [![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
 
+![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/<user>/<gist-ID>/raw/test.json)
+
 # Language Quiz Service
 
 A FastAPI-powered backend service for generating AI-driven language learning quizzes and content. This service provides REST APIs for creating French language learning materials including verbs, sentences, and grammar problems.
