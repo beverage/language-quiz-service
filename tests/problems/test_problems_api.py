@@ -111,12 +111,17 @@ class TestProblemsAPIValidation:
 class TestProblemsAPIIntegration:
     """Test full API integration with real authentication and services."""
 
-    def test_random_problem_endpoint(self, client: TestClient, read_headers):
+    def test_random_problem_endpoint(self, client: TestClient, read_headers, mock_llm_responses):
         """Test random problem endpoint with read permissions."""
-        response = client.get(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert data.get("error", False) is False
+        with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.handle_request.side_effect = mock_llm_responses
+
+            response = client.get(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            assert response.status_code == 200
+            data = response.json()
+            assert data.get("error", False) is False
 
 
 @pytest.mark.integration
