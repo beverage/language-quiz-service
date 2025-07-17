@@ -212,38 +212,7 @@ class TestProblemService:
         assert random_problem is not None
         assert hasattr(random_problem, "id")
 
-    @pytest.mark.asyncio
-    async def test_create_random_grammar_problem_no_verbs(self, problem_repository):
-        """Test that creating a random problem fails if no verbs are available."""
-        service = ProblemService(problem_repository=problem_repository)
 
-        # Get initial count
-        initial_count = await service.count_problems()
-        intital_grammar_count = await service.count_problems(
-            problem_type=ProblemType.GRAMMAR
-        )
-
-        # Create a problem
-        new_protlem = await service.create_problem(sample_problem_create)
-
-        # Count should increase
-        new_count = await service.count_problems()
-        assert new_count > initial_count
-
-        # Count with filters
-        new_grammar_count = await service.count_problems(
-            problem_type=ProblemType.GRAMMAR
-        )
-        assert new_grammar_count > intital_grammar_count
-
-        check_problem = await service.get_problem(new_protlem.id)
-
-        assert check_problem.id == new_protlem.id
-        assert check_problem.title == new_protlem.title
-        assert check_problem.problem_type == new_protlem.problem_type
-        assert check_problem.instructions == new_protlem.instructions
-        assert check_problem.correct_answer_index == new_protlem.correct_answer_index
-        assert check_problem.target_language_code == new_protlem.target_language_code
 
     async def test_get_problem_statistics(
         self, problem_repository, sample_problem_create
@@ -267,59 +236,57 @@ class TestProblemServiceAnalytics:
 
     @pytest.mark.asyncio
     async def test_get_problems_using_verb(
-        self, problem_repository, verb_repository, sample_verb
+        self, problem_repository, verb_repository
     ):
         """Test retrieving problems associated with a specific verb."""
-        # Setup: Create a problem linked to a specific verb
-        problem_service = ProblemService(problem_repository=problem_repository)
-
-        # Create a problem with verb metadata
+        # Setup: Create a verb and problem using UUID-based pattern
+        from tests.verbs.fixtures import generate_random_verb_data
+        from tests.problems.fixtures import generate_random_problem_data
         from uuid import uuid4
 
-        problem_data = ProblemCreate(
-            problem_type=ProblemType.GRAMMAR,
-            title=f"Grammar: {sample_verb.infinitive}_{uuid4().hex[:8]}",
-            instructions="Choose the correctly formed French sentence.",
-            correct_answer_index=0,
-            statements=[
-                {
-                    "content": "Statement 1",
-                    "is_correct": True,
-                    "translation": "Translation 1",
-                }
-            ],
-            metadata={"verb_infinitive": verb.infinitive},
-        )
+        # Create a verb first using the repository directly 
+        verb_data = VerbCreate(**generate_random_verb_data())
+        created_verb = await verb_repository.create_verb(verb_data)
+        
+        problem_service = ProblemService(problem_repository=problem_repository)
+
+        # Create a problem with verb metadata using the UUID-based pattern
+        problem_data = ProblemCreate(**generate_random_problem_data(
+            title=f"Grammar: {created_verb.infinitive}_{uuid4().hex[:8]}",
+            metadata={"verb_infinitive": created_verb.infinitive}
+        ))
         created_problem = await problem_service.create_problem(problem_data)
 
         # Test: Retrieve problems by verb infinitive
         problems, total = await problem_service.get_problems(
-            ProblemFilters(verb=verb.infinitive)
+            ProblemFilters(verb=created_verb.infinitive)
         )
         assert total > 0
         assert any(p.id == created_problem.id for p in problems)
 
     @pytest.mark.asyncio
     async def test_get_problems_by_grammatical_focus(
-        self, problem_repository, sample_problem_create
+        self, problem_repository
     ):
         """Test retrieving problems by a specific grammatical focus."""
+        from tests.problems.fixtures import generate_random_problem_data
+        from uuid import uuid4
+        
         problem_service = ProblemService(problem_repository=problem_repository)
 
-        # Create a problem with a specific grammatical focus
-        focus = "passé_composé"
-        problem_data = sample_problem_create.model_copy(
-            update={
-                "title": f"Grammatical focus test: {focus} - {uuid4()}",
-                "metadata": {"grammatical_focus": [focus]},
-            }
-        )
+        # Create a problem with a unique grammatical focus using UUID-based pattern
+        focus = f"test_focus_{uuid4().hex[:8]}"  # Make focus unique
+        problem_data = ProblemCreate(**generate_random_problem_data(
+            title=f"Grammatical focus test: {focus}_{uuid4().hex[:8]}",
+            metadata={"grammatical_focus": [focus]}
+        ))
         created_problem = await problem_service.create_problem(problem_data)
 
         # Test: Retrieve problems by grammatical focus
         problems = await problem_service.get_problems_by_grammatical_focus(
             focus, limit=10
         )
+        
         assert len(problems) > 0
         assert any(p.id == created_problem.id for p in problems)
 

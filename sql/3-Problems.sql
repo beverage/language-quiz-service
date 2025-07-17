@@ -118,6 +118,7 @@ CREATE INDEX idx_problems_statements_gin ON problems USING GIN (statements);
 
 -- Flexible metadata search (for type-specific queries)
 CREATE INDEX idx_problems_metadata_gin ON problems USING GIN (metadata);
+CREATE INDEX idx_problems_metadata_updated_at ON problems((metadata->>'updated_at'));
 
 -- ===== EXAMPLE QUERY PATTERNS =====
 

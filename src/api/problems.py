@@ -228,7 +228,7 @@ async def get_problem(
 ) -> ProblemResponse:
     """Get a problem by ID."""
     try:
-        problem = await service.get_problem(problem_id)
+        problem = await service.get_problem_by_id(problem_id)
 
         if problem is None:
             raise HTTPException(
@@ -241,7 +241,7 @@ async def get_problem(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error retrieving problem {problem_id}: {e}")
+        logger.error(f"Error retrieving problem {problem_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve problem",

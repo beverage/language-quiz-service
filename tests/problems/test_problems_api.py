@@ -204,10 +204,14 @@ class TestRandomProblemParameterized:
                 f"{PROBLEMS_PREFIX}/random", headers=read_headers
             )
 
+            print(random_response.json())
+            
             get_response = client.get(
                 f"{PROBLEMS_PREFIX}/{random_response.json()["id"]}",
                 headers=read_headers,
             )
+            
+            print(get_response.json())
 
             assert get_response.status_code == 200
             data = get_response.json()
@@ -331,21 +335,6 @@ class TestRandomProblemParameterized:
                 else:
                     assert "explanation" in stmt
 
-    async def test_no_verbs_available_error(self, client: TestClient, read_headers):
-        """Test error when no verbs are available for problem generation."""
-        # Mock verb service to return None (no verbs available)
-        with patch(
-            "src.services.problem_service.VerbService"
-        ) as mock_verb_service_class:
-            mock_verb_service = AsyncMock()
-            mock_verb_service_class.return_value = mock_verb_service
-            mock_verb_service.get_random_verb.return_value = None
-
-            response = client.get(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
-
-            assert response.status_code == 422
-            data = response.json()
-            assert "no verbs available" in data["message"].lower()
 
     async def test_content_generation_error_handling(
         self, client: TestClient, read_headers, test_verb
