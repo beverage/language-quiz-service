@@ -53,39 +53,41 @@ class ServiceError(AppException):
     Raised when a service layer operation fails.
     """
 
-    def __init__(self, message: str = "Service error", status_code: int = 500):
-        super().__init__(message, status_code=status_code)
+    def __init__(self, message: str = "Service error"):
+        super().__init__(message, status_code=500)
 
 
-class ContentGenerationError(ServiceError):
-    """
-    LLM content generation failure (503).
-    Raised when an AI service (e.g., OpenAI) fails to generate required content.
-    """
+class LanguageResourceNotFoundError(AppException):
+    """Raised when required language resources are not available for content generation."""
 
-    def __init__(
-        self,
-        message: str = "Content generation failed",
-        *,
-        content_type: str | None = None,
-    ):
-        full_message = f"AI ({content_type or 'general'}): {message}"
-        super().__init__(full_message, status_code=503)
-
-
-class LanguageResourceNotFoundError(NotFoundError):
-    """
-    A specific language resource (e.g., a verb in a specific language) was not found.
-    Inherits from NotFoundError (404).
-    """
-
-    def __init__(
-        self,
-        message: str = "Language resource not found",
-        *,
-        resource_type: str | None = None,
-    ):
-        full_message = (
-            f"Language resource ({resource_type or 'general'}) not found: {message}"
+    def __init__(self, resource_type: str, message: str = None):
+        self.resource_type = resource_type
+        super().__init__(
+            message=message
+            or f"Required {resource_type} resources not available for content generation",
+            status_code=422,  # Unprocessable Entity - request cannot be processed due to missing resources
         )
-        super().__init__(full_message)
+
+
+class ContentGenerationError(AppException):
+    """Raised when AI content generation fails after valid input."""
+
+    def __init__(self, content_type: str = "content", message: str = None):
+        self.content_type = content_type
+        super().__init__(
+            message=message or f"Failed to generate content - {content_type}",
+            status_code=503,  # Service Temporarily Unavailable - AI service issue
+        )
+
+
+class InsufficientResourcesError(AppException):
+    """Raised when there are insufficient resources to fulfill the request parameters."""
+
+    def __init__(self, resource_type: str, required: int, available: int):
+        self.resource_type = resource_type
+        self.required = required
+        self.available = available
+        super().__init__(
+            message=f"Insufficient {resource_type}: need {required}, only {available} available",
+            status_code=422,  # Unprocessable Entity - cannot fulfill request parameters
+        )

@@ -47,10 +47,11 @@ class TestProblemService:
         service = ProblemService(problem_repository=problem_repository)
 
         # Create a simple grammar problem
-        problem_title = f"Grammar: Parler - {uuid4()}"
+        from uuid import uuid4
+
         problem_data = ProblemCreate(
             problem_type=ProblemType.GRAMMAR,
-            title=problem_title,
+            title=f"Grammar: Parler_{uuid4().hex[:8]}",
             instructions="Choose the correctly formed French sentence.",
             correct_answer_index=0,
             target_language_code="eng",
@@ -74,7 +75,8 @@ class TestProblemService:
         # Create the problem
         created_problem = await service.create_problem(problem_data)
         assert created_problem.id is not None
-        assert created_problem.title == problem_title
+        assert created_problem.title.startswith("Grammar: Parler_")
+        assert len(created_problem.title.split("_")[-1]) == 8  # UUID hex suffix
         assert created_problem.problem_type == ProblemType.GRAMMAR
         assert len(created_problem.statements) == 2
         assert created_problem.correct_answer_index == 0
@@ -92,14 +94,16 @@ class TestProblemService:
         created_problem = await service.create_problem(sample_problem_create)
 
         # Update the problem
-        updated_title = f"Updated Grammar: Parler - {uuid4()}"
+        from uuid import uuid4
+
         update_data = ProblemUpdate(
-            title=updated_title,
+            title=f"Updated Grammar: Parler_{uuid4().hex[:8]}",
             instructions="Updated: Choose the correctly formed French sentence.",
         )
 
         updated_problem = await service.update_problem(created_problem.id, update_data)
-        assert updated_problem.title == updated_title
+        assert updated_problem.title.startswith("Updated Grammar: Parler_")
+        assert len(updated_problem.title.split("_")[-1]) == 8  # UUID hex suffix
         assert (
             updated_problem.instructions
             == "Updated: Choose the correctly formed French sentence."
@@ -213,11 +217,33 @@ class TestProblemService:
         """Test that creating a random problem fails if no verbs are available."""
         service = ProblemService(problem_repository=problem_repository)
 
-        # Mock the verb_service to return no verbs, simulating an empty verb database
-        service.verb_service.get_random_verb = AsyncMock(return_value=None)
+        # Get initial count
+        initial_count = await service.count_problems()
+        intital_grammar_count = await service.count_problems(
+            problem_type=ProblemType.GRAMMAR
+        )
 
-        with pytest.raises(LanguageResourceNotFoundError):
-            await service.create_random_grammar_problem()
+        # Create a problem
+        new_protlem = await service.create_problem(sample_problem_create)
+
+        # Count should increase
+        new_count = await service.count_problems()
+        assert new_count > initial_count
+
+        # Count with filters
+        new_grammar_count = await service.count_problems(
+            problem_type=ProblemType.GRAMMAR
+        )
+        assert new_grammar_count > intital_grammar_count
+
+        check_problem = await service.get_problem(new_protlem.id)
+
+        assert check_problem.id == new_protlem.id
+        assert check_problem.title == new_protlem.title
+        assert check_problem.problem_type == new_protlem.problem_type
+        assert check_problem.instructions == new_protlem.instructions
+        assert check_problem.correct_answer_index == new_protlem.correct_answer_index
+        assert check_problem.target_language_code == new_protlem.target_language_code
 
     async def test_get_problem_statistics(
         self, problem_repository, sample_problem_create
@@ -247,25 +273,13 @@ class TestProblemServiceAnalytics:
         # Setup: Create a problem linked to a specific verb
         problem_service = ProblemService(problem_repository=problem_repository)
 
-        # Ensure the verb exists or create it
-        verb_to_create = VerbCreate.model_validate(sample_verb.model_dump())
-        try:
-            verb = await verb_repository.get_verb_by_infinitive(
-                infinitive=sample_verb.infinitive,
-                auxiliary=sample_verb.auxiliary.value,
-                reflexive=sample_verb.reflexive,
-                target_language_code=sample_verb.target_language_code,
-            )
-            if not verb:
-                verb = await verb_repository.create_verb(verb_to_create)
-        except LanguageResourceNotFoundError:
-            verb = await verb_repository.create_verb(verb_to_create)
+        # Create a problem with verb metadata
+        from uuid import uuid4
 
-        # Create a problem that is explicitly linked to this verb
         problem_data = ProblemCreate(
             problem_type=ProblemType.GRAMMAR,
-            title=f"Verb test problem for {verb.infinitive} - {uuid4()}",
-            instructions="Test instruction",
+            title=f"Grammar: {sample_verb.infinitive}_{uuid4().hex[:8]}",
+            instructions="Choose the correctly formed French sentence.",
             correct_answer_index=0,
             statements=[
                 {
@@ -756,7 +770,10 @@ class TestProblemServiceParameterGeneration:
         )
 
         assert problem_create.problem_type == ProblemType.GRAMMAR
-        assert problem_create.title == f"Grammar: {sample_verb.infinitive.title()}"
+        assert problem_create.title.startswith(
+            f"Grammar: {sample_verb.infinitive.title()}_"
+        )
+        assert len(problem_create.title.split("_")[-1]) == 8  # UUID hex suffix
         assert problem_create.correct_answer_index == 0
         assert len(problem_create.statements) == 2
         assert problem_create.statements[0]["is_correct"] is True

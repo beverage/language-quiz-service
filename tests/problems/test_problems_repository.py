@@ -98,15 +98,16 @@ class TestProblemRepository:
             ProblemCreate(**problem_data)
         )
 
+        problem_title = uuid4().hex[:8]
+
         # Then update it
-        updated_title = f"updated_title_{uuid4()}"
-        update_data = ProblemUpdate(title=updated_title)
+        update_data = ProblemUpdate(title=problem_title)
         result = await problem_repository.update_problem(
             created_problem.id, update_data
         )
 
         assert result is not None
-        assert result.title == updated_title
+        assert result.title == problem_title
         assert result.problem_type == problem_data["problem_type"]  # Unchanged
 
     @pytest.mark.asyncio
