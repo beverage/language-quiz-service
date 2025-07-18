@@ -42,7 +42,119 @@ The project follows a **comprehensive end-to-end integration testing approach** 
 Tests are organized by domain under `tests/<domain>/` with consistent naming:
 - `test_<domain>_<component>.py` (e.g., `test_api_keys_api.py`, `test_verbs_repository.py`)
 
-### Test Types & Coverage
+### Current Test Structure (29 test files)
+
+#### **Core Infrastructure**
+- `tests/conftest.py` - Shared fixtures and Supabase client setup
+- `tests/test_main.py` - FastAPI application entry point tests
+- `tests/test_security.py` - Security and authentication tests
+
+#### **Domain-Specific Tests**
+
+**API Keys Domain** (`tests/api_keys/`)
+- `test_api_keys_api.py` - HTTP API endpoint tests
+- `test_api_keys_repository.py` - Database operations tests  
+- `test_api_keys_schemas.py` - Pydantic model validation tests
+- `test_api_keys_service.py` - Business logic tests
+
+**Verbs Domain** (`tests/verbs/`)
+- `fixtures.py` - Verb-specific test data generators
+- `test_verbs_api.py` - HTTP API endpoint tests
+- `test_verbs_repository.py` - Database operations tests
+- `test_verbs_schemas.py` - Pydantic model validation tests
+- `test_verbs_service.py` - Business logic and LLM integration tests
+- `test_verb_prompts.py` - LLM prompt template tests
+
+**Sentences Domain** (`tests/sentences/`)
+- `fixtures.py` - Sentence-specific test data generators
+- `test_sentences_api.py` - HTTP API endpoint tests
+- `test_sentences_repository.py` - Database operations tests
+- `test_sentences_schemas.py` - Pydantic model validation tests
+- `test_sentences_service.py` - Business logic and LLM integration tests
+- `test_sentence_prompts.py` - LLM prompt template tests
+
+**Problems Domain** (`tests/problems/`)
+- `fixtures.py` - Problem-specific test data generators
+- `test_problems_api.py` - HTTP API endpoint tests
+- `test_problems_repository.py` - Database operations tests
+- `test_problems_schemas.py` - Pydantic model validation tests
+- `test_problems_service.py` - Business logic tests
+
+**CLI Domain** (`tests/cli/`)
+- `test_api_keys_commands.py` - API key CLI command tests
+- `test_problems.py` - Problem CLI command tests
+- `test_sentences.py` - Sentence CLI command tests
+
+**Core Components** (`tests/core/`)
+- `test_config.py` - Configuration and settings tests
+
+**Database** (`tests/database/`)
+- `test_database_init.py` - Database initialization tests
+
+**Middleware** (`tests/middleware/`)
+- `test_auth_middleware.py` - Authentication middleware tests
+
+### Fixtures Catalogue
+
+#### **Global Fixtures** (`tests/conftest.py`)
+- `create_test_supabase_client()` - Supabase client factory
+- Environment setup and service role key detection
+- Test database configuration
+
+#### **Domain Fixtures**
+
+**Verbs** (`tests/verbs/fixtures.py`)
+```python
+# Data generators for verb testing
+generate_random_verb_data() -> Dict[str, Any]
+generate_random_conjugation_data() -> Dict[str, Any]
+generate_unique_verb_infinitive() -> str
+```
+
+**Sentences** (`tests/sentences/fixtures.py`)
+```python
+# Data generators for sentence testing  
+generate_random_sentence_data() -> Dict[str, Any]
+generate_sentence_with_verb(verb_id: UUID) -> Dict[str, Any]
+```
+
+**Problems** (`tests/problems/fixtures.py`)
+```python
+# Data generators for problem testing
+generate_random_problem_data() -> Dict[str, Any]
+generate_grammar_problem_constraints() -> GrammarProblemConstraints
+```
+
+### Test Data Management
+
+#### **Pre-seeded Test Data**
+
+Critical test data is pre-seeded via `sql/test/` scripts:
+
+- **`sql/test/1-LoadTestKeys.sql`**: API keys for authentication testing
+  - `sk_live_test_read_key` - Read-only permissions
+  - `sk_live_test_write_key` - Write permissions  
+  - `sk_live_test_admin_key` - Admin permissions
+- **`sql/test/2-LoadTestVerbs.sql`**: Baseline verbs for conflict testing
+  - Common French verbs (être, avoir, parler, etc.)
+  - Used for uniqueness constraint testing
+
+#### **Dynamic Test Data Generation**
+
+Most test data is generated dynamically to ensure isolation:
+
+```python
+# Domain-specific generators with UUID suffixes for parallel safety
+from tests.verbs.fixtures import generate_random_verb_data
+from tests.sentences.fixtures import generate_random_sentence_data
+from tests.problems.fixtures import generate_random_problem_data
+
+# Usage in tests - always ensure uniqueness
+verb_data = VerbCreate(**generate_random_verb_data())
+verb_data.infinitive = f"test_{uuid4().hex[:8]}"  # Parallel-safe
+```
+
+## Test Types & Coverage
 
 #### **API Layer Tests** (`test_*_api.py`)
 - **End-to-End HTTP Testing**: Full request/response cycles
@@ -314,16 +426,19 @@ verb_data.infinitive = f"test_verb_{uuid4().hex[:8]}"
 ## Performance Metrics
 
 ### Current Test Performance
-- **Total Tests**: 422 passed, 3 skipped
-- **Coverage**: 86% (exceeding 80% requirement)
-- **Execution Time**: ~10 seconds (parallel) vs ~31 seconds (single-threaded)
-- **Worker Efficiency**: 10 workers on typical development machines
+- **Total Test Files**: 29 files across 9 domains
+- **Test Structure**: API, Repository, Service, Schema layers per domain
+- **Coverage**: Maintained above 80% threshold
+- **Execution**: Optimized for parallel execution with pytest-xdist
+- **Database**: Real Supabase integration in CI/CD and local development
 
-### Optimization Techniques
-- **Pytest-xdist**: Parallel test execution across CPU cores
-- **Real Database**: Faster than complex mock setups
-- **Efficient Fixtures**: Shared Supabase client connections
-- **Targeted Testing**: Domain-specific test runners
+### Test Distribution by Domain
+- **API Keys**: 4 test files (API, Repository, Service, Schema)
+- **Verbs**: 6 test files (API, Repository, Service, Schema, Prompts, Fixtures)
+- **Sentences**: 6 test files (API, Repository, Service, Schema, Prompts, Fixtures)  
+- **Problems**: 5 test files (API, Repository, Service, Schema, Fixtures)
+- **CLI**: 3 test files (Commands for different domains)
+- **Core**: 5 test files (Config, Security, Main, Database, Middleware)
 
 ## Troubleshooting
 
