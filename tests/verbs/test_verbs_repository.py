@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import pytest
 
+from src.core.exceptions import RepositoryError
+from src.repositories.verb_repository import VerbRepository
 from src.schemas.verbs import (
     ConjugationCreate,
     ConjugationUpdate,
@@ -18,6 +20,7 @@ from tests.verbs.fixtures import (
 )
 
 
+@pytest.mark.integration
 class TestVerbRepository:
     """Test cases for VerbRepository using Supabase client operations only."""
 
@@ -36,6 +39,21 @@ class TestVerbRepository:
 
         with pytest.raises(Exception):
             await verb_repository.create_verb(VerbCreate(**invalid_verb_data))
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_create_verb_db_error(self, verb_repository):
+        """Test that a database constraint violation raises RepositoryError."""
+        verb_data = generate_random_verb_data()
+        verb_data["infinitive"] = f"unique_infinitive_{uuid4()}"
+        verb_to_create = VerbCreate(**verb_data)
+
+        # Create the verb once, which should succeed.
+        await verb_repository.create_verb(verb_to_create)
+
+        # Try to create the exact same verb again, which should fail.
+        with pytest.raises(RepositoryError):
+            await verb_repository.create_verb(verb_to_create)
 
     @pytest.mark.asyncio
     @pytest.mark.integration

@@ -4,6 +4,7 @@ import logging
 from uuid import UUID
 
 from src.clients.supabase import get_supabase_client
+from src.core.exceptions import NotFoundError, RepositoryError, ServiceError
 from src.repositories.api_keys_repository import ApiKeyRepository
 from src.schemas.api_keys import (
     ApiKeyCreate,
@@ -51,14 +52,14 @@ class ApiKeyService:
             key_info=ApiKeyResponse.model_validate(api_key.model_dump()),
         )
 
-    async def get_api_key(self, api_key_id: UUID) -> ApiKeyResponse | None:
+    async def get_api_key(self, api_key_id: UUID) -> ApiKeyResponse:
         """Get an API key by ID (safe response, no sensitive data)."""
         repo = await self._get_api_key_repository()
         api_key = await repo.get_api_key(api_key_id)
 
-        if api_key:
-            return ApiKeyResponse.model_validate(api_key.model_dump())
-        return None
+        if not api_key or not api_key.is_active:
+            raise NotFoundError(f"API key with ID {api_key_id} not found")
+        return ApiKeyResponse.model_validate(api_key.model_dump())
 
     async def get_all_api_keys(
         self, limit: int = 100, include_inactive: bool = False
@@ -71,14 +72,14 @@ class ApiKeyService:
 
     async def update_api_key(
         self, api_key_id: UUID, api_key_data: ApiKeyUpdate
-    ) -> ApiKeyResponse | None:
+    ) -> ApiKeyResponse:
         """Update an API key."""
         repo = await self._get_api_key_repository()
         api_key = await repo.update_api_key(api_key_id, api_key_data)
 
-        if api_key:
-            return ApiKeyResponse.model_validate(api_key.model_dump())
-        return None
+        if not api_key:
+            raise NotFoundError(f"API key with ID {api_key_id} not found")
+        return ApiKeyResponse.model_validate(api_key.model_dump())
 
     async def revoke_api_key(self, api_key_id: UUID) -> bool:
         """Revoke an API key (soft delete)."""
@@ -136,9 +137,18 @@ class ApiKeyService:
             # Return safe response
             return ApiKeyResponse.model_validate(api_key.model_dump())
 
+        except RepositoryError as e:
+            logger.error(f"Repository error during API key authentication: {e}")
+            # Propagate as a service error
+            raise ServiceError(
+                "Failed to authenticate API key due to a data access error."
+            ) from e
         except Exception as e:
-            logger.error(f"Error authenticating API key: {e}")
-            return None
+            logger.error(f"Unexpected error authenticating API key: {e}")
+            # For truly unexpected errors, wrap in a generic ServiceError
+            raise ServiceError(
+                "An unexpected error occurred during API key authentication."
+            ) from e
 
     async def verify_api_key_format(
         self, api_key_plain: str

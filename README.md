@@ -1,10 +1,27 @@
-[![Staging Deployment](https://github.com/beverage/language-quiz-service/actions/workflows/staging.yml/badge.svg)](https://github.com/beverage/language-quiz-service/actions/workflows/staging.yml)
-[![Production Deployment](https://github.com/beverage/language-quiz-service/actions/workflows/production.yml/badge.svg)](https://github.com/beverage/language-quiz-service/actions/workflows/production.yml)
-[![Coverage](https://codecov.io/gh/beverage/language-quiz-service/branch/staging/graph/badge.svg)](https://codecov.io/gh/beverage/language-quiz-service)
-[![linting: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.112+-green.svg)](https://fastapi.tiangolo.com)
-[![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
+<div align="center">
+
+  [![Staging Deployment](https://github.com/beverage/language-quiz-service/actions/workflows/staging.yml/badge.svg)](https://github.com/beverage/language-quiz-service/actions/workflows/staging.yml)
+  [![Production Deployment](https://github.com/beverage/language-quiz-service/actions/workflows/production.yml/badge.svg)](https://github.com/beverage/language-quiz-service/actions/workflows/production.yml)
+  [![Coverage](https://codecov.io/gh/beverage/language-quiz-service/branch/staging/graph/badge.svg)](https://codecov.io/gh/beverage/language-quiz-service)
+  [![Last Commit](https://img.shields.io/github/last-commit/beverage/language-quiz-service)](https://github.com/beverage/language-quiz-service/commits)
+  [![License](https://img.shields.io/github/license/beverage/language-quiz-service)](LICENSE)
+
+  [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+  [![Top Language](https://img.shields.io/github/languages/top/beverage/language-quiz-service?style=plastic)](https://github.com/beverage/language-quiz-service)
+  [![](https://tokei.rs/b1/github/beverage/language-quiz-service?category=code)](https://github.com/XAMPPRocky/tokei)
+  [![FastAPI](https://img.shields.io/badge/FastAPI-0.112+-green.svg)](https://fastapi.tiangolo.com)
+  [![Pytest](https://img.shields.io/badge/Testing-pytest-orange?logo=pytest)](https://docs.pytest.org/)
+  [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
+  [![Poetry](https://img.shields.io/badge/Poetry-dependency%20management-blue?logo=poetry)](https://python-poetry.org/)
+  [![Supabase](https://img.shields.io/badge/Supabase-database-green?logo=supabase)](https://supabase.com/)
+  [![Fly.io](https://img.shields.io/badge/Deployed%20on-Fly.io-purple?logo=fly.io)](https://fly.io/)
+  [![OpenAI](https://img.shields.io/badge/OpenAI-API-black?logo=openai)](https://openai.com/)
+
+  ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/beverage/7990c61b7f48992ce2b2366d4422d8ab/raw/test.json)
+  ![personal-website](https://img.shields.io/badge/Website-beverage.me-darkblue)
+  [![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
+</div>
 
 # Language Quiz Service
 
@@ -50,62 +67,62 @@ poetry install
 ```
 
 ### Environment Variables
-Required environment variables:
+Required environment variables (create a `.env` file in the project root):
 ```bash
 # OpenAI API Key
-export OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_KEY=your_openai_api_key
 
 # Supabase Configuration
-export SUPABASE_URL=your_supabase_url
-export SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
-export SUPABASE_ANON_KEY=your_supabase_anon_key
-export SUPABASE_PROJECT_REF=your_supabase_project_ref
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_PROJECT_REF=your_supabase_project_ref
 
 # Optional: Server Configuration
-export WEB_HOST=0.0.0.0
-export WEB_PORT=8000
-```
-
-### Database Setup
-A PostgreSQL database is required. Use the provided docker-compose configuration:
-```bash
-docker-compose up
-```
-
-Initialize the database with essential verbs:
-```bash
-poetry run python -m src.cli database init
+WEB_HOST=0.0.0.0
+WEB_PORT=8000
 ```
 
 ## 🖥️ Command Line Interface
 
-The CLI provides direct access to core functionality for development and testing:
+The CLI provides direct access to core functionality for development and testing with flexible output formatting:
 
 **Initialize the database:**
 ```bash
-poetry run python -m src.cli database init
+lqs database init
 ```
 
 **Generate a random problem:**
 ```bash
-poetry run python -m src.cli problem random --count 5
+lqs problem random --count 5
 ```
 
-**Get a random verb:**
+**Get a random verb with different output formats:**
 ```bash
-poetry run python -m src.cli verb random
+# Pretty format (default) - colorized tree view
+lqs verb random
+
+# Compact format - single line key=value pairs
+lqs verb random --format compact
+
+# Table format - structured table with types
+lqs verb random --format table
+
+# JSON format - raw JSON for scripting
+lqs verb random --json
 ```
 
 **Generate sentences:**
 ```bash
-poetry run python -m src.cli sentence new --quantity 3
+lqs sentence new --quantity 3
 ```
 
-**Legacy webserver commands:**
-```bash
-# These are now no-ops - use 'make dev' instead
-poetry run python -m src.cli webserver start
-```
+**Output Format Options:**
+All CLI commands support consistent output formatting:
+- `--format pretty` (default): Colorized tree view with emojis
+- `--format compact`: Single-line key=value format
+- `--format table`: Structured table with data types
+- `--json`: Raw JSON output for scripting and automation
 
 ## 🔧 Development
 
@@ -153,34 +170,12 @@ The service follows a clean architecture pattern:
 
 ```
 src/
-├── main.py              # FastAPI application entry point
 ├── api/                 # REST API endpoints
-├── services/            # Business logic layer
-├── repositories/        # Data access layer
-├── schemas/             # Pydantic models
+├── cli/                 # Command-line interface
 ├── core/                # Configuration and utilities
 ├── clients/             # External service clients
-└── cli/                 # Command-line interface (legacy)
+├── repositories/        # Data access layer
+├── schemas/             # Pydantic models
+├── services/            # Business logic layer
+└── main.py              # FastAPI application entry point
 ```
-
-## 🚀 Deployment
-
-### Production
-```bash
-# Build and run with Docker
-make build
-docker run -p 8000:8000 --env-file .env language-quiz-service
-```
-
-### Environment Configuration
-- **Development**: Auto-reload enabled, debug logging
-- **Production**: Optimized for performance, structured logging
-
-## 📈 Roadmap
-
-- [ ] REST API endpoints for all CLI functionality
-- [ ] Authentication and authorization
-- [ ] Rate limiting and caching
-- [ ] Metrics and monitoring
-- [ ] Multi-language support expansion
-- [ ] Advanced grammar rule validation

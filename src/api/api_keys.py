@@ -10,6 +10,12 @@ from fastapi.security import HTTPBearer
 
 from src.api.models.api_keys import ApiKeyUpdateRequest
 from src.core.auth import get_current_api_key
+from src.core.exceptions import (
+    AppException,
+    NotFoundError,
+    RepositoryError,
+    ServiceError,
+)
 from src.schemas.api_keys import (
     ApiKeyCreate,
     ApiKeyResponse,
@@ -126,11 +132,14 @@ async def create_api_key(
 
         return result
 
-    except Exception as e:
-        logger.error(f"Error creating API key: {e}")
+    except (RepositoryError, ServiceError) as e:
+        logger.error(f"API error creating key: {e}", exc_info=True)
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create API key",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -226,11 +235,14 @@ async def list_api_keys(
         service = ApiKeyService()
         return await service.get_all_api_keys(limit, include_inactive)
 
-    except Exception as e:
-        logger.error(f"Error listing API keys: {e}")
+    except (RepositoryError, ServiceError) as e:
+        logger.error(f"API error listing keys: {e}", exc_info=True)
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list API keys",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -298,12 +310,14 @@ async def get_api_key_stats(
     try:
         service = ApiKeyService()
         return await service.get_api_key_stats()
-
-    except Exception as e:
-        logger.error(f"Error getting API key stats: {e}")
+    except (RepositoryError, ServiceError) as e:
+        logger.error(f"API error getting key stats: {e}", exc_info=True)
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get API key statistics",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -328,12 +342,16 @@ async def search_api_keys(
     try:
         service = ApiKeyService()
         return await service.find_api_keys_by_name(name)
-
-    except Exception as e:
-        logger.error(f"Error searching API keys: {e}")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        logger.error(f"API error searching keys: {e}", exc_info=True)
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to search API keys",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -397,15 +415,10 @@ async def get_current_key_info(
 
     Any authenticated user can view their own key info.
     """
-    try:
-        return ApiKeyResponse.model_validate(current_key)
-
-    except Exception as e:
-        logger.error(f"Error getting current key info: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get current key information",
-        )
+    # The get_current_api_key dependency already handles auth and returns the key.
+    # No further service call is needed here, just return the context-injected key.
+    # We map it to the response model to ensure it conforms to the public schema.
+    return ApiKeyResponse.model_validate(current_key)
 
 
 @router.get("/{api_key_id}", response_model=ApiKeyResponse)
@@ -428,22 +441,17 @@ async def get_api_key(
 
     try:
         service = ApiKeyService()
-        result = await service.get_api_key(api_key_id)
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
-            )
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting API key {api_key_id}: {e}")
+        return await service.get_api_key(api_key_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        logger.error(f"API error getting key {api_key_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get API key",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -595,40 +603,27 @@ async def update_api_key(
             detail="Admin permission required to update API keys",
         )
 
+    update_data = api_key_data.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No update data provided",
+        )
+
     try:
         service = ApiKeyService()
-
-        # Convert API request model to service model
-        service_update_data = ApiKeyUpdate(
-            name=api_key_data.name,
-            description=api_key_data.description,
-            client_name=api_key_data.client_name,
-            permissions_scope=api_key_data.permissions_scope,
-            is_active=api_key_data.is_active,
-            rate_limit_rpm=api_key_data.rate_limit_rpm,
-            allowed_ips=api_key_data.allowed_ips,
-        )
-
-        result = await service.update_api_key(api_key_id, service_update_data)
-
-        if not result:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
-            )
-
-        logger.info(
-            f"API key updated: {result.name} by {current_key.get('name', 'unknown')}"
-        )
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating API key {api_key_id}: {e}")
+        update_schema = ApiKeyUpdate(**update_data)
+        return await service.update_api_key(api_key_id, update_schema)
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        logger.error(f"API error updating key {api_key_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update API key",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -640,7 +635,7 @@ async def revoke_api_key(
     """
     Revoke (deactivate) an API key.
 
-    Requires 'admin' permission to revoke keys.
+    Requires 'admin' permission.
     """
     # Check permissions
     permissions = current_key.get("permissions_scope", [])
@@ -650,35 +645,33 @@ async def revoke_api_key(
             detail="Admin permission required to revoke API keys",
         )
 
-    # Prevent self-revocation
-    if str(api_key_id) == current_key.get("id"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot revoke the API key you are currently using",
-        )
-
     try:
         service = ApiKeyService()
         success = await service.revoke_api_key(api_key_id)
-
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="API key not found"
+            # This case might occur if the key was already deleted by another process
+            # or if there was a database error handled by the repository.
+            # We raise not found because from the client's perspective, the key is gone.
+            raise NotFoundError(
+                f"API key with ID {api_key_id} not found or could not be revoked."
             )
 
         logger.info(
-            f"API key revoked: {api_key_id} by {current_key.get('name', 'unknown')}"
+            f"API key {api_key_id} revoked by {current_key.get('name', 'unknown')}"
         )
+        return {"message": f"API key {api_key_id} has been revoked."}
 
-        return {"message": "API key revoked successfully"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error revoking API key {api_key_id}: {e}")
+    except NotFoundError as e:
+        logger.warning(f"Attempt to revoke non-existent API key {api_key_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        logger.error(f"API error revoking key {api_key_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to revoke API key",
+            detail="An unexpected error occurred.",
         )
 
 
@@ -702,16 +695,14 @@ async def validate_api_key_format(
 
     try:
         service = ApiKeyService()
-        is_valid, error_message = await service.verify_api_key_format(api_key_plain)
-
-        return {
-            "is_valid": is_valid,
-            "error_message": error_message,
-        }
-
-    except Exception as e:
-        logger.error(f"Error validating API key format: {e}")
+        is_valid = await service.is_valid_format(api_key_plain)
+        return {"is_valid_format": is_valid}
+    except (RepositoryError, ServiceError) as e:
+        logger.error(f"API error validating key format: {e}", exc_info=True)
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        logger.error(f"Unhandled application error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to validate API key format",
+            detail="An unexpected error occurred.",
         )

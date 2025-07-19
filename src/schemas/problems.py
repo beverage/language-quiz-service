@@ -182,7 +182,7 @@ class ProblemSummary(BaseModel):
 
     id: UUID
     problem_type: ProblemType
-    title: str | None
+    title: str | None = None
     instructions: str
     correct_answer_index: int
     topic_tags: list[str]
@@ -256,6 +256,7 @@ class ProblemFilters(BaseModel):
     target_language_code: str | None = None
     created_after: datetime | None = None
     created_before: datetime | None = None
+    verb: str | None = None  # Filter by verb infinitive
     metadata_contains: dict[str, Any] | None = None
 
     # Pagination

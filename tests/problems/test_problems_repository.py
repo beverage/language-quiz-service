@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from src.core.exceptions import RepositoryError
 from src.schemas.problems import (
     Problem,
     ProblemCreate,
@@ -17,6 +18,7 @@ from tests.problems.fixtures import (
 )
 
 
+@pytest.mark.integration
 class TestProblemRepository:
     """Test cases for ProblemRepository using Supabase client operations only."""
 
@@ -37,6 +39,22 @@ class TestProblemRepository:
             await problem_repository.create_problem(
                 ProblemCreate(**invalid_problem_data)
             )
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_create_problem_db_error(self, problem_repository):
+        """Test that a database constraint violation raises RepositoryError."""
+        problem_data = generate_random_problem_data()
+        # Use a unique title to ensure we can trigger a unique constraint violation
+        problem_data["title"] = f"unique_title_{uuid4()}"
+        problem_to_create = ProblemCreate(**problem_data)
+
+        # Create the problem once, which should succeed.
+        await problem_repository.create_problem(problem_to_create)
+
+        # Try to create the exact same problem again, which should fail.
+        with pytest.raises(RepositoryError):
+            await problem_repository.create_problem(problem_to_create)
 
     @pytest.mark.asyncio
     @pytest.mark.integration
@@ -75,18 +93,21 @@ class TestProblemRepository:
         """Test updating a problem using repository."""
         # First create a problem
         problem_data = generate_random_problem_data()
+        problem_data["title"] = f"test_update_{uuid4()}"
         created_problem = await problem_repository.create_problem(
             ProblemCreate(**problem_data)
         )
 
+        problem_title = uuid4().hex[:8]
+
         # Then update it
-        update_data = ProblemUpdate(title="updated title")
+        update_data = ProblemUpdate(title=problem_title)
         result = await problem_repository.update_problem(
             created_problem.id, update_data
         )
 
         assert result is not None
-        assert result.title == "updated title"
+        assert result.title == problem_title
         assert result.problem_type == problem_data["problem_type"]  # Unchanged
 
     @pytest.mark.asyncio
@@ -138,7 +159,7 @@ class TestProblemRepository:
         assert len(limited_problems) == 1
 
         # Test get random problem
-        random_problem = await problem_repository.get_random_problem()
+        random_problem = await problem_repository.get_random_problem(ProblemFilters())
         assert random_problem is not None
 
         # Test not found cases

@@ -19,8 +19,17 @@ from src.schemas.verbs import (
     VerbClassification,
     VerbCreate,
 )
+from src.services.verb_service import VerbService
 
 fake = Faker()
+
+
+@pytest.fixture
+async def verb_service(test_supabase_client):
+    """Create a VerbService with real repository connection."""
+    service = VerbService()
+    service.db_client = test_supabase_client  # Inject test client
+    return service
 
 
 def generate_random_verb_data() -> dict[str, Any]:
@@ -46,6 +55,20 @@ def generate_random_verb_data() -> dict[str, Any]:
     }
 
 
+def generate_sample_verb_data(infinitive: str | None = None) -> dict[str, Any]:
+    """Generate sample verb data dictionary for testing (callable function)."""
+    data = generate_random_verb_data()
+    if infinitive:
+        data["infinitive"] = infinitive
+    return data
+
+
+@pytest.fixture
+def sample_verb_data() -> dict[str, Any]:
+    """Provide sample verb data dictionary for testing (fixture)."""
+    return generate_random_verb_data()
+
+
 def generate_random_conjugation_data() -> dict[str, Any]:
     """Generate random conjugation data for testing."""
     infinitive = f"{fake.word()}_{uuid4().hex[:8]}"  # Make unique
@@ -64,12 +87,6 @@ def generate_random_conjugation_data() -> dict[str, Any]:
 
 
 @pytest.fixture
-def sample_verb_data() -> dict[str, Any]:
-    """Provide sample verb data dictionary for testing."""
-    return generate_random_verb_data()
-
-
-@pytest.fixture
 def sample_verb_create() -> VerbCreate:
     """Provide a sample VerbCreate instance for testing."""
     return VerbCreate(**generate_random_verb_data())
@@ -77,7 +94,7 @@ def sample_verb_create() -> VerbCreate:
 
 @pytest.fixture
 def sample_verb():
-    """Create a sample Verb model instance for testing."""
+    """Note to agents - do not use this fixture!!!  It returns fixed data unsuitable for testing."""
     return Verb(
         id=uuid4(),
         infinitive="parler",

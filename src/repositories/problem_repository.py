@@ -4,7 +4,10 @@ import logging
 from typing import Any
 from uuid import UUID
 
+from postgrest import APIError as PostgrestAPIError
+
 from src.clients.supabase import get_supabase_client
+from src.core.exceptions import RepositoryError
 from src.schemas.problems import (
     Problem,
     ProblemCreate,
@@ -38,11 +41,26 @@ class ProblemRepository:
             mode="json"
         )  # Use mode="json" to serialize enums correctly
 
-        result = await self.client.table("problems").insert(problem_dict).execute()
+        try:
+            result = await self.client.table("problems").insert(problem_dict).execute()
+        except PostgrestAPIError as e:
+            logger.error(f"Database error creating problem: {e.message}")
+            raise RepositoryError(f"Failed to create problem: {e.message}") from e
 
         if result.data:
-            return Problem.model_validate(self._prepare_problem_data(result.data[0]))
-        raise Exception("Failed to create problem")
+            try:
+                return Problem.model_validate(
+                    self._prepare_problem_data(result.data[0])
+                )
+            except Exception as e:
+                logger.error(f"Failed to validate problem data after creation: {e}")
+                logger.error(f"Raw data from Supabase: {result.data[0]}")
+                raise RepositoryError(
+                    "Failed to validate problem data after creation"
+                ) from e
+        raise RepositoryError(
+            "Failed to create problem: No data returned from Supabase"
+        )
 
     async def get_problem(self, problem_id: UUID) -> Problem | None:
         """Get a problem by ID."""
@@ -243,18 +261,13 @@ class ProblemRepository:
 
     async def get_random_problem(
         self,
-        problem_type: ProblemType | None = None,
-        topic_tags: list[str] | None = None,
+        filters: ProblemFilters,
     ) -> Problem | None:
         """Get a random problem with optional filters."""
         # Note: Supabase doesn't have native random, this is a simple implementation
         query = self.client.table("problems").select("*")
 
-        if problem_type:
-            query = query.eq("problem_type", problem_type.value)
-
-        if topic_tags:
-            query = query.or_(f"topic_tags.ov.{{{','.join(topic_tags)}}}")
+        query = self._apply_filters(query, filters)
 
         result = await query.limit(50).execute()
 
@@ -300,6 +313,10 @@ class ProblemRepository:
 
         if filters.created_before:
             query = query.lte("created_at", filters.created_before.isoformat())
+
+        if filters.verb:
+            # Filter problems that contain the verb in metadata
+            query = query.contains("metadata", {"verb_infinitive": filters.verb})
 
         if filters.metadata_contains:
             # Use JSONB containment operator

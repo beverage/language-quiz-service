@@ -98,7 +98,8 @@ CREATE TABLE problems (
     CONSTRAINT valid_correct_index CHECK (correct_answer_index >= 0),
     CONSTRAINT valid_statements_array CHECK (jsonb_typeof(statements) = 'array'),
     CONSTRAINT statements_not_empty CHECK (jsonb_array_length(statements) > 0),
-    CONSTRAINT correct_index_within_bounds CHECK (correct_answer_index < jsonb_array_length(statements))
+    CONSTRAINT correct_index_within_bounds CHECK (correct_answer_index < jsonb_array_length(statements)),
+    CONSTRAINT problems_title_type_unique UNIQUE (title, problem_type)
 );
 
 -- ===== INDEXES FOR EFFICIENT QUERYING =====
@@ -117,6 +118,7 @@ CREATE INDEX idx_problems_statements_gin ON problems USING GIN (statements);
 
 -- Flexible metadata search (for type-specific queries)
 CREATE INDEX idx_problems_metadata_gin ON problems USING GIN (metadata);
+CREATE INDEX idx_problems_metadata_updated_at ON problems((metadata->>'updated_at'));
 
 -- ===== EXAMPLE QUERY PATTERNS =====
 

@@ -4,6 +4,7 @@ import os
 import time
 from functools import partial
 
+import asyncclick
 import boto3
 
 from src.cli.utils.console import Color, Style
@@ -80,6 +81,7 @@ async def wait_for_service_status(ecs, cluster_name, service_name, task_count):
         await asyncio.sleep(5)
 
 
+@asyncclick.command()
 async def down():
     """
     Takes down the service by setting the ecs tasks desired count to 0.
@@ -120,6 +122,7 @@ async def down():
     return down_response
 
 
+@asyncclick.command()
 async def up(count: int = 1):
     """
     Takes up the service by setting the ecs tasks desired count to the specified count.

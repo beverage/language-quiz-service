@@ -22,6 +22,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 # Authentication enforced by middleware
 from src.api.models.sentences import SentenceResponse
 from src.core.auth import get_current_api_key
+from src.core.exceptions import (
+    AppException,
+    ContentGenerationError,
+    NotFoundError,
+    RepositoryError,
+    ServiceError,
+)
 from src.services.sentence_service import SentenceService
 
 API_PREFIX = "/sentences"
@@ -114,15 +121,15 @@ async def get_random_sentence(
             verb_id=str(verb_id) if verb_id is not None else None,
         )
         if not sentence:
-            raise HTTPException(
-                status_code=404, detail="No sentences found matching criteria"
-            )
+            raise NotFoundError("No sentences found matching criteria")
         return SentenceResponse(**sentence.model_dump())
-    except HTTPException:
-        raise
-    except Exception as e:
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError, ContentGenerationError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
         raise HTTPException(
-            status_code=500, detail=f"Failed to get random sentence: {e}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
@@ -188,12 +195,16 @@ async def get_sentence(
     try:
         sentence = await service.get_sentence(sentence_id)
         if not sentence:
-            raise HTTPException(status_code=404, detail="Sentence not found")
+            raise NotFoundError("Sentence not found")
         return SentenceResponse(**sentence.model_dump())
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get sentence: {e}")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
 
 
 @router.get(
@@ -296,19 +307,19 @@ async def list_sentences(
     Supports filtering by verb, correctness, grammatical features, and language.
     """
     try:
-        sentences = await service.get_sentences(
-            verb_id=str(verb_id) if verb_id is not None else None,
-            is_correct=is_correct,
-            tense=tense,
-            pronoun=pronoun,
-            target_language_code=target_language_code,
+        sentences = await service.get_sentences_by_verb(
+            verb_id=str(verb_id) if verb_id else None,
             limit=limit,
         )
-        return [SentenceResponse(**sentence.model_dump()) for sentence in sentences]
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list sentences: {e}")
+        return [SentenceResponse(**s.model_dump()) for s in sentences]
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
 
 
 @router.delete(
@@ -355,21 +366,23 @@ async def delete_sentence(
     service: SentenceService = Depends(get_sentence_service),
     current_key: dict = Depends(get_current_api_key),
 ) -> dict:
-    """Delete a sentence."""
+    """Delete a sentence from the database."""
     # Check permissions
     permissions = current_key.get("permissions_scope", [])
     if "write" not in permissions and "admin" not in permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Write permission required to delete sentences",
+            detail="Write or admin permission required to delete sentences",
         )
 
     try:
-        deleted = await service.delete_sentence(sentence_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Sentence not found")
+        await service.delete_sentence(sentence_id)
         return {"message": "Sentence deleted successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete sentence: {e}")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )

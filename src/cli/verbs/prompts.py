@@ -1,3 +1,8 @@
+"""
+Prompts for the old CLI verb operations.  Maintained for reference.
+"""
+
+
 def generate_tense_list_prompt() -> str:
     return ""
 

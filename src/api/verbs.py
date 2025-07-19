@@ -11,6 +11,13 @@ from src.api.models.verbs import (
     VerbWithConjugationsResponse,
 )
 from src.core.auth import get_current_api_key
+from src.core.exceptions import (
+    AppException,
+    ContentGenerationError,
+    NotFoundError,
+    RepositoryError,
+    ServiceError,
+)
 from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
@@ -185,14 +192,29 @@ async def download_verb(
         # Convert service schema to API response model
         return VerbResponse(**verb.model_dump())
 
-    except ValueError as e:
-        logger.warning(f"Invalid verb download request: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ContentGenerationError as e:
+        # If the verb already exists, it's a conflict
+        if "already exists" in str(e):
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        # Otherwise, it's a service unavailable error from the LLM
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)
+        )
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        # Pass through with the status code from the exception
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
+        # Catch-all for other custom app exceptions
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
     except Exception as e:
-        logger.error(f"Error downloading verb {request.infinitive}: {e}")
+        logger.exception("An unexpected error occurred: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to download verb",
+            detail="An unexpected error occurred while processing the verb.",
         )
 
 
@@ -298,50 +320,70 @@ async def get_random_verb(
 
         return VerbResponse(**verb.model_dump())
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting random verb: {e}")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get random verb",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
 @router.get(
     "/{infinitive}",
     response_model=VerbResponse,
-    summary="Get specific French verb by infinitive",
+    summary="Get verb by infinitive with optional filters",
     description="""
     Retrieve a specific French verb by its infinitive form.
 
-    **URL Encoding**: Supports URL encoding for verbs with spaces (e.g., "se%20lever" for "se lever")
+    **Important: Verb Identification**
 
-    **Filtering Options**:
+    Verbs are uniquely identified by: `(infinitive, auxiliary, reflexive, target_language_code)`
+    - Multiple variants of the same infinitive can exist (e.g., "sortir" with avoir vs être)
+    - The same French verb can have different representations for different target languages
+    - Use auxiliary, reflexive, and target_language_code parameters to specify the exact variant
+
+    **URL Encoding:**
+    The infinitive supports URL encoding for verbs with spaces (e.g., reflexive verbs like "se laver").
+
+    **Optional Filters:**
     - `auxiliary`: Filter by auxiliary verb type (avoir/être)
     - `reflexive`: Filter by reflexive status (true/false)
-    - `target_language_code`: Specify translation language
+    - `target_language_code`: Filter by target language (part of uniqueness)
 
-    **Required Permission**: `read`, `write`, or `admin`
+    **Examples:**
+    - `/verbs/parler` - Returns any "parler" variant (usually avoir, non-reflexive, eng)
+    - `/verbs/sortir?auxiliary=avoir` - Returns "sortir" with auxiliary avoir
+    - `/verbs/sortir?auxiliary=être` - Returns "sortir" with auxiliary être
+    - `/verbs/se%20laver?reflexive=true` - Returns the reflexive verb "se laver"
+
+    **Use Cases:**
+    - Vocabulary lookup for language learning applications
+    - Grammar rule verification and conjugation reference
+    - Content generation for educational materials
+    - API integration for translation and language tools
+
+    **Required Permission**: `read` or higher
     """,
     responses={
         200: {
-            "description": "Verb found and retrieved successfully",
+            "description": "Verb found and returned successfully",
             "content": {
                 "application/json": {
                     "example": {
-                        "id": "789e1234-e89b-12d3-a456-426614174222",
-                        "infinitive": "être",
-                        "auxiliary": "être",
+                        "id": "123e4567-e89b-12d3-a456-426614174000",
+                        "infinitive": "parler",
+                        "auxiliary": "avoir",
                         "reflexive": False,
                         "target_language_code": "eng",
-                        "translation": "to be",
-                        "past_participle": "été",
-                        "present_participle": "étant",
-                        "classification": "third_group",
-                        "is_irregular": True,
-                        "can_have_cod": False,
-                        "can_have_coi": False,
+                        "translation": "to speak",
+                        "past_participle": "parlé",
+                        "present_participle": "parlant",
+                        "classification": "first_group",
+                        "is_irregular": False,
+                        "can_have_cod": True,
+                        "can_have_coi": True,
                         "created_at": "2024-01-15T10:30:00Z",
                         "updated_at": "2024-01-15T10:30:00Z",
                         "last_used_at": "2024-01-15T16:45:00Z",
@@ -350,14 +392,28 @@ async def get_random_verb(
             },
         },
         404: {
-            "description": "Verb not found",
+            "description": "Verb not found with specified criteria",
             "content": {
                 "application/json": {
-                    "example": {
-                        "error": True,
-                        "message": "Verb 'nonexistent' not found",
-                        "status_code": 404,
-                        "path": "/verbs/nonexistent",
+                    "examples": {
+                        "verb_not_found": {
+                            "summary": "Infinitive not found",
+                            "value": {
+                                "error": True,
+                                "message": "Verb 'xyz' not found",
+                                "status_code": 404,
+                                "path": "/api/v1/verbs/xyz",
+                            },
+                        },
+                        "variant_not_found": {
+                            "summary": "Specific variant not found",
+                            "value": {
+                                "error": True,
+                                "message": "Verb 'parler' with auxiliary 'être' not found",
+                                "status_code": 404,
+                                "path": "/api/v1/verbs/parler?auxiliary=être",
+                            },
+                        },
                     }
                 }
             },
@@ -370,7 +426,7 @@ async def get_random_verb(
                         "error": True,
                         "message": "Read permission required to access verbs",
                         "status_code": 403,
-                        "path": "/verbs/parler",
+                        "path": "/api/v1/verbs/parler",
                     }
                 }
             },
@@ -427,10 +483,11 @@ async def get_verb_by_infinitive(
 
         return VerbResponse(**verb.model_dump())
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting verb by infinitive {infinitive}: {e}")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get verb",
@@ -440,22 +497,49 @@ async def get_verb_by_infinitive(
 @router.get(
     "/{infinitive}/conjugations",
     response_model=VerbWithConjugationsResponse,
-    summary="Get verb conjugations for all tenses",
+    summary="Get verb conjugations with complete tense information",
     description="""
-    Retrieve comprehensive conjugation information for a specific French verb.
+    Retrieve comprehensive conjugation information for a French verb across all supported tenses.
 
-    **Returns**: Complete conjugation tables for all supported tenses:
-    - Present (présent)
-    - Past Composite (passé composé)
-    - Imperfect (imparfait)
-    - Future Simple (futur simple)
-    - Conditional (conditionnel)
-    - Subjunctive (subjonctif)
-    - Imperative (impératif)
+    **Important: Verb Identification**
 
-    **URL Encoding**: Supports URL encoding for verbs with spaces (e.g., "se%20lever" for "se lever")
+    Verbs are uniquely identified by: `(infinitive, auxiliary, reflexive, target_language_code)`
+    - Multiple variants can exist for the same infinitive (e.g., "sortir" + avoir vs "sortir" + être)
+    - The same French verb can have different representations for different target languages
+    - Specify auxiliary, reflexive, and target_language_code parameters to get the exact variant
 
-    **Required Permission**: `read`, `write`, or `admin`
+    **Conjugation Coverage:**
+    Returns conjugations for all available tenses including:
+    - **Indicative**: présent, passé composé, imparfait, futur simple, conditionnel
+    - **Subjunctive**: subjonctif présent
+    - **Imperative**: impératif présent
+
+    **Response Format:**
+    - Complete verb metadata (participles, classification, grammatical properties)
+    - Array of conjugation objects, each containing all six persons for a specific tense
+    - Tense-specific conjugation patterns with person markers (je/tu/il/nous/vous/ils)
+
+    **URL Encoding:**
+    Supports URL encoding for verbs with spaces (e.g., "se%20laver" for reflexive verbs).
+
+    **Filtering Options:**
+    - `auxiliary`: Specify auxiliary verb (avoir/être) to get exact variant
+    - `reflexive`: Specify reflexive status (true/false) for precise identification
+    - `target_language_code`: Specify target language (part of uniqueness)
+
+    **Examples:**
+    - `/verbs/parler/conjugations` - All conjugations for "parler" (avoir, non-reflexive, eng)
+    - `/verbs/sortir/conjugations?auxiliary=avoir` - "sortir" with auxiliary avoir
+    - `/verbs/sortir/conjugations?auxiliary=être` - "sortir" with auxiliary être
+    - `/verbs/se%20laver/conjugations?reflexive=true` - Reflexive "se laver"
+
+    **Use Cases:**
+    - Language learning applications requiring complete conjugation tables
+    - Grammar checking tools and educational content generation
+    - Translation services needing accurate French verb forms
+    - Linguistic analysis and computational grammar applications
+
+    **Required Permission**: `read` or higher
     """,
     responses={
         200: {
@@ -580,10 +664,11 @@ async def get_verb_conjugations(
 
         return VerbWithConjugationsResponse(**verb_with_conjugations.model_dump())
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting verb conjugations for {infinitive}: {e}")
+    except NotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except (RepositoryError, ServiceError) as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    except AppException:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get verb conjugations",

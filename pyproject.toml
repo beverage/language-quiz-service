@@ -24,6 +24,8 @@ rich = "^14.0.0"
 slowapi = "^0.1.9"
 bcrypt = "^4.3.0"
 pytest-xdist = "^3.8.0"
+python-dotenv = "^1.1.1"
+bump-pydantic = "^0.8.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
@@ -79,15 +81,11 @@ pythonpath = "."
 [tool.coverage.run]
 source = ["src"]
 omit = [
-    "src/cli/ai/*",
-    "src/cli/cli/*",
     "src/cli/cloud/*",
-    "src/cli/config/*",
-    "src/cli/database/*",
-    "src/cli/sentences/*",
-    "src/cli/verbs/*",
-    "src/cli/utils/*",
-    "src/cli/console.py"
+    "src/cli/console.py",
+    "src/cli/sentences/prompts.py",
+    "src/cli/verbs/prompts.py",
+    "src/cli/utils/*"
 ]
 
 [tool.coverage.report]

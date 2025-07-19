@@ -3,6 +3,7 @@
 import logging
 from uuid import UUID
 
+from src.core.exceptions import RepositoryError
 from src.schemas.api_keys import ApiKey, ApiKeyCreate, ApiKeyStats, ApiKeyUpdate
 from supabase import Client
 
@@ -39,7 +40,7 @@ class ApiKeyRepository:
 
         if result.data:
             return ApiKey.model_validate(result.data[0])
-        raise Exception("Failed to create API key")
+        raise RepositoryError("Failed to create API key: No data returned.")
 
     async def get_api_key(self, api_key_id: UUID) -> ApiKey | None:
         """Get an API key by ID."""

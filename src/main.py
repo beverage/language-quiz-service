@@ -16,10 +16,15 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .api import api_keys, health, sentences, verbs
+from .api import api_keys, health, problems, sentences, verbs
 from .core.auth import ApiKeyAuthMiddleware
 from .core.config import get_settings
-from .core.exceptions import AppException
+from .core.exceptions import (
+    AppException,
+    ContentGenerationError,
+    NotFoundError,
+    ValidationError,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -144,7 +149,7 @@ app = FastAPI(
         },
         {
             "name": "problems",
-            "description": "Quiz problem generation endpoints (coming soon)",
+            "description": "Quiz problem generation and management endpoints",
         },
         {
             "name": "sentences",
@@ -181,12 +186,47 @@ v1_router = APIRouter(prefix=ROUTER_PREFIX)
 v1_router.include_router(api_keys.router)
 v1_router.include_router(verbs.router)
 v1_router.include_router(sentences.router)
+v1_router.include_router(problems.router)
 
 # TODO: Uncomment these when endpoints are implemented
 # v1_router.include_router(problems.router)
 
 # Include the v1 router in the main app
 app.include_router(v1_router)
+
+
+@app.exception_handler(NotFoundError)
+async def not_found_exception_handler(request: Request, exc: NotFoundError):
+    """Handle 404 Not Found errors."""
+    return JSONResponse(
+        status_code=404,
+        content={"error": True, "message": exc.message, "status_code": 404},
+    )
+
+
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    """Handle 400 Validation errors."""
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": True,
+            "message": exc.message,
+            "details": exc.details,
+            "status_code": 400,
+        },
+    )
+
+
+@app.exception_handler(ContentGenerationError)
+async def content_generation_exception_handler(
+    request: Request, exc: ContentGenerationError
+):
+    """Handle 503 Content Generation errors."""
+    return JSONResponse(
+        status_code=503,
+        content={"error": True, "message": exc.message, "status_code": 503},
+    )
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -207,6 +247,10 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Handle exceptions, routing them based on type."""
+    # HTTP exceptions should be handled by the specific HTTP handler
+    if isinstance(exc, StarletteHTTPException):
+        return await http_exception_handler(request, exc)
+
     # Application-specific exceptions (custom AppException and subclasses)
     if isinstance(exc, AppException):
         logger.error(f"AppException: {exc.message}", exc_info=True)

@@ -142,100 +142,79 @@ class TestSentencesAPIValidation:
 class TestSentencesAPIIntegration:
     """Test full API integration with real authentication and services."""
 
-    def test_random_sentence_endpoint(self, client: TestClient, read_headers):
-        """Test random sentence endpoint with read permissions."""
+    def test_random_sentence_success(self, client: TestClient, read_headers):
+        """Test random sentence endpoint successfully retrieves a sentence."""
         response = client.get(f"{SENTENCES_PREFIX}/random", headers=read_headers)
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}: {response.text}"
 
-        # Should work with read permissions or fail at service level
-        assert response.status_code in [
-            200,
-            500,
-            503,
-        ]  # Service may not be fully configured
-
-        if response.status_code == 200:
-            data = response.json()
-            # Verify response structure if successful
-            assert "content" in data and "translation" in data
-
-    def test_list_sentences_endpoint(self, client: TestClient, read_headers):
-        """Test list sentences endpoint."""
-        response = client.get(f"{SENTENCES_PREFIX}/", headers=read_headers)
-
-        # Should work with read permissions or fail at service level
-        assert response.status_code in [200, 500]
-
-        if response.status_code == 200:
-            data = response.json()
-            assert isinstance(data, list)
-
-    def test_list_sentences_with_parameters(self, client: TestClient, read_headers):
-        """Test list sentences with query parameters."""
-        response = client.get(f"{SENTENCES_PREFIX}/?limit=5", headers=read_headers)
-
-        # Should work with read permissions or fail at service level
-        assert response.status_code in [200, 422, 500]
-
-        if response.status_code == 200:
-            data = response.json()
-            assert isinstance(data, list)
-            assert len(data) <= 5
-
-    def test_get_sentence_by_id(self, client: TestClient, read_headers):
-        """Test retrieving sentence by ID."""
-        test_id = uuid4()
-        response = client.get(f"{SENTENCES_PREFIX}/{test_id}", headers=read_headers)
-
-        # Should be 404 for non-existent sentence or 500 for service issues
-        assert response.status_code in [404, 500]
-
-    def test_delete_sentence_requires_write_permission(
-        self, client: TestClient, read_headers
-    ):
-        """Test that delete requires write permissions."""
-        test_id = uuid4()
-        response = client.delete(f"{SENTENCES_PREFIX}/{test_id}", headers=read_headers)
-
-        # Should fail with insufficient permissions
-        assert response.status_code == 403
         data = response.json()
-        assert "write permission required" in data["message"].lower()
+        assert "content" in data and "translation" in data
+        assert "id" in data
 
-    def test_delete_sentence_with_write_permission(
-        self, client: TestClient, write_headers
+    def test_random_sentence_not_found(self, client: TestClient, read_headers):
+        """Test random sentence endpoint returns 404 if no sentence matches."""
+        # Use a verb_id that is highly unlikely to exist
+        non_existent_verb_id = uuid4()
+        response = client.get(
+            f"{SENTENCES_PREFIX}/random?verb_id={non_existent_verb_id}",
+            headers=read_headers,
+        )
+        assert response.status_code == 404
+        assert "no sentences found" in response.json()["message"].lower()
+
+    def test_list_sentences_success(self, client: TestClient, read_headers):
+        """Test list sentences endpoint successfully retrieves sentences."""
+        response = client.get(f"{SENTENCES_PREFIX}/", headers=read_headers)
+        assert (
+            response.status_code == 200
+        ), f"Expected 200, got {response.status_code}: {response.text}"
+        data = response.json()
+        assert isinstance(data, list)
+
+    def test_get_sentence_by_id_not_found(self, client: TestClient, read_headers):
+        """Test retrieving a non-existent sentence by ID returns 404."""
+        non_existent_id = uuid4()
+        response = client.get(
+            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=read_headers
+        )
+        assert response.status_code == 404
+        assert "sentence not found" in response.json()["message"].lower()
+
+    def test_delete_sentence_permission_and_not_found(
+        self, client: TestClient, read_headers, write_headers, admin_headers
     ):
-        """Test delete with proper write permissions."""
-        test_id = uuid4()
-        response = client.delete(f"{SENTENCES_PREFIX}/{test_id}", headers=write_headers)
+        """Test delete sentence permissions and not-found case."""
+        non_existent_id = uuid4()
 
-        # Should be 404 for non-existent sentence or work properly
-        assert response.status_code in [404, 200, 500]
+        # 1. Read-only key should be forbidden
+        response = client.delete(
+            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=read_headers
+        )
+        assert response.status_code == 403
+        assert "permission required" in response.json()["message"].lower()
 
-    def test_admin_can_access_all_endpoints(self, client: TestClient, admin_headers):
-        """Test that admin key can access all endpoints."""
-        # Admin should have full access
-        endpoints = [
-            ("GET", f"{SENTENCES_PREFIX}/random"),
-            ("GET", f"{SENTENCES_PREFIX}/"),
-            ("GET", f"{SENTENCES_PREFIX}/{uuid4()}"),  # Will be 404 but not 403
-            ("DELETE", f"{SENTENCES_PREFIX}/{uuid4()}"),  # Will be 404 but not 403
-        ]
+        # 2. Write key should be allowed, but will return 404 for a non-existent sentence
+        response = client.delete(
+            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=write_headers
+        )
+        assert response.status_code == 404
+        assert "not found" in response.json()["message"].lower()
 
-        for method, endpoint in endpoints:
-            if method == "GET":
-                response = client.get(endpoint, headers=admin_headers)
-            elif method == "DELETE":
-                response = client.delete(endpoint, headers=admin_headers)
-
-            # Should not get permission denied (403)
-            assert (
-                response.status_code != 403
-            ), f"{method} {endpoint} should not be forbidden for admin"
+        # 3. Admin key should also be allowed and return 404
+        response = client.delete(
+            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=admin_headers
+        )
+        assert response.status_code == 404
+        assert "not found" in response.json()["message"].lower()
 
     def test_health_endpoint_bypasses_auth(self, client: TestClient):
         """Test that health endpoint doesn't require authentication."""
         response = client.get("/health")
         assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "healthy"
 
     def test_api_returns_proper_json_structure(self, client: TestClient):
         """Test that API returns properly structured JSON errors."""

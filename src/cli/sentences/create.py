@@ -5,9 +5,14 @@ Migrated to use Supabase services instead of SQLAlchemy.
 Maintained for backward compatibility.
 """
 
+import asyncio
 import logging
 import random
 
+import asyncclick
+
+from src.cli.utils.decorators import output_format_options
+from src.cli.utils.formatters import format_output
 from src.schemas.sentences import (
     DirectObject,
     IndirectObject,
@@ -21,6 +26,18 @@ from src.services.verb_service import VerbService
 logger = logging.getLogger(__name__)
 
 
+@asyncclick.command()
+@output_format_options
+@asyncclick.argument("verb_infinitive", type=str, required=True)
+@asyncclick.option("--pronoun", type=Pronoun, default=Pronoun.FIRST_PERSON)
+@asyncclick.option("--tense", type=Tense, default=Tense.PRESENT)
+@asyncclick.option("--direct_object", type=DirectObject, default=DirectObject.NONE)
+@asyncclick.option(
+    "--indirect_object", type=IndirectObject, default=IndirectObject.NONE
+)
+@asyncclick.option("--negation", type=Negation, default=Negation.NONE)
+@asyncclick.option("--is_correct", type=bool, default=True)
+@asyncclick.option("--validate", type=bool, default=False)
 async def create_sentence(
     verb_infinitive: str,
     pronoun: Pronoun = Pronoun.FIRST_PERSON,
@@ -30,6 +47,8 @@ async def create_sentence(
     negation: Negation = Negation.NONE,
     is_correct: bool = True,
     validate: bool = False,
+    output_json: bool = False,
+    output_format: str = "pretty",
 ):
     """Create a sentence using AI - migrated to use Supabase services."""
 
@@ -76,7 +95,7 @@ async def create_sentence(
             direct_object = DirectObject.NONE
 
     # The CLI passes strings; the service expects enums. We convert them here.
-    return await sentence_service.generate_sentence(
+    sentence = await sentence_service.generate_sentence(
         verb_id=verb.id,
         pronoun=Pronoun(pronoun),
         tense=Tense(tense),
@@ -86,6 +105,9 @@ async def create_sentence(
         is_correct=is_correct,
         validate=validate,
     )
+
+    formatted_output = format_output(sentence, output_json, output_format)
+    asyncclick.echo(formatted_output)
 
 
 async def create_random_sentence(is_correct: bool = True):
@@ -151,3 +173,42 @@ async def create_random_sentence(is_correct: bool = True):
         negation=negation,
         is_correct=is_correct,
     )
+
+
+@asyncclick.command()
+@output_format_options
+@asyncclick.argument("quantity", type=int, default=1)
+async def create_random_sentence_batch(
+    quantity: int, output_json: bool, output_format: str, **kwargs
+):
+    """Create a batch of random sentences."""
+    max_concurrent = min(10, quantity)
+
+    # Create coroutines for parallel execution
+    tasks = [create_random_sentence(**kwargs) for _ in range(quantity)]
+
+    # Execute in batches of max_concurrent with error handling
+    results = []
+    for i in range(0, len(tasks), max_concurrent):
+        batch = tasks[i : i + max_concurrent]
+        try:
+            batch_results = await asyncio.gather(*batch, return_exceptions=True)
+
+            # Filter out exceptions and collect successful results
+            for result in batch_results:
+                if isinstance(result, Exception):
+                    print(f"Warning: Failed to generate sentence: {result}")
+                else:
+                    results.append(result)
+
+            # Small delay between batches to avoid overwhelming the API
+            if i + max_concurrent < len(tasks):
+                await asyncio.sleep(0.5)
+
+        except Exception as ex:
+            print(f"Batch failed: {ex}")
+
+    # Print results for successful downloads
+    for result in results:
+        formatted_output = format_output(result, output_json, output_format)
+        asyncclick.echo(formatted_output)

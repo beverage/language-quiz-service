@@ -14,6 +14,24 @@ from src.schemas.problems import Problem, ProblemType
 fake = Faker()
 
 
+@pytest.fixture
+async def mock_llm_responses():
+    """Mock LLM responses for consistent testing."""
+    import itertools
+
+    # Mock sentence generation responses - enough variety for testing
+    sentence_responses = [
+        '{"sentence": "Je parle français.", "translation": "I speak French.", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "none"}',
+        '{"sentence": "Je parles français.", "translation": "", "is_correct": false, "explanation": "Wrong conjugation", "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "none"}',
+        '{"sentence": "Je ne parle pas français.", "translation": "I do not speak French.", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "pas"}',
+        '{"sentence": "Je parle le français.", "translation": "I speak the French.", "is_correct": false, "explanation": "Incorrect article usage", "has_compliment_object_direct": true, "has_compliment_object_indirect": false, "direct_object": "masculine", "indirect_object": "none", "negation": "none"}',
+        '{"sentence": "Tu parles bien.", "translation": "You speak well.", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "none"}',
+        '{"sentence": "Il parle mal.", "translation": "He speaks badly.", "is_correct": false, "explanation": "Poor grammar", "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "direct_object": "none", "indirect_object": "none", "negation": "none"}',
+    ]
+    # Return infinite cycle of responses to handle multiple LLM calls per test
+    return itertools.cycle(sentence_responses)
+
+
 def generate_random_problem_data(
     problem_type: str = None,
     target_language_code: str = None,
