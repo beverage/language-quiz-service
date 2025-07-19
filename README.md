@@ -20,7 +20,6 @@
 
   ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/beverage/7990c61b7f48992ce2b2366d4422d8ab/raw/test.json)
   ![personal-website](https://img.shields.io/badge/Website-beverage.me-darkblue)
-  ![Powered by Coffee](https://img.shields.io/badge/Powered%20by-☕️-brown)
   [![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
 </div>
 

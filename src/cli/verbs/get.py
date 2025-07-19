@@ -1,10 +1,3 @@
-"""
-CLI verb operations - MIGRATED.
-
-Migrated to use Supabase VerbService instead of SQLAlchemy.
-Maintained for backward compatibility.
-"""
-
 from rich.console import Console
 
 from src.services.verb_service import VerbService
@@ -12,13 +5,13 @@ from src.services.verb_service import VerbService
 console = Console()
 
 
-async def get_verb(requested_verb: str, database_session=None):
+async def get_verb(requested_verb: str):
     """Get a verb by infinitive - migrated to use VerbService."""
     verb = await VerbService().get_verb_by_infinitive(requested_verb)
     return verb
 
 
-async def get_random_verb(database_session=None):
+async def get_random_verb():
     """Get a random verb - migrated to use VerbService."""
     verb = await VerbService().get_random_verb()
     return verb

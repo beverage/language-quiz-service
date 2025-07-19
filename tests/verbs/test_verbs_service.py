@@ -150,9 +150,6 @@ async def test_get_all_verbs_with_limit(verb_service):
     assert len(results) >= 2
 
 
-@pytest.mark.skip(
-    reason="Language filtering may not work consistently in test environment"
-)
 @pytest.mark.asyncio
 async def test_get_all_verbs_with_language_filter(verb_service):
     """Test getting all verbs filtered by target language."""
@@ -161,8 +158,8 @@ async def test_get_all_verbs_with_language_filter(verb_service):
     verb_data.target_language_code = "fra"
     created_verb = await verb_service.create_verb(verb_data)
 
-    # Get verbs filtered by language
-    results = await verb_service.get_all_verbs(target_language_code="fra")
+    # Get verbs filtered by language with a high limit to ensure we get all
+    results = await verb_service.get_all_verbs(target_language_code="fra", limit=1000)
     assert len(results) >= 1
     assert any(v.id == created_verb.id for v in results)
 
@@ -231,7 +228,6 @@ async def test_get_conjugations_by_verb_id_with_conjugations(verb_service):
     assert any(c.id == created_conjugation.id for c in conjugations)
 
 
-@pytest.mark.skip(reason="Database unique constraint conflicts with test data")
 @pytest.mark.asyncio
 async def test_get_conjugations_with_filters(verb_service):
     """Test getting conjugations with various filters."""
@@ -368,9 +364,6 @@ async def test_get_verb_with_conjugations(verb_service):
     assert len(verb_with_conjugations.conjugations) >= 2
 
 
-@pytest.mark.skip(
-    reason="Fuzzy search with partial matches is inconsistent in test environment"
-)
 @pytest.mark.asyncio
 async def test_search_verbs(verb_service):
     """Test searching verbs by query."""

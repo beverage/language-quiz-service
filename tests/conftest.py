@@ -7,11 +7,10 @@ import subprocess
 
 import pytest
 
-from supabase import Client, acreate_client
-
 # Force reset of Settings after environment override
 # This is crucial for the FastAPI app to load with the correct test settings
 from src.core.config import reset_settings
+from supabase import Client, acreate_client
 
 
 # Helper function to create a test client, now co-located with tests

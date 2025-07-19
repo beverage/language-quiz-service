@@ -4,6 +4,7 @@ import os
 import time
 from functools import partial
 
+import asyncclick
 import boto3
 
 from src.cli.utils.console import Color, Style
@@ -53,6 +54,7 @@ async def wait_for_rds_status(
         await asyncio.sleep(5)
 
 
+@asyncclick.command()
 async def down():
     rds = boto3.client("rds")
     db_instance_identifier = os.getenv("LQS_DB", "lqs-1")
@@ -78,6 +80,7 @@ async def down():
         return None
 
 
+@asyncclick.command()
 async def up():
     rds = boto3.client("rds")
     db_instance_identifier = os.getenv("LQS_DB", "lqs-1")
@@ -106,6 +109,7 @@ async def up():
         return None
 
 
+@asyncclick.command()
 async def status():
     rds = boto3.client("rds")
     db_instance_identifier = os.getenv("LQS_DB", "lqs-1")

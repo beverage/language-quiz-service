@@ -1,9 +1,11 @@
 """Tests for CLI sentence functionality."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
 import pytest
+from asyncclick.testing import CliRunner
 
 from src.cli.sentences.create import create_sentence
 from src.schemas.sentences import (
@@ -83,22 +85,34 @@ class TestCLISentences:
         mock_verb_service.get_verb_by_infinitive.return_value = sample_verb
         mock_sentence_service.generate_sentence.return_value = sample_sentence
 
-        # Call create_sentence without validate parameter
-        result = await create_sentence(
-            verb_infinitive="avoir",
-            pronoun=Pronoun.FIRST_PERSON,
-            tense=Tense.PRESENT,
-            direct_object=DirectObject.NONE,
-            indirect_object=IndirectObject.NONE,
-            negation=Negation.NONE,
-            is_correct=True,
+        # Use CliRunner to invoke the command
+        runner = CliRunner()
+        result = await runner.invoke(
+            create_sentence,
+            [
+                "avoir",  # verb_infinitive is a positional argument
+                "--pronoun",
+                "first_person",
+                "--tense",
+                "present",
+                "--direct_object",
+                "none",
+                "--indirect_object",
+                "none",
+                "--negation",
+                "none",
+                "--is_correct",
+                "true",
+            ],
         )
+
+        # Verify command executed successfully
+        assert result.exit_code == 0
 
         # Verify validate=False was passed (default)
         mock_sentence_service.generate_sentence.assert_called_once()
         call_args = mock_sentence_service.generate_sentence.call_args
         assert call_args.kwargs["validate"] is False
-        assert result == sample_sentence
 
     @patch("src.cli.sentences.create.SentenceService")
     @patch("src.cli.sentences.create.VerbService")
@@ -119,23 +133,36 @@ class TestCLISentences:
         mock_verb_service.get_verb_by_infinitive.return_value = sample_verb
         mock_sentence_service.generate_sentence.return_value = sample_sentence
 
-        # Call create_sentence with validate=True
-        result = await create_sentence(
-            verb_infinitive="avoir",
-            pronoun=Pronoun.FIRST_PERSON,
-            tense=Tense.PRESENT,
-            direct_object=DirectObject.NONE,
-            indirect_object=IndirectObject.NONE,
-            negation=Negation.NONE,
-            is_correct=True,
-            validate=True,
+        # Use CliRunner to invoke the command with validate=True
+        runner = CliRunner()
+        result = await runner.invoke(
+            create_sentence,
+            [
+                "avoir",  # verb_infinitive is a positional argument
+                "--pronoun",
+                "first_person",
+                "--tense",
+                "present",
+                "--direct_object",
+                "none",
+                "--indirect_object",
+                "none",
+                "--negation",
+                "none",
+                "--is_correct",
+                "true",
+                "--validate",
+                "true",
+            ],
         )
+
+        # Verify command executed successfully
+        assert result.exit_code == 0
 
         # Verify validate=True was passed through
         mock_sentence_service.generate_sentence.assert_called_once()
         call_args = mock_sentence_service.generate_sentence.call_args
         assert call_args.kwargs["validate"] is True
-        assert result == sample_sentence
 
     @patch("src.cli.sentences.create.SentenceService")
     @patch("src.cli.sentences.create.VerbService")
@@ -157,12 +184,19 @@ class TestCLISentences:
             "Sentence validation failed: Test error"
         )
 
-        # Call create_sentence with validate=True - should raise ValueError
-        with pytest.raises(ValueError, match="Sentence validation failed: Test error"):
-            await create_sentence(
-                verb_infinitive="avoir",
-                validate=True,
-            )
+        # Use CliRunner to invoke the command with validation enabled
+        runner = CliRunner()
+        result = await runner.invoke(
+            create_sentence,
+            [
+                "avoir",  # verb_infinitive is a positional argument
+                "--validate",
+                "true",
+            ],
+        )
+
+        # Verify command failed with non-zero exit code
+        assert result.exit_code != 0
 
         # Verify the service was called with validation enabled
         mock_sentence_service.generate_sentence.assert_called_once()
@@ -206,16 +240,24 @@ class TestCLISentences:
         mock_verb_service.get_verb_by_infinitive.return_value = verb_no_cod
         mock_sentence_service.generate_sentence.return_value = sample_sentence
 
-        # Call create_sentence with COD but verb can't have COD
-        result = await create_sentence(
-            verb_infinitive="dormir",
-            direct_object=DirectObject.MASCULINE,  # This should be adjusted to NONE
-            validate=True,
+        # Use CliRunner to invoke the command with COD but verb can't have COD
+        runner = CliRunner()
+        result = await runner.invoke(
+            create_sentence,
+            [
+                "dormir",  # verb_infinitive is a positional argument
+                "--direct_object",
+                "masculine",  # This should be adjusted to NONE
+                "--validate",
+                "true",
+            ],
         )
+
+        # Verify command executed successfully
+        assert result.exit_code == 0
 
         # Verify COD was adjusted to NONE and validation was enabled
         mock_sentence_service.generate_sentence.assert_called_once()
         call_args = mock_sentence_service.generate_sentence.call_args
         assert call_args.kwargs["direct_object"] == DirectObject.NONE
         assert call_args.kwargs["validate"] is True
-        assert result == sample_sentence
