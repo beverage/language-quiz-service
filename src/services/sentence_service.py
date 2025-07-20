@@ -106,14 +106,14 @@ class SentenceService:
         validate: bool = False,
     ) -> Sentence:
         """Generate a sentence using AI integration with validation."""
-        logger.info(f"Generating sentence for verb_id {verb_id}")
+        logger.debug(f"Generating sentence for verb_id {verb_id}")
 
         # Get the verb details first
         verb = await self.verb_service.get_verb(verb_id)
         if not verb:
             raise NotFoundError(f"Verb with ID {verb_id} not found")
 
-        logger.info(
+        logger.debug(
             f"➡️ Generating: {verb.infinitive}, {pronoun.value}, {tense.value}, "
             f"COD: {direct_object.value}, COI: {indirect_object.value}, NEG: {negation.value}"
         )
@@ -152,31 +152,37 @@ class SentenceService:
         if not sentence_request.is_correct:
             sentence_request.explanation = response_json.get("explanation", "")
 
-        # Update grammatical elements if AI modified them
-        sentence_request.direct_object = (
-            DirectObject(response_json["direct_object"])
-            if response_json.get("has_compliment_object_direct")
-            else DirectObject.NONE
-        )
+        try:
+            # Update grammatical elements if AI modified them
+            sentence_request.direct_object = (
+                DirectObject(response_json["direct_object"])
+                if response_json.get("has_compliment_object_direct")
+                else DirectObject.NONE
+            )
 
-        sentence_request.indirect_object = (
-            IndirectObject(response_json["indirect_object"])
-            if response_json.get("has_compliment_object_indirect")
-            else IndirectObject.NONE
-        )
+            sentence_request.indirect_object = (
+                IndirectObject(response_json["indirect_object"])
+                if response_json.get("has_compliment_object_indirect")
+                else IndirectObject.NONE
+            )
 
-        sentence_request.negation = Negation(
-            response_json.get("negation", Negation.NONE.value)
-        )
+            sentence_request.negation = Negation(
+                response_json.get("negation", Negation.NONE.value)
+            )
+        except ValueError as e:
+            logger.error(
+                f"❌ Error extracting grammatical elements from response '{response_json.get('sentence', '(no sentence was generated)')}'"
+            )
+            raise e
 
-        logger.info(
+        logger.debug(
             f"⬅️ Generated: COD: {sentence_request.direct_object.value}, "
             f"COI: {sentence_request.indirect_object.value}, NEG: {sentence_request.negation.value}"
         )
 
         # Conditional validation based on validate parameter
         if validate:
-            logger.info("🔍 Validation enabled - performing additional LLM validation")
+            logger.debug("🔍 Validation enabled - performing additional LLM validation")
             validation = await self._validate_sentence(sentence_request, verb)
 
             if validation.is_valid:
@@ -185,7 +191,7 @@ class SentenceService:
                 sentence_request.indirect_object = validation.actual_indirect_object
                 sentence_request.negation = validation.actual_negation
 
-                logger.info("✅ Validation passed")
+                logger.debug("✅ Validation passed")
             else:
                 logger.error(f"❌ Validation failed: {validation.explanation}")
                 raise ContentGenerationError(
@@ -193,7 +199,7 @@ class SentenceService:
                     message=f"Sentence validation failed: {validation.explanation}",
                 )
         else:
-            logger.info("⚡ Validation disabled - skipping additional LLM validation")
+            logger.debug("⚡ Validation disabled - skipping additional LLM validation")
 
         # Persist to repository
         repo = await self._get_sentence_repository()
