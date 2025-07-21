@@ -18,9 +18,11 @@
 
 A FastAPI-powered backend service for generating AI-driven language learning quizzes and content. This service provides REST APIs for creating French language learning materials including verbs, sentences, and grammar problems.
 
-![Example](docs/example.gif)
-> This example is highly rate-limited and with randomised features.  Also, as of a few weeks ago looks nothing like this anymore, and is much more accurate.  I'll have to make a new one.
+Problem generation example:
 
+![Example](docs/example.gif)
+
+> A difficulty selector is still needed and on the todo list, as is the shortest sentence almost always being correct issue.
 ## 🚀 Quick Start
 
 ### FastAPI Service (Recommended)
@@ -38,14 +40,6 @@ poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 The service will be available at:
 - **API Documentation**: http://localhost:8000/docs
 - **Health Check**: http://localhost:8000/health
-- **Alternative Docs**: http://localhost:8000/redoc
-
-### Docker Deployment
-
-```bash
-make build
-docker run -p 8000:8000 language-quiz-service
-```
 
 ## 📋 Prerequisites
 
@@ -58,7 +52,7 @@ poetry install
 ```
 
 ### Environment Variables
-Required environment variables (create a `.env` file in the project root):
+Required environment variables to operate the conolse app (create a `.env` file in the project root):
 ```bash
 # OpenAI API Key
 OPENAI_API_KEY=your_openai_api_key
@@ -83,7 +77,7 @@ The CLI provides direct access to core functionality for development and testing
 lqs database init
 ```
 
-**Generate a random problem:**
+**Generate some random problems:**
 ```bash
 lqs problem random --count 5
 ```
@@ -128,19 +122,20 @@ make install-githooks
 make help          # Show all available commands
 make dev           # Start FastAPI with auto-reload
 make serve         # Start FastAPI server
-make build         # Build Docker container
 make test          # Run tests
 make lint          # Run linting
 make format        # Format code
-make all           # Run format, lint, and test
+make check         # Run format, lint, and test
 ```
 
 ### Testing
 ```bash
-make test           # All tests
-make test-unit      # Unit tests only
+make test             # All tests
+make test-unit        # Unit tests only
 make test-integration # Integration tests only
 ```
+
+See [tests/TESTING.md](./tests/TESTING.md) for test strategy and organization.
 
 ## 📡 API Endpoints
 
@@ -157,7 +152,7 @@ make test-integration # Integration tests only
 
 ## 🏗️ Architecture
 
-The service follows a clean architecture pattern:
+The service is layed out as follows:
 
 ```
 src/

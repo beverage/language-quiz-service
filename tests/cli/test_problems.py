@@ -163,15 +163,13 @@ class TestCLIProblemsCreation:
             await create_random_problem(statement_count=4)
 
     @patch("src.cli.problems.create.create_random_problem")
-    @patch("src.cli.problems.create.sleep")
     async def test_create_random_problem_with_delay(
         self,
-        mock_sleep: AsyncMock,
         mock_create: AsyncMock,
         sample_problem: Problem,
         sample_constraints: GrammarProblemConstraints,
     ):
-        """Test problem creation with delay."""
+        """Test problem creation wrapper function."""
         mock_create.return_value = sample_problem
 
         result = await create_random_problem_with_delay(
@@ -180,12 +178,11 @@ class TestCLIProblemsCreation:
 
         assert result == sample_problem
         mock_create.assert_called_once_with(
-            statement_count=4, constraints=sample_constraints, display=True
+            statement_count=4,
+            constraints=sample_constraints,
+            display=True,
+            detailed=False,
         )
-        mock_sleep.assert_called_once()
-        # Verify sleep was called with a value between 1.5 and 2.0
-        sleep_call_args = mock_sleep.call_args[0][0]
-        assert 1.5 <= sleep_call_args <= 2.0
 
     @patch("src.cli.utils.queues.parallel_execute")
     async def test_create_random_problems_batch_success(

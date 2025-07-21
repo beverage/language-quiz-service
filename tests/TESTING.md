@@ -23,7 +23,7 @@ The project follows a **comprehensive end-to-end integration testing approach** 
 - Direct asyncpg database connections
 - Extensive mocking of repository and service layers
 
-**Current Approach** (✅ Recommended):
+**Current Approach** (✅ Current):
 - Real Supabase client connections to local instances
 - End-to-end request/response validation
 - Only LLM calls are mocked (OpenAI, etc.)
@@ -156,6 +156,8 @@ verb_data.infinitive = f"test_{uuid4().hex[:8]}"  # Parallel-safe
 
 ## Test Types & Coverage
 
+Tests follow a domain and type driven naming pattern where possible:
+
 #### **API Layer Tests** (`test_*_api.py`)
 - **End-to-End HTTP Testing**: Full request/response cycles
 - **Authentication & Authorization**: Real API key validation
@@ -186,7 +188,7 @@ verb_data.infinitive = f"test_{uuid4().hex[:8]}"  # Parallel-safe
 ## Parallel Execution with pytest-xdist
 
 ### Performance Improvements
-- **3x Speedup**: ~10 seconds vs ~31 seconds single-threaded
+- **7-8x Speedup**: ~12 seconds vs ~90 seconds single-threaded
 - **Auto-scaling**: `pytest -n auto` detects optimal worker count
 - **Test Isolation**: Each worker operates independently
 

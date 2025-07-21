@@ -5,9 +5,7 @@ Updated to use new atomic problems system.
 """
 
 import logging
-import random
 import traceback
-from asyncio import sleep
 
 from src.cli.problems.display import display_problem, display_problem_summary
 from src.schemas.problems import (
@@ -27,14 +25,13 @@ async def create_random_problem_with_delay(
     display: bool = True,
     detailed: bool = False,
 ) -> Problem:
-    """Create a random problem with a delay (for batch operations)."""
+    """Create a random problem (wrapper for batch operations)."""
     problem = await create_random_problem(
         statement_count=statement_count,
         constraints=constraints,
         display=display,
         detailed=detailed,
     )
-    await sleep(random.uniform(1.5, 2.0))
     return problem
 
 
@@ -71,14 +68,14 @@ async def create_random_problems_batch(
     quantity: int,
     statement_count: int = 4,
     constraints: GrammarProblemConstraints | None = None,
-    workers: int = 10,
+    workers: int = 25,
     display: bool = True,
     detailed: bool = False,
 ) -> list[Problem]:
     """Create multiple random problems in parallel."""
     from src.cli.utils.queues import parallel_execute
 
-    logger.info(f"🎯 Creating {quantity} problems with {workers} workers")
+    logger.debug("🎯 Creating %s problems with %s workers", quantity, workers)
 
     # Create tasks for parallel execution
     tasks = [
@@ -92,7 +89,7 @@ async def create_random_problems_batch(
     ]
 
     def handle_error(error: Exception, task_index: int):
-        logger.warning(f"Failed to generate problem {task_index + 1}: {error}")
+        logger.debug(f"Failed to generate problem {task_index + 1}: {error}")
 
     # Execute in parallel
     results = await parallel_execute(
@@ -104,7 +101,7 @@ async def create_random_problems_batch(
 
     # Problems are already displayed in real-time during generation
     if display and results:
-        print(f"\n🎯 Generated {len(results)} problems in total.")
+        logger.debug("🎯 Generated %s problems in total.", len(results))
 
     return results
 
