@@ -45,7 +45,7 @@ ENV ?= staging
 # Deployment targets
 deploy:
 	@echo "Deploying to $(ENV) environment..."
-	flyctl deploy --config fly.$(ENV).toml --remote-only --flycast
+	flyctl deploy --app language-quiz-app-$(ENV) --remote-only --flycast
 
 # Fly.io management targets
 logs:

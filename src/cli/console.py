@@ -41,7 +41,10 @@ from src.schemas.problems import GrammarProblemConstraints
 @click.option("--debug", default=False, is_flag=True)
 @click.option("--debug-openai", default=False, is_flag=True)
 @click.option("--debug-recovery", default=False, is_flag=True)
-async def cli(debug=False, debug_openai=False, debug_recovery=True):
+@click.option(
+    "--detailed", default=False, is_flag=True, help="Show detailed problem information"
+)
+async def cli(debug=False, debug_openai=False, debug_recovery=True, detailed=False):
     # Load environment variables from .env file
     load_dotenv()
 
@@ -107,7 +110,9 @@ async def problem():
 @click.option(
     "--tense", multiple=True, help="Limit to specific tenses (can specify multiple)"
 )
+@click.pass_context
 async def problem_random(
+    ctx,
     count: int,
     statements: int,
     include_cod: bool,
@@ -117,6 +122,9 @@ async def problem_random(
 ):
     """Generate random grammar problems."""
     try:
+        # Get debug flag from parent context for detailed display mode
+        detailed = ctx.find_root().params.get("detailed", False)
+
         # Build constraints from CLI options
         constraints = None
         if any([include_cod, include_coi, include_negation, tense]):
@@ -134,7 +142,10 @@ async def problem_random(
         if count == 1:
             # Single problem generation
             await create_random_problem(
-                statement_count=statements, constraints=constraints, display=True
+                statement_count=statements,
+                constraints=constraints,
+                display=True,
+                detailed=detailed,
             )
         else:
             # Batch generation
@@ -143,6 +154,7 @@ async def problem_random(
                 statement_count=statements,
                 constraints=constraints,
                 display=True,
+                detailed=detailed,
             )
 
     except Exception as ex:
@@ -159,14 +171,19 @@ async def problem_random(
 @click.option("--topic", multiple=True, help="Filter by topic tags")
 @click.option("--limit", default=10, help="Number of problems to show")
 @click.option("--verbose", "-v", is_flag=True, help="Show full problem details")
-async def problem_list(problem_type: str, topic: tuple, limit: int, verbose: bool):
+@click.pass_context
+async def problem_list(ctx, problem_type: str, topic: tuple, limit: int, verbose: bool):
     """List existing problems with filtering."""
     try:
+        # Get debug flag from parent context for detailed display mode
+        detailed = ctx.find_root().params.get("detailed", False)
+
         await list_problems(
             problem_type=problem_type,
             topic_tags=list(topic) if topic else None,
             limit=limit,
             verbose=verbose,
+            detailed=detailed,
         )
     except Exception as ex:
         click.echo(f"❌ Error listing problems: {ex}")
@@ -178,13 +195,17 @@ async def problem_list(problem_type: str, topic: tuple, limit: int, verbose: boo
 )
 @click.option("--topic", multiple=True, help="Search by topic tags")
 @click.option("--limit", default=10, help="Number of results to show")
-async def problem_search(focus: str, topic: tuple, limit: int):
+@click.pass_context
+async def problem_search(ctx, focus: str, topic: tuple, limit: int):
     """Search problems by various criteria."""
     try:
+        # Get debug flag from parent context for detailed display mode
+        detailed = ctx.find_root().params.get("detailed", False)
+
         if focus:
-            await search_problems_by_focus(focus, limit)
+            await search_problems_by_focus(focus, limit, detailed=detailed)
         elif topic:
-            await search_problems_by_topic(list(topic), limit)
+            await search_problems_by_topic(list(topic), limit, detailed=detailed)
         else:
             click.echo(
                 "❌ Please specify at least one search criteria (--focus or --topic)"
@@ -210,14 +231,7 @@ async def problem_stats():
 @click.option("--statements", "-s", default=4, help="Number of statements per problem")
 async def batch(quantity: int, workers: int, statements: int):
     """Generate multiple problems in parallel."""
-    try:
-        results = await create_random_problems_batch(
-            quantity=quantity, statement_count=statements, workers=workers, display=True
-        )
-        print(f"{Style.BOLD}Generated {len(results)} problems{Style.RESET}")
-    except Exception as ex:
-        print(f"❌ Error: {ex}")
-        print(traceback.format_exc())
+
     try:
         results = await batch_operation(
             workers=workers,

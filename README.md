@@ -2,34 +2,27 @@
 
   [![Staging Deployment](https://github.com/beverage/language-quiz-service/actions/workflows/staging.yml/badge.svg)](https://github.com/beverage/language-quiz-service/actions/workflows/staging.yml)
   [![Production Deployment](https://github.com/beverage/language-quiz-service/actions/workflows/production.yml/badge.svg)](https://github.com/beverage/language-quiz-service/actions/workflows/production.yml)
-  [![Coverage](https://codecov.io/gh/beverage/language-quiz-service/branch/staging/graph/badge.svg)](https://codecov.io/gh/beverage/language-quiz-service)
   [![Last Commit](https://img.shields.io/github/last-commit/beverage/language-quiz-service)](https://github.com/beverage/language-quiz-service/commits)
-  [![License](https://img.shields.io/github/license/beverage/language-quiz-service)](LICENSE)
-
-  [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-  [![Top Language](https://img.shields.io/github/languages/top/beverage/language-quiz-service?style=plastic)](https://github.com/beverage/language-quiz-service)
-  [![](https://tokei.rs/b1/github/beverage/language-quiz-service?category=code)](https://github.com/XAMPPRocky/tokei)
-  [![FastAPI](https://img.shields.io/badge/FastAPI-0.112+-green.svg)](https://fastapi.tiangolo.com)
-  [![Pytest](https://img.shields.io/badge/Testing-pytest-orange?logo=pytest)](https://docs.pytest.org/)
-  [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-
-  [![Poetry](https://img.shields.io/badge/Poetry-dependency%20management-blue?logo=poetry)](https://python-poetry.org/)
-  [![Supabase](https://img.shields.io/badge/Supabase-database-green?logo=supabase)](https://supabase.com/)
-  [![Fly.io](https://img.shields.io/badge/Deployed%20on-Fly.io-purple?logo=fly.io)](https://fly.io/)
-  [![OpenAI](https://img.shields.io/badge/OpenAI-API-black?logo=openai)](https://openai.com/)
-
-  ![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/beverage/7990c61b7f48992ce2b2366d4422d8ab/raw/test.json)
-  ![personal-website](https://img.shields.io/badge/Website-beverage.me-darkblue)
+![personal-website](https://img.shields.io/badge/Website-beverage.me-000000)
   [![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
 </div>
+
+| | |
+|-|-|
+| __Stack:__ | [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/) [![FastAPI](https://img.shields.io/badge/FastAPI-0.112+-green.svg)](https://fastapi.tiangolo.com) [![Supabase](https://img.shields.io/badge/Stored%20on-Supabase-3ecf8e?logo=supabase)](https://supabase.com/) [![Fly.io](https://img.shields.io/badge/Deployed%20on-Fly.io-7c3aed?logo=fly.io)](https://fly.io/) |
+| __Tools:__ | [![OpenAI](https://img.shields.io/badge/OpenAI-10A37F?logo=openai)](https://openai.com/) [![Poetry](https://img.shields.io/badge/Depends%20on-Poetry-60a5fa?logo=poetry)](https://python-poetry.org/) [![Pytest](https://img.shields.io/badge/Tested%20with-pytest-orange?logo=pytest)](https://docs.pytest.org/) [![Code style: ruff](https://img.shields.io/badge/Styled%20by-ruff-000000?logo=ruff)](https://github.com/astral-sh/ruff) |
+| __Stats:__ | [![Top Language](https://img.shields.io/github/languages/top/beverage/language-quiz-service?style=plastic)](https://github.com/beverage/language-quiz-service) [![](https://tokei.rs/b1/github/beverage/language-quiz-service?category=code;type=python,sql;branch=staging)](https://github.com/XAMPPRocky/tokei) [![Coverage](https://codecov.io/gh/beverage/language-quiz-service/branch/staging/graph/badge.svg)](https://codecov.io/gh/beverage/language-quiz-service) |
+
 
 # Language Quiz Service
 
 A FastAPI-powered backend service for generating AI-driven language learning quizzes and content. This service provides REST APIs for creating French language learning materials including verbs, sentences, and grammar problems.
 
-![Example](docs/example.gif)
-> This example is highly rate-limited and with randomised features.  Also, as of a few weeks ago looks nothing like this anymore, and is much more accurate.  I'll have to make a new one.
+Problem generation example:
 
+![Example](docs/example.gif)
+
+> A difficulty selector is still needed and on the todo list, as is the shortest sentence almost always being correct issue.
 ## 🚀 Quick Start
 
 ### FastAPI Service (Recommended)
@@ -47,14 +40,6 @@ poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 The service will be available at:
 - **API Documentation**: http://localhost:8000/docs
 - **Health Check**: http://localhost:8000/health
-- **Alternative Docs**: http://localhost:8000/redoc
-
-### Docker Deployment
-
-```bash
-make build
-docker run -p 8000:8000 language-quiz-service
-```
 
 ## 📋 Prerequisites
 
@@ -67,7 +52,7 @@ poetry install
 ```
 
 ### Environment Variables
-Required environment variables (create a `.env` file in the project root):
+Required environment variables to operate the conolse app (create a `.env` file in the project root):
 ```bash
 # OpenAI API Key
 OPENAI_API_KEY=your_openai_api_key
@@ -92,7 +77,7 @@ The CLI provides direct access to core functionality for development and testing
 lqs database init
 ```
 
-**Generate a random problem:**
+**Generate some random problems:**
 ```bash
 lqs problem random --count 5
 ```
@@ -137,19 +122,20 @@ make install-githooks
 make help          # Show all available commands
 make dev           # Start FastAPI with auto-reload
 make serve         # Start FastAPI server
-make build         # Build Docker container
 make test          # Run tests
 make lint          # Run linting
 make format        # Format code
-make all           # Run format, lint, and test
+make check         # Run format, lint, and test
 ```
 
 ### Testing
 ```bash
-make test           # All tests
-make test-unit      # Unit tests only
+make test             # All tests
+make test-unit        # Unit tests only
 make test-integration # Integration tests only
 ```
+
+See [tests/TESTING.md](./tests/TESTING.md) for test strategy and organization.
 
 ## 📡 API Endpoints
 
@@ -166,7 +152,7 @@ make test-integration # Integration tests only
 
 ## 🏗️ Architecture
 
-The service follows a clean architecture pattern:
+The service is layed out as follows:
 
 ```
 src/
