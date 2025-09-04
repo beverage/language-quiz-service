@@ -3,7 +3,7 @@
   [![Staging Deployment](https://github.com/beverage/language-quiz-service/actions/workflows/staging.yml/badge.svg)](https://github.com/beverage/language-quiz-service/actions/workflows/staging.yml)
   [![Production Deployment](https://github.com/beverage/language-quiz-service/actions/workflows/production.yml/badge.svg)](https://github.com/beverage/language-quiz-service/actions/workflows/production.yml)
   [![Last Commit](https://img.shields.io/github/last-commit/beverage/language-quiz-service)](https://github.com/beverage/language-quiz-service/commits)
-[![personal-website](https://img.shields.io/badge/Website-beverage.me-000000)](https://www.beverage.me)
+  [![personal-website](https://img.shields.io/badge/Website-beverage.me-000000)](https://www.beverage.me)
   [![Buymeacoffee](https://badgen.net/badge/icon/buymeacoffee?icon=buymeacoffee&label)](https://www.buymeacoffee.com/mrbeverage)
 </div>
 
@@ -11,7 +11,7 @@
 |-|-|
 | __Stack:__ | [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/) [![FastAPI](https://img.shields.io/badge/FastAPI-0.112+-green.svg)](https://fastapi.tiangolo.com) [![Supabase](https://img.shields.io/badge/Stored%20on-Supabase-3ecf8e?logo=supabase)](https://supabase.com/) [![Fly.io](https://img.shields.io/badge/Deployed%20on-Fly.io-7c3aed?logo=fly.io)](https://fly.io/) |
 | __Tools:__ | [![OpenAI](https://img.shields.io/badge/OpenAI-10A37F?logo=openai)](https://openai.com/) [![Poetry](https://img.shields.io/badge/Depends%20on-Poetry-60a5fa?logo=poetry)](https://python-poetry.org/) [![Pytest](https://img.shields.io/badge/Tested%20with-pytest-orange?logo=pytest)](https://docs.pytest.org/) [![Code style: ruff](https://img.shields.io/badge/Styled%20by-ruff-000000?logo=ruff)](https://github.com/astral-sh/ruff) |
-| __Stats:__ | [![Top Language](https://img.shields.io/github/languages/top/beverage/language-quiz-service?style=plastic)](https://github.com/beverage/language-quiz-service) [![](https://tokei.rs/b1/github/beverage/language-quiz-service?category=code;type=python,sql;branch=staging)](https://github.com/XAMPPRocky/tokei) [![Coverage](https://codecov.io/gh/beverage/language-quiz-service/branch/staging/graph/badge.svg)](https://codecov.io/gh/beverage/language-quiz-service) |
+| __Stats:__ | [![Top Language](https://img.shields.io/github/languages/top/beverage/language-quiz-service?style=plastic)](https://github.com/beverage/language-quiz-service) [![Coverage](https://codecov.io/gh/beverage/language-quiz-service/branch/staging/graph/badge.svg)](https://codecov.io/gh/beverage/language-quiz-service) |
 
 
 # Language Quiz Service
