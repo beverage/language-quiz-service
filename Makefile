@@ -1,29 +1,44 @@
-.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev build deploy logs up down start-supabase
+.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev dev-monitored build deploy logs up down start-supabase setup
 
 # Default target
 help:
 	@echo "Available targets:"
+	@echo ""
+	@echo "Development:"
+	@echo "  setup           - First-time local environment setup"
+	@echo "  dev             - Start FastAPI development server (fast, no monitoring)"
+	@echo "  dev-monitored   - Start with Grafana Cloud observability"
+	@echo "  serve           - Start FastAPI server (production mode)"
+	@echo ""
+	@echo "Code Quality:"
 	@echo "  lint-check      - Check code with ruff"
 	@echo "  lint-fix        - Fix linting issues with ruff"
 	@echo "  lint-fix-unsafe - Fix linting issues with ruff (including unsafe fixes)"
 	@echo "  lint            - Run both lint-check and lint-fix"
-	@echo "  format          - Format code with ruff (excludes src/cli)"
-	@echo "  test            - Run tests with pytest"
-	@echo "  serve           - Start FastAPI development server"
-	@echo "  dev             - Start FastAPI development server with auto-reload"
+	@echo "  format          - Format code with ruff"
+	@echo ""
+	@echo "Testing:"
+	@echo "  test            - Run all tests"
+	@echo "  start-supabase  - Start Supabase with minimal containers for testing"
+	@echo ""
+	@echo "Deployment:"
 	@echo "  build           - Build Docker container"
 	@echo "  deploy          - Deploy to fly.io (ENV=staging|production, default: staging)"
 	@echo "  logs            - Show service logs (ENV=staging|production, default: staging)"
 	@echo "  up              - Start all machines (ENV=staging|production, default: staging)"
 	@echo "  down            - Stop all machines (ENV=staging|production, default: staging)"
-	@echo "  start-supabase  - Start Supabase with minimal containers for testing"
-	@echo "  all             - Run format, lint, and test"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make deploy ENV=staging    # Deploy to staging (default)"
+	@echo "  make setup                 # First-time setup"
+	@echo "  make dev                   # Fast local development"
+	@echo "  make dev-monitored         # Local development with observability"
+	@echo "  make deploy ENV=staging    # Deploy to staging"
 	@echo "  make deploy ENV=production # Deploy to production"
-	@echo "  make up     ENV=production # Start staging machines (default)"
-	@echo "  make logs   ENV=production # Show production logs"
+
+# Setup targets
+setup:
+	@echo "Setting up local development environment..."
+	@./scripts/setup-local-env.sh
 
 # FastAPI development targets
 serve:
@@ -31,8 +46,13 @@ serve:
 	poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 dev:
-	@echo "Starting FastAPI development server with auto-reload..."
+	@echo "Starting FastAPI development server (fast, no monitoring)..."
 	poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+dev-monitored:
+	@echo "Starting FastAPI with Grafana Cloud observability..."
+	@./scripts/dev-with-monitoring.sh
+
 
 # Docker targets
 build:

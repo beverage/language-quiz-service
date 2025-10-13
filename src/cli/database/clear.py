@@ -5,9 +5,12 @@ Migrated to use Supabase services instead of SQLAlchemy.
 Maintained for backward compatibility.
 """
 
+import asyncclick as click
+
 from src.clients.supabase import get_supabase_client
 
 
+@click.command()
 async def clear_database():
     """Clear all user data from the database - migrated to use Supabase."""
     client = get_supabase_client()

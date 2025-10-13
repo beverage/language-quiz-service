@@ -26,6 +26,12 @@ bcrypt = "^4.3.0"
 pytest-xdist = "^3.8.0"
 python-dotenv = "^1.1.1"
 bump-pydantic = "^0.8.0"
+opentelemetry-distro = "^0.58b0"
+opentelemetry-exporter-otlp = "^1.37.0"
+opentelemetry-instrumentation-fastapi = "^0.58b0"
+opentelemetry-instrumentation-aiohttp-client = "^0.58b0"
+opentelemetry-instrumentation-asyncpg = "^0.58b0"
+opentelemetry-instrumentation-logging = "^0.58b0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

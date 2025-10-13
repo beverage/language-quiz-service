@@ -1,31 +1,43 @@
 services:
-  database:
-    image: "postgres:latest"
-    labels:
-      - openai-language-test
+  # Language Quiz Service - FastAPI app with OpenTelemetry
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: language-quiz-service-local
     networks:
-      - lqnet
+      - supabase_network
     ports:
-      - 5432:5432
-    environment:
-      POSTGRES_DB: language_app
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      - "8000:8000"
     volumes:
-      - type: volume
-        source: pg-data
-        target: /var/lib/postgresql/data
-      - ./database:/docker-entrypoint-initdb.d
+      - .:/app
+      - /app/.venv  # Exclude .venv from volume mount (use container's version)
+    environment:
+      - ENVIRONMENT=local
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Connect to Supabase Kong container on Docker network
+      - SUPABASE_URL=http://supabase_kong_language-quiz-service:8000
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      # OpenTelemetry configuration (optional - only if you want telemetry locally)
+      # To enable, set these in your .env file:
+      # - OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-XX.grafana.net/otlp
+      # - GRAFANA_CLOUD_INSTANCE_ID=<your-instance-id>
+      # - GRAFANA_CLOUD_API_KEY=glc_<your-api-key>
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - GRAFANA_CLOUD_INSTANCE_ID=${GRAFANA_CLOUD_INSTANCE_ID:-}
+      - GRAFANA_CLOUD_API_KEY=${GRAFANA_CLOUD_API_KEY:-}
+      - OTEL_SERVICE_NAME=language-quiz-service
+      - OTEL_SERVICE_NAMESPACE=lqs
+      - OTEL_DEPLOYMENT_ENVIRONMENT=local
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "postgres"]
-      interval: 1m30s
-      timeout: 30s
-      retries: 5
-      start_period: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 networks:
-  lqnet:
-    driver: bridge
-
-volumes:
-  pg-data:
+  supabase_network:
+    external: true
+    name: supabase_network_language-quiz-service

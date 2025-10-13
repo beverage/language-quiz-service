@@ -5,7 +5,9 @@ This module sets up the FastAPI application with all necessary configurations,
 middleware, and route handlers.
 """
 
+import base64
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
@@ -33,6 +35,110 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
+
+# ============================================================================
+# OpenTelemetry Setup (Conditional - only if OTEL_EXPORTER_OTLP_ENDPOINT set)
+# ============================================================================
+OTEL_ENABLED = bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+
+if OTEL_ENABLED:
+    logger.info("📊 Initializing OpenTelemetry instrumentation...")
+    
+    from opentelemetry import metrics, trace
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.aiohttp_client import AioHttpClientInstrumentor
+    from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.logging import LoggingInstrumentor
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    # ========================================================================
+    # Build authentication from user-friendly env vars
+    # ========================================================================
+    # User only needs to set: GRAFANA_CLOUD_INSTANCE_ID, GRAFANA_CLOUD_API_KEY
+    # We encode and set OTEL_EXPORTER_OTLP_HEADERS for the SDK
+    instance_id = os.getenv("GRAFANA_CLOUD_INSTANCE_ID")
+    api_key = os.getenv("GRAFANA_CLOUD_API_KEY")
+    
+    if instance_id and api_key:
+        # Encode credentials as base64(instance_id:api_key)
+        credentials = f"{instance_id}:{api_key}"
+        encoded = base64.b64encode(credentials.encode()).decode()
+        
+        # Set SDK env var at runtime - SDK will read this automatically
+        os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {encoded}"
+        logger.info("🔐 Using Grafana Cloud credentials for authentication")
+    else:
+        logger.warning("⚠️  No Grafana Cloud credentials - telemetry may fail")
+
+    # Configure resource with service information from environment variables
+    # SDK will also automatically pick up OTEL_RESOURCE_ATTRIBUTES if set
+    resource_attrs = {}
+    
+    if service_name := os.getenv("OTEL_SERVICE_NAME"):
+        resource_attrs[SERVICE_NAME] = service_name
+    
+    if service_namespace := os.getenv("OTEL_SERVICE_NAMESPACE"):
+        resource_attrs["service.namespace"] = service_namespace
+    
+    if deployment_env := os.getenv("OTEL_DEPLOYMENT_ENVIRONMENT"):
+        resource_attrs["deployment.environment"] = deployment_env
+    
+    resource = Resource.create(attributes=resource_attrs)
+
+    # ========================================================================
+    # Set up Traces Provider
+    # ========================================================================
+    tracer_provider = TracerProvider(resource=resource)
+    
+    # SDK auto-configures from OTEL_EXPORTER_OTLP_* env vars
+    otlp_trace_exporter = OTLPSpanExporter()
+    
+    # Add span processor
+    tracer_provider.add_span_processor(BatchSpanProcessor(otlp_trace_exporter))
+    
+    # Set as global tracer provider
+    trace.set_tracer_provider(tracer_provider)
+
+    # ========================================================================
+    # Set up Metrics Provider
+    # ========================================================================
+    # SDK auto-configures from OTEL_EXPORTER_OTLP_* env vars
+    otlp_metric_exporter = OTLPMetricExporter()
+    
+    # Configure periodic metric reader
+    metric_reader = PeriodicExportingMetricReader(
+        otlp_metric_exporter,
+        export_interval_millis=60000,  # Export every 60 seconds
+    )
+    
+    # Create meter provider
+    meter_provider = MeterProvider(
+        resource=resource,  # Same resource as traces
+        metric_readers=[metric_reader],
+    )
+    
+    # Set as global meter provider
+    metrics.set_meter_provider(meter_provider)
+
+    # ========================================================================
+    # Instrument libraries (auto-instruments traces AND metrics)
+    # ========================================================================
+    AsyncPGInstrumentor().instrument()
+    AioHttpClientInstrumentor().instrument()
+    LoggingInstrumentor().instrument(set_logging_format=True)
+    
+    logger.info(
+        f"✅ OpenTelemetry configured (traces + metrics) - sending to {os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT')}"
+    )
+else:
+    logger.info("⚡ OpenTelemetry disabled (no OTEL_EXPORTER_OTLP_ENDPOINT set)")
+# ============================================================================
 
 # Configure rate limiter
 limiter = Limiter(
@@ -175,6 +281,11 @@ app.add_middleware(
 
 # Add API key authentication middleware
 app.add_middleware(ApiKeyAuthMiddleware)
+
+# Instrument FastAPI with OpenTelemetry (if enabled)
+if OTEL_ENABLED:
+    FastAPIInstrumentor.instrument_app(app)
+    logger.info("✅ FastAPI instrumented with OpenTelemetry")
 
 # Include API routers
 app.include_router(health.router)
