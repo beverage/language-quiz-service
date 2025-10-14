@@ -1,4 +1,4 @@
-.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev dev-monitored build deploy logs up down start-supabase setup
+.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev dev-monitored build deploy logs up down start-supabase setup dashboards-deploy dashboards-validate dashboards-export
 
 # Default target
 help:
@@ -21,6 +21,11 @@ help:
 	@echo "  test            - Run all tests"
 	@echo "  start-supabase  - Start Supabase with minimal containers for testing"
 	@echo ""
+	@echo "Observability:"
+	@echo "  dashboards-deploy   - Deploy dashboards to Grafana (local or cloud)"
+	@echo "  dashboards-validate - Validate dashboard definitions"
+	@echo "  dashboards-export   - Export dashboards as JSON files"
+	@echo ""
 	@echo "Deployment:"
 	@echo "  build           - Build Docker container"
 	@echo "  deploy          - Deploy to fly.io (ENV=staging|production, default: staging)"
@@ -32,6 +37,7 @@ help:
 	@echo "  make setup                 # First-time setup"
 	@echo "  make dev                   # Fast local development"
 	@echo "  make dev-monitored         # Local development with observability"
+	@echo "  make dashboards-deploy     # Deploy dashboards"
 	@echo "  make deploy ENV=staging    # Deploy to staging"
 	@echo "  make deploy ENV=production # Deploy to production"
 
@@ -132,4 +138,18 @@ all: format lint test
 .PHONY: install-githooks
 install-githooks:
 	@echo "Installing git hooks..."
-	@./scripts/install-githooks.sh 
+	@./scripts/install-githooks.sh
+
+# Observability targets
+.PHONY: dashboards-deploy dashboards-validate dashboards-export
+dashboards-deploy:
+	@echo "Deploying dashboards to Grafana..."
+	poetry run python -m src.observability.deploy
+
+dashboards-validate:
+	@echo "Validating dashboard definitions..."
+	poetry run python -m src.observability.deploy --validate
+
+dashboards-export:
+	@echo "Exporting dashboards as JSON..."
+	poetry run python -m src.observability.deploy --export --output-dir ./dashboards 

@@ -1,0 +1,333 @@
+"""Service Overview Dashboard - Golden Signals and Service Health."""
+
+from grafana_foundation_sdk.builders import (
+    dashboard,
+    prometheus,
+    stat,
+    timeseries,
+    common as common_builder,
+)
+from grafana_foundation_sdk.models import common, units
+from grafana_foundation_sdk.models.dashboard import DataSourceRef, GridPos, Threshold, ThresholdsMode
+
+from .base import create_base_dashboard
+
+
+def create_uptime_stat() -> stat.Panel:
+    """Service uptime."""
+    return (
+        stat.Panel()
+        .title("Uptime")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Seconds)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('time() - process_start_time_seconds{deployment_environment="$environment"}')
+            .legend_format("Uptime")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .grid_pos(GridPos(x=0, y=0, w=6, h=6))  # x, y, w, h
+    )
+
+
+def create_error_count_stat() -> stat.Panel:
+    """Total error count in time window."""
+    return (
+        stat.Panel()
+        .title("Error Count")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('sum(increase(http_server_duration_milliseconds_count{deployment_environment="$environment", http_status_code=~"5.."}[$__range]))')
+            .legend_format("Errors")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .grid_pos(GridPos(x=6, y=0, w=6, h=6))  # x, y, w, h
+    )
+
+
+def create_total_requests_stat() -> stat.Panel:
+    """Total requests in time window."""
+    return (
+        stat.Panel()
+        .title("Total Requests")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('sum(increase(http_server_duration_milliseconds_count{deployment_environment="$environment"}[$__range]))')
+            .legend_format("Total")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .grid_pos(GridPos(x=12, y=0, w=6, h=6))  # x, y, w, h
+    )
+
+
+def create_avg_latency_stat() -> stat.Panel:
+    """Average request latency."""
+    return (
+        stat.Panel()
+        .title("Avg Latency")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Milliseconds)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('sum(rate(http_server_duration_milliseconds_sum{deployment_environment="$environment"}[5m])) / sum(rate(http_server_duration_milliseconds_count{deployment_environment="$environment"}[5m]))')
+            .legend_format("Avg")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .grid_pos(GridPos(x=18, y=0, w=6, h=6))  # x, y, w, h
+    )
+
+
+def create_request_rate_panel() -> timeseries.Panel:
+    """Request rate (requests per second)."""
+    return (
+        timeseries.Panel()
+        .title("Request Rate")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('sum(rate(http_server_duration_milliseconds_count{deployment_environment="$environment"}[5m]))')
+            .legend_format("Requests/sec")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        .grid_pos(GridPos(x=0, y=6, w=12, h=8))  # x, y, w, h
+    )
+
+
+def create_error_rate_panel() -> timeseries.Panel:
+    """Error rate (percentage of 5xx responses)."""
+    return (
+        timeseries.Panel()
+        .title("Error Rate")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Percent)
+        .min(0)
+        .max(100)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('''sum(rate(http_server_duration_milliseconds_count{deployment_environment="$environment", http_status_code=~"5.."}[5m]))
+/
+sum(rate(http_server_duration_milliseconds_count{deployment_environment="$environment"}[5m]))
+* 100''')
+            .legend_format("Error %")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        # Thresholds - the main feature we wanted!
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps([
+                Threshold(value=0.0, color="green"),
+                Threshold(value=1.0, color="yellow"),
+                Threshold(value=5.0, color="red"),
+            ])
+        )
+        .grid_pos(GridPos(x=12, y=6, w=12, h=8))  # x, y, w, h
+    )
+
+
+def create_latency_panel() -> timeseries.Panel:
+    """Request latency percentiles."""
+    return (
+        timeseries.Panel()
+        .title("Request Latency")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Milliseconds)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('histogram_quantile(0.50, sum(rate(http_server_duration_milliseconds_bucket{deployment_environment="$environment"}[5m])) by (le))')
+            .legend_format("p50")
+            .ref_id("A")
+        )
+        .with_target(
+            prometheus.Dataquery()
+            .expr('histogram_quantile(0.95, sum(rate(http_server_duration_milliseconds_bucket{deployment_environment="$environment"}[5m])) by (le))')
+            .legend_format("p95")
+            .ref_id("B")
+        )
+        .with_target(
+            prometheus.Dataquery()
+            .expr('histogram_quantile(0.99, sum(rate(http_server_duration_milliseconds_bucket{deployment_environment="$environment"}[5m])) by (le))')
+            .legend_format("p99")
+            .ref_id("C")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        .grid_pos(GridPos(x=0, y=14, w=24, h=8))  # x, y, w, h
+    )
+
+
+def create_status_code_panel() -> timeseries.Panel:
+    """HTTP status code distribution (stacked)."""
+    return (
+        timeseries.Panel()
+        .title("Status Codes")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('sum by (http_status_code) (rate(http_server_duration_milliseconds_count{deployment_environment="$environment"}[5m]))')
+            .legend_format("{{http_status_code}}")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(50)  # Higher fill for stacked
+        .stacking(
+            common_builder.StackingConfig()
+            .mode(common.StackingMode.NORMAL)
+        )
+        .grid_pos(GridPos(x=0, y=22, w=12, h=8))  # x, y, w, h
+    )
+
+
+def create_active_requests_panel() -> timeseries.Panel:
+    """Active concurrent requests."""
+    return (
+        timeseries.Panel()
+        .title("Active Requests")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .min(0)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('sum(http_server_active_requests{deployment_environment="$environment"})')
+            .legend_format("Active")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        .grid_pos(GridPos(x=12, y=22, w=12, h=8))  # x, y, w, h
+    )
+
+
+def create_request_by_endpoint_panel() -> timeseries.Panel:
+    """Request rate by endpoint."""
+    return (
+        timeseries.Panel()
+        .title("Requests by Endpoint")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('sum by (http_route) (rate(http_server_duration_milliseconds_count{deployment_environment="$environment"}[5m]))')
+            .legend_format("{{http_route}}")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        .grid_pos(GridPos(x=0, y=30, w=12, h=8))  # x, y, w, h
+    )
+
+
+def create_latency_by_endpoint_panel() -> timeseries.Panel:
+    """p95 latency by endpoint."""
+    return (
+        timeseries.Panel()
+        .title("p95 Latency by Endpoint")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Seconds)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('histogram_quantile(0.95, sum by (http_route, le) (rate(http_server_duration_milliseconds_bucket{deployment_environment="$environment"}[5m])))')
+            .legend_format("{{http_route}}")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        .grid_pos(GridPos(x=12, y=30, w=12, h=8))  # x, y, w, h
+    )
+
+
+def create_db_query_duration_panel() -> timeseries.Panel:
+    """Database query duration."""
+    return (
+        timeseries.Panel()
+        .title("Database Query Duration (p95)")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Seconds)
+        .min(0)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('histogram_quantile(0.95, sum(rate(db_client_operation_duration_bucket{deployment_environment="$environment"}[5m])) by (le))')
+            .legend_format("p95")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        .grid_pos(GridPos(x=0, y=38, w=12, h=8))  # x, y, w, h
+    )
+
+
+def create_db_operations_panel() -> timeseries.Panel:
+    """Database operations per second."""
+    return (
+        timeseries.Panel()
+        .title("Database Operations")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .min(0)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('sum(rate(db_client_operation_duration_count{deployment_environment="$environment"}[5m]))')
+            .legend_format("ops/sec")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        .grid_pos(GridPos(x=12, y=38, w=12, h=8))  # x, y, w, h
+    )
+
+
+def generate() -> dashboard.Dashboard:
+    """
+    Generate the Service Overview dashboard.
+    
+    This dashboard provides a high-level view of service health using the Golden Signals:
+    - Latency: How long requests take
+    - Traffic: Request rate
+    - Errors: Error rate and count
+    - Saturation: Active requests and database performance
+    
+    Returns:
+        Complete dashboard builder ready to build()
+    """
+    return (
+        create_base_dashboard(
+            title="Language Quiz Service - Overview",
+            description="Service health overview with Golden Signals (latency, traffic, errors, saturation)",
+            uid="lqs-service-overview",
+            tags=["language-quiz-service", "overview", "golden-signals"],
+            use_environment_filter=True,
+        )
+        # All panels use absolute grid positioning (no rows)
+        # Grid: 24 units wide, panels positioned with (x, y, width, height)
+        .with_panel(create_uptime_stat())  # (0, 0, 6, 6)
+        .with_panel(create_error_count_stat())  # (6, 0, 6, 6)
+        .with_panel(create_total_requests_stat())  # (12, 0, 6, 6)
+        .with_panel(create_avg_latency_stat())  # (18, 0, 6, 6)
+        .with_panel(create_request_rate_panel())  # (0, 6, 12, 8)
+        .with_panel(create_error_rate_panel())  # (12, 6, 12, 8)
+        .with_panel(create_latency_panel())  # (0, 14, 24, 8)
+        .with_panel(create_status_code_panel())  # (0, 22, 12, 8)
+        .with_panel(create_active_requests_panel())  # (12, 22, 12, 8)
+        .with_panel(create_request_by_endpoint_panel())  # (0, 30, 12, 8)
+        .with_panel(create_latency_by_endpoint_panel())  # (12, 30, 12, 8)
+        .with_panel(create_db_query_duration_panel())  # (0, 38, 12, 8)
+        .with_panel(create_db_operations_panel())  # (12, 38, 12, 8)
+    )

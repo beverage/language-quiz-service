@@ -114,7 +114,7 @@ if OTEL_ENABLED:
     # Configure periodic metric reader
     metric_reader = PeriodicExportingMetricReader(
         otlp_metric_exporter,
-        export_interval_millis=60000,  # Export every 60 seconds
+        export_interval_millis=15000,  # Export every 15 seconds
     )
     
     # Create meter provider

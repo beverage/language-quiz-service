@@ -1,0 +1,107 @@
+name: Deploy Grafana Dashboards
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+    paths:
+      - 'src/observability/**'
+      - '.github/workflows/deploy-dashboards.yml'
+  pull_request:
+    branches:
+      - main
+      - staging
+    paths:
+      - 'src/observability/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  validate:
+    name: Validate Dashboards
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Validate dashboard definitions
+        run: poetry run python -m src.observability.deploy --validate
+
+  deploy:
+    name: Deploy to Grafana Cloud
+    runs-on: ubuntu-latest
+    needs: validate
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch'
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Deploy dashboards to Grafana Cloud
+        env:
+          GRAFANA_CLOUD_INSTANCE_ID: ${{ secrets.GRAFANA_CLOUD_INSTANCE_ID }}
+          GRAFANA_CLOUD_API_KEY: ${{ secrets.GRAFANA_CLOUD_API_KEY }}
+        run: |
+          echo "🚀 Deploying dashboards to Grafana Cloud..."
+          poetry run python -m src.observability.deploy
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ Dashboard definitions validated successfully!'
+            })
+

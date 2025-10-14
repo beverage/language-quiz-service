@@ -7,6 +7,7 @@ services:
     container_name: language-quiz-service-local
     networks:
       - supabase_network
+      - observability
     ports:
       - "8000:8000"
     volumes:
@@ -19,14 +20,8 @@ services:
       - SUPABASE_URL=http://supabase_kong_language-quiz-service:8000
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      # OpenTelemetry configuration (optional - only if you want telemetry locally)
-      # To enable, set these in your .env file:
-      # - OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-prod-XX.grafana.net/otlp
-      # - GRAFANA_CLOUD_INSTANCE_ID=<your-instance-id>
-      # - GRAFANA_CLOUD_API_KEY=glc_<your-api-key>
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-      - GRAFANA_CLOUD_INSTANCE_ID=${GRAFANA_CLOUD_INSTANCE_ID:-}
-      - GRAFANA_CLOUD_API_KEY=${GRAFANA_CLOUD_API_KEY:-}
+      # OpenTelemetry configuration - send to local OTEL Collector
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       - OTEL_SERVICE_NAME=language-quiz-service
       - OTEL_SERVICE_NAMESPACE=lqs
       - OTEL_DEPLOYMENT_ENVIRONMENT=local
@@ -36,8 +31,71 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    depends_on:
+      - otel-collector
+
+  # OpenTelemetry Collector - receives OTLP and writes to Prometheus
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: otel-collector
+    networks:
+      - observability
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+      - "8888:8888"  # Collector internal metrics
+      - "8889:8889"  # Prometheus exporter
+    volumes:
+      - ./config/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    depends_on:
+      - prometheus
+
+  # Prometheus - stores metrics
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: prometheus
+    networks:
+      - observability
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+  # Grafana - visualization and dashboards
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    networks:
+      - observability
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-lqs}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-test}
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    depends_on:
+      - prometheus
 
 networks:
   supabase_network:
     external: true
     name: supabase_network_language-quiz-service
+  observability:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:
