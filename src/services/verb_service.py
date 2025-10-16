@@ -4,6 +4,7 @@ import json
 import logging
 from uuid import UUID
 
+from opentelemetry import trace
 from pydantic import ValidationError
 
 from src.clients.openai_client import OpenAIClient
@@ -22,9 +23,10 @@ from src.schemas.verbs import (
     VerbUpdate,
     VerbWithConjugations,
 )
-from supabase import Client
+from supabase import AsyncClient
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class VerbService:
@@ -33,7 +35,7 @@ class VerbService:
         self.openai_client: OpenAIClient = OpenAIClient()
         self.verb_prompt_generator: VerbPromptGenerator = VerbPromptGenerator()
         self.verb_repository: VerbRepository | None = None
-        self.db_client: Client | None = None
+        self.db_client: AsyncClient | None = None
 
     async def _get_db_client(self):
         if not self.db_client:
@@ -107,13 +109,17 @@ class VerbService:
         Since infinitive is no longer unique, additional parameters may be needed.
         If not specified, returns the first match found.
         """
-        repo = await self._get_verb_repository()
-        return await repo.get_verb_by_infinitive(
-            infinitive=infinitive,
-            auxiliary=auxiliary,
-            reflexive=reflexive,
-            target_language_code=target_language_code,
-        )
+        with tracer.start_as_current_span(
+            "verb_service.get_verb_by_infinitive",
+            attributes={"infinitive": infinitive},
+        ):
+            repo = await self._get_verb_repository()
+            return await repo.get_verb_by_infinitive(
+                infinitive=infinitive,
+                auxiliary=auxiliary,
+                reflexive=reflexive,
+                target_language_code=target_language_code,
+            )
 
     async def get_verbs_by_infinitive(self, infinitive: str) -> list[Verb]:
         """Get all verb variants with the same infinitive."""

@@ -3,6 +3,7 @@
 import logging
 from uuid import UUID
 
+from opentelemetry import trace
 from postgrest import APIError as PostgrestAPIError
 
 from src.core.exceptions import RepositoryError
@@ -16,14 +17,15 @@ from src.schemas.verbs import (
     VerbUpdate,
     VerbWithConjugations,
 )
-from supabase import Client
+from supabase import AsyncClient
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class VerbRepository:
-    def __init__(self, client: Client):
-        """Initialize the repository with a Supabase client."""
+    def __init__(self, client: AsyncClient):
+        """Initialize the repository with a Supabase async client."""
         self.client = client
 
     async def create_verb(self, verb: VerbCreate) -> Verb:
@@ -64,13 +66,17 @@ class VerbRepository:
 
         Uses the get_random_verb_simple() function defined in the schema.
         """
-        result = await self.client.rpc(
-            "get_random_verb_simple", {"p_target_language": target_language_code}
-        ).execute()
+        with tracer.start_as_current_span(
+            "verb_repository.get_random_verb",
+            attributes={"target_language": target_language_code},
+        ):
+            result = await self.client.rpc(
+                "get_random_verb_simple", {"p_target_language": target_language_code}
+            ).execute()
 
-        if result.data:
-            return Verb.model_validate(result.data[0])
-        return None
+            if result.data:
+                return Verb.model_validate(result.data[0])
+            return None
 
     async def get_verb(self, verb_id: UUID) -> Verb | None:
         """Get a verb by ID."""
@@ -101,21 +107,30 @@ class VerbRepository:
         If auxiliary, reflexive, and target_language_code are provided, this will find the exact verb variant.
         If not provided, returns the first match found for the infinitive.
         """
-        query = self.client.table("verbs").select("*").eq("infinitive", infinitive)
+        with tracer.start_as_current_span(
+            "verb_repository.get_verb_by_infinitive",
+            attributes={
+                "infinitive": infinitive,
+                "auxiliary": auxiliary or "any",
+                "reflexive": reflexive if reflexive is not None else "any",
+                "target_language": target_language_code or "any",
+            },
+        ):
+            query = self.client.table("verbs").select("*").eq("infinitive", infinitive)
 
-        if auxiliary:
-            query = query.eq("auxiliary", auxiliary)
-        if reflexive is not None:
-            query = query.eq("reflexive", reflexive)
-        # target_language_code is part of uniqueness for the same French verb across languages
-        if target_language_code:
-            query = query.eq("target_language_code", target_language_code)
+            if auxiliary:
+                query = query.eq("auxiliary", auxiliary)
+            if reflexive is not None:
+                query = query.eq("reflexive", reflexive)
+            # target_language_code is part of uniqueness for the same French verb across languages
+            if target_language_code:
+                query = query.eq("target_language_code", target_language_code)
 
-        result = await query.execute()
+            result = await query.execute()
 
-        if result.data:
-            return Verb.model_validate(result.data[0])
-        return None
+            if result.data:
+                return Verb.model_validate(result.data[0])
+            return None
 
     async def get_verbs_by_infinitive(self, infinitive: str) -> list[Verb]:
         """Get all verbs with the same infinitive (different auxiliary/reflexive combinations)."""

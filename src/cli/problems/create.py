@@ -32,7 +32,7 @@ async def _create_problem_http(
     }
     if constraints:
         request_data["constraints"] = constraints.model_dump(exclude_none=True)
-    
+
     response = await make_api_request(
         method="POST",
         endpoint="/api/v1/problems/random",

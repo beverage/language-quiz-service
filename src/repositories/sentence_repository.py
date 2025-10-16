@@ -8,20 +8,20 @@ from postgrest import APIError as PostgrestAPIError
 from src.clients.supabase import get_supabase_client
 from src.core.exceptions import RepositoryError
 from src.schemas.sentences import Sentence, SentenceCreate, SentenceUpdate
-from supabase import Client
+from supabase import AsyncClient
 
 logger = logging.getLogger(__name__)
 
 
 class SentenceRepository:
     @classmethod
-    async def create(cls, client: Client | None = None) -> "SentenceRepository":
+    async def create(cls, client: AsyncClient | None = None) -> "SentenceRepository":
         """Asynchronously create an instance of SentenceRepository."""
         if client is None:
             client = await get_supabase_client()
         return cls(client)
 
-    def __init__(self, client: Client):
+    def __init__(self, client: AsyncClient):
         """Initialise the repository with a Supabase client."""
         self.client = client
 

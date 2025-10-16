@@ -5,7 +5,7 @@ from uuid import UUID
 
 from src.core.exceptions import RepositoryError
 from src.schemas.api_keys import ApiKey, ApiKeyCreate, ApiKeyStats, ApiKeyUpdate
-from supabase import Client
+from supabase import AsyncClient
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class ApiKeyRepository:
     """Repository for API key data access operations."""
 
-    def __init__(self, client: Client):
-        """Initialize the repository with a Supabase client."""
+    def __init__(self, client: AsyncClient):
+        """Initialize the repository with a Supabase async client."""
         self.client = client
 
     async def create_api_key(

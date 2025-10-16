@@ -49,14 +49,14 @@ class GrafanaDeployer:
         """
         json_str = JSONEncoder(sort_keys=True, indent=2).encode(dashboard_builder.build())
         dashboard_json = json.loads(json_str)
-        
+
         # Fix for Grafana 10.x: Add 'definition' field to query variables
         if "templating" in dashboard_json and "list" in dashboard_json["templating"]:
             for var in dashboard_json["templating"]["list"]:
                 if var.get("type") == "query" and "query" in var:
                     # Set definition to the same value as query for Grafana 10.x compatibility
                     var["definition"] = var["query"]
-        
+
         return dashboard_json
 
     def deploy_dashboard(
@@ -309,7 +309,7 @@ def main():
                 dashboard_builder, folder_name=folder_name, overwrite=True
             )
             dashboard_url = f"{config['api_url']}{result.get('url', '')}"
-            print(f"   ✅ Deployed successfully!")
+            print("   ✅ Deployed successfully!")
             print(f"   🔗 URL: {dashboard_url}")
         except Exception as e:
             print(f"   ❌ Failed: {e}")

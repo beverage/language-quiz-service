@@ -3,7 +3,7 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -126,7 +126,7 @@ async def generate_random_problem(
     request: Request,
     current_key: dict = Depends(get_current_api_key),
     service: ProblemService = Depends(get_problem_service),
-    problem_request: ProblemRandomRequest | None = None,
+    problem_request: ProblemRandomRequest | None = Body(None),
 ) -> ProblemResponse:
     """
     Generate a random grammar problem.

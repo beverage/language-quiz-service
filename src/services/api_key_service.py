@@ -99,7 +99,10 @@ class ApiKeyService:
         Returns:
             ApiKeyResponse if valid, None if invalid
         """
-        if not api_key_plain or not api_key_plain.startswith("sk_"):
+        # Allow both production keys (sk_*) and test keys (test_key_*)
+        if not api_key_plain or not (
+            api_key_plain.startswith("sk_") or api_key_plain.startswith("test_key_") or api_key_plain.startswith("lqs_")
+        ):
             return None
 
         repo = await self._get_api_key_repository()

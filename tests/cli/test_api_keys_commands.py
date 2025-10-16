@@ -173,10 +173,10 @@ class TestCreateCommand:
         # Mock successful response
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "api_key": "sk_live_12345",
+            "api_key": "test_key_cli_create_12345",
             "key_info": {
                 "name": "test-key",
-                "key_prefix": "sk_live_12345",
+                "key_prefix": "test_key_cli_create_12345",
                 "permissions_scope": ["read", "write"],
             },
         }
@@ -200,7 +200,7 @@ class TestCreateCommand:
         assert result.exit_code == 0
         assert "API key created successfully!" in result.output
         assert "Name: test-key" in result.output
-        assert "sk_live_12345" in result.output
+        assert "test_key_cli_create_12345" in result.output
 
         # Verify API request was made correctly
         mock_make_request.assert_called_once_with(
@@ -226,10 +226,10 @@ class TestCreateCommand:
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "api_key": "sk_live_12345",
+            "api_key": "test_key_cli_admin_12345",
             "key_info": {
                 "name": "test-key",
-                "key_prefix": "sk_live_12345",
+                "key_prefix": "test_key_cli_admin_12345",
                 "permissions_scope": ["admin"],
             },
         }
@@ -292,7 +292,7 @@ class TestListKeysCommand:
         mock_response = MagicMock()
         mock_response.json.return_value = [
             {
-                "key_prefix": "sk_live_12345",
+                "key_prefix": "test_key_cli_list_12345",
                 "name": "test-key",
                 "is_active": True,
                 "permissions_scope": ["read"],
@@ -331,7 +331,7 @@ class TestListKeysCommand:
         mock_response = MagicMock()
         mock_response.json.return_value = [
             {
-                "key_prefix": "sk_live_12345",
+                "key_prefix": "test_key_cli_table_12345",
                 "name": "test-key",
                 "is_active": True,
                 "permissions_scope": ["read", "write"],
@@ -431,10 +431,10 @@ class TestIntegrationScenarios:
 
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "api_key": "sk_live_12345",
+            "api_key": "test_key_cli_rotate_12345",
             "key_info": {
                 "name": "test-key",
-                "key_prefix": "sk_live_12345",
+                "key_prefix": "test_key_cli_rotate_12345",
                 "permissions_scope": ["read"],
             },
         }

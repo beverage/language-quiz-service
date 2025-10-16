@@ -40,7 +40,7 @@ def sample_api_key_data():
     return {
         "id": uuid4(),
         "key_hash": "$2b$12$example_hash_here",
-        "key_prefix": "sk_live_abcd",
+        "key_prefix": "test_key_abcd",
         "name": "Test API Key",
         "description": "A test API key",
         "client_name": "Test Client",
@@ -244,10 +244,10 @@ class TestApiKeyModels:
         key_info = ApiKeyResponse(**response_data)
 
         with_plain = ApiKeyWithPlainText(
-            api_key="sk_live_test123456789", key_info=key_info
+            api_key="test_key_plain_123456789", key_info=key_info
         )
 
-        assert with_plain.api_key == "sk_live_test123456789"
+        assert with_plain.api_key == "test_key_plain_123456789"
         assert with_plain.key_info.name == sample_api_key_data["name"]
 
     def test_api_key_stats(self):
@@ -258,7 +258,7 @@ class TestApiKeyModels:
             inactive_keys=2,
             total_requests=1000,
             requests_last_24h=100,
-            most_active_key="sk_live_abcd",
+            most_active_key="test_key_abcd",
         )
 
         assert stats.total_keys == 10
@@ -299,7 +299,7 @@ class TestApiKeyHashing:
 
     def test_hash_api_key(self):
         """Test API key hashing."""
-        api_key = "sk_live_test123456789"
+        api_key = "test_key_hash_123456789"
         hashed = hash_api_key(api_key)
 
         # Should be bcrypt hash
@@ -312,22 +312,22 @@ class TestApiKeyHashing:
 
     def test_verify_api_key_correct(self):
         """Test verifying correct API key."""
-        api_key = "sk_live_test123456789"
+        api_key = "test_key_verify_123456789"
         hashed = hash_api_key(api_key)
 
         assert verify_api_key(api_key, hashed) is True
 
     def test_verify_api_key_incorrect(self):
         """Test verifying incorrect API key."""
-        api_key = "sk_live_test123456789"
-        wrong_key = "sk_live_wrong123456789"
+        api_key = "test_key_correct_123456789"
+        wrong_key = "test_key_wrong_123456789"
         hashed = hash_api_key(api_key)
 
         assert verify_api_key(wrong_key, hashed) is False
 
     def test_verify_api_key_invalid_hash(self):
         """Test verifying with invalid hash."""
-        api_key = "sk_live_test123456789"
+        api_key = "test_key_invalid_hash_12345"
         invalid_hash = "invalid_hash"
 
         assert verify_api_key(api_key, invalid_hash) is False

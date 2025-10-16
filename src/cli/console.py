@@ -68,7 +68,7 @@ async def cli(ctx, debug=False, debug_openai=False, debug_recovery=True, detaile
 
     # Store service URL in context for commands to access
     from src.cli.utils.http_client import get_service_url_from_flag
-    
+
     ctx.ensure_object(dict)
     ctx.obj['service_url'] = get_service_url_from_flag(local, remote)
     ctx.obj['local'] = local
@@ -256,7 +256,7 @@ async def batch(ctx, quantity: int, workers: int, statements: int):
         # Get service_url from root context
         root_ctx = ctx.find_root()
         service_url = root_ctx.obj.get('service_url') if root_ctx.obj else None
-        
+
         results = await batch_operation(
             workers=workers,
             quantity=quantity,

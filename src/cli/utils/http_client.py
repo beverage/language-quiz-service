@@ -110,7 +110,7 @@ async def make_api_request(
                 params=params,
                 timeout=timeout,
             )
-            
+
             logger.debug(f"Response status: {response.status_code}")
 
             # Check for HTTP errors
@@ -122,13 +122,13 @@ async def make_api_request(
                     logger.debug(f"Error response: {error_data}")
                 except (ValueError, Exception):
                     error_msg = f"HTTP {response.status_code}: {response.text}"
-                
+
                 # Add helpful context for common errors
                 if response.status_code == 401:
                     error_msg += "\n💡 Hint: Check that your LQS_API_KEY is valid and active"
                 elif response.status_code == 403:
                     error_msg += "\n💡 Hint: Your API key may lack required permissions (read/write/admin)"
-                
+
                 raise click.ClickException(f"API request failed: {error_msg}")
 
             return response

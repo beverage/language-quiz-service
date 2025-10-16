@@ -96,10 +96,10 @@ async def download(ctx, verbs, output_json: bool, output_format: str):
 async def get(ctx, verb: str, output_json: bool, output_format: str):
     """Get a specific verb by infinitive."""
     asyncclick.echo(f"Fetching verb {verb}.")
-    
+
     # Check if using HTTP mode
     service_url = ctx.obj.get('service_url') if ctx.obj else None
-    
+
     if service_url:
         # HTTP mode - make API call
         api_key = get_api_key()
@@ -119,7 +119,7 @@ async def random(ctx, output_json: bool, output_format: str):
     """Get a random verb."""
     # Check if using HTTP mode
     service_url = ctx.obj.get('service_url') if ctx.obj else None
-    
+
     if service_url:
         # HTTP mode - make API call
         api_key = get_api_key()

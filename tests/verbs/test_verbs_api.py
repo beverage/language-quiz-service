@@ -24,7 +24,7 @@ from tests.verbs.fixtures import (
 
 # Test data for API key
 VALID_WRITE_API_KEY = (
-    "sk_live_wrt1234567890123456789012345678901234567890123456789012345678901234"
+    "test_key_write_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
 )
 
 
@@ -38,7 +38,7 @@ def client():
 def admin_headers():
     """Headers with admin test API key."""
     return {
-        "X-API-Key": "sk_live_adm1234567890123456789012345678901234567890123456789012345678901234"
+        "X-API-Key": "test_key_admin_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
     }
 
 
@@ -46,7 +46,7 @@ def admin_headers():
 def write_headers():
     """Headers with read/write test API key."""
     return {
-        "X-API-Key": "sk_live_wrt1234567890123456789012345678901234567890123456789012345678901234"
+        "X-API-Key": "test_key_write_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
     }
 
 
@@ -54,7 +54,7 @@ def write_headers():
 def read_headers():
     """Headers with read-only test API key."""
     return {
-        "X-API-Key": "sk_live_red1234567890123456789012345678901234567890123456789012345678901234"
+        "X-API-Key": "test_key_read_1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
     }
 
 
