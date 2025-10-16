@@ -18,26 +18,17 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .api import api_keys, health, problems, sentences, verbs
-from .core.auth import ApiKeyAuthMiddleware
-from .core.config import get_settings
-from .core.exceptions import (
-    AppException,
-    ContentGenerationError,
-    NotFoundError,
-    ValidationError,
-)
-
-# Configure logging
+# Configure logging BEFORE other imports
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-settings = get_settings()
-
 # ============================================================================
 # OpenTelemetry Setup (Conditional - only if OTEL_EXPORTER_OTLP_ENDPOINT set)
+# ============================================================================
+# IMPORTANT: Must be configured BEFORE importing API/service/repository modules
+# so that tracer instances are properly initialized
 # ============================================================================
 OTEL_ENABLED = bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
 
@@ -143,6 +134,20 @@ if OTEL_ENABLED:
 else:
     logger.info("⚡ OpenTelemetry disabled (no OTEL_EXPORTER_OTLP_ENDPOINT set)")
 # ============================================================================
+
+# Import application modules AFTER OpenTelemetry is configured
+# This ensures that tracer instances in services/repositories are properly initialized
+from .api import api_keys, health, problems, sentences, verbs  # noqa: E402
+from .core.auth import ApiKeyAuthMiddleware  # noqa: E402
+from .core.config import get_settings  # noqa: E402
+from .core.exceptions import (  # noqa: E402
+    AppException,
+    ContentGenerationError,
+    NotFoundError,
+    ValidationError,
+)
+
+settings = get_settings()
 
 # Configure rate limiter
 limiter = Limiter(

@@ -232,79 +232,86 @@ class VerbService:
         Phase 1: Get verb data without COD/COI flags
         Phase 2: Use auxiliary to determine COD/COI flags
         """
-        logger.info("Fetching verb %s", requested_verb)
+        with tracer.start_as_current_span(
+            "verb_service.download_verb",
+            attributes={
+                "verb": requested_verb,
+                "target_language": target_language_code,
+            },
+        ):
+            logger.info("Fetching verb %s", requested_verb)
 
-        # Phase 1: Generate main verb prompt (without COD/COI)
-        verb_prompt = self.verb_prompt_generator.generate_verb_prompt(
-            verb_infinitive=requested_verb, target_language_code=target_language_code
-        )
-
-        # Get AI response for main verb data
-        llm_response = await self.openai_client.handle_request(verb_prompt)
-        logger.debug("✅ LLM Response: %s", llm_response)
-
-        repo = await self._get_verb_repository()
-        try:
-            response_json = json.loads(llm_response)
-            verb_payload = LLMVerbPayload.model_validate(response_json)
-        except (json.JSONDecodeError, ValidationError) as e:
-            logger.error(f"Failed to decode or validate LLM response: {e}")
-            raise ContentGenerationError(
-                content_type="verb",
-                message=f"Failed to parse verb data from AI for '{requested_verb}'",
-            ) from e
-
-        # Check if this specific verb variant already exists using the correct unique tuple
-        # NOTE: Verb uniqueness is determined by (infinitive, auxiliary, reflexive, target_language_code)
-        existing_verb = await repo.get_verb_by_infinitive(
-            infinitive=verb_payload.infinitive,
-            auxiliary=verb_payload.auxiliary.value,
-            reflexive=verb_payload.reflexive,
-            target_language_code=target_language_code,  # Include in uniqueness check
-        )
-        if existing_verb:
-            raise ContentGenerationError(
-                content_type="verb",
-                message=f"Verb '{verb_payload.infinitive}' with auxiliary '{verb_payload.auxiliary.value}', reflexive={verb_payload.reflexive}, and target_language='{target_language_code}' already exists.",
+            # Phase 1: Generate main verb prompt (without COD/COI)
+            verb_prompt = self.verb_prompt_generator.generate_verb_prompt(
+                verb_infinitive=requested_verb, target_language_code=target_language_code
             )
 
-        # Phase 2: Use the auxiliary from Phase 1 to determine COD/COI
-        objects_prompt = self.verb_prompt_generator.generate_objects_prompt(
-            verb_infinitive=verb_payload.infinitive,
-            auxiliary=verb_payload.auxiliary.value,
-        )
-        objects_response = await self.openai_client.handle_request(objects_prompt)
-        logger.debug(
-            "✅ Objects Response (%s, %s): %s",
-            verb_payload.infinitive,
-            verb_payload.auxiliary,
-            objects_response,
-        )
+            # Get AI response for main verb data
+            llm_response = await self.openai_client.handle_request(verb_prompt)
+            logger.debug("✅ LLM Response: %s", llm_response)
 
-        try:
-            objects_json = json.loads(objects_response)
-            can_have_cod = objects_json.get("can_have_cod", True)
-            can_have_coi = objects_json.get("can_have_coi", True)
-        except json.JSONDecodeError:
-            logger.warning("Failed to decode COD/COI response, using defaults.")
-            can_have_cod, can_have_coi = True, True
+            repo = await self._get_verb_repository()
+            try:
+                response_json = json.loads(llm_response)
+                verb_payload = LLMVerbPayload.model_validate(response_json)
+            except (json.JSONDecodeError, ValidationError) as e:
+                logger.error(f"Failed to decode or validate LLM response: {e}")
+                raise ContentGenerationError(
+                    content_type="verb",
+                    message=f"Failed to parse verb data from AI for '{requested_verb}'",
+                ) from e
 
-        # Create a new VerbCreate object with all the data
-        verb_data = verb_payload.model_dump()
-        verb_data.pop("can_have_cod", None)
-        verb_data.pop("can_have_coi", None)
+            # Check if this specific verb variant already exists using the correct unique tuple
+            # NOTE: Verb uniqueness is determined by (infinitive, auxiliary, reflexive, target_language_code)
+            existing_verb = await repo.get_verb_by_infinitive(
+                infinitive=verb_payload.infinitive,
+                auxiliary=verb_payload.auxiliary.value,
+                reflexive=verb_payload.reflexive,
+                target_language_code=target_language_code,  # Include in uniqueness check
+            )
+            if existing_verb:
+                raise ContentGenerationError(
+                    content_type="verb",
+                    message=f"Verb '{verb_payload.infinitive}' with auxiliary '{verb_payload.auxiliary.value}', reflexive={verb_payload.reflexive}, and target_language='{target_language_code}' already exists.",
+                )
 
-        verb_to_create = VerbCreate(
-            **verb_data,
-            can_have_cod=can_have_cod,
-            can_have_coi=can_have_coi,
-        )
+            # Phase 2: Use the auxiliary from Phase 1 to determine COD/COI
+            objects_prompt = self.verb_prompt_generator.generate_objects_prompt(
+                verb_infinitive=verb_payload.infinitive,
+                auxiliary=verb_payload.auxiliary.value,
+            )
+            objects_response = await self.openai_client.handle_request(objects_prompt)
+            logger.debug(
+                "✅ Objects Response (%s, %s): %s",
+                verb_payload.infinitive,
+                verb_payload.auxiliary,
+                objects_response,
+            )
 
-        # Upsert the verb and its conjugations
-        verb = await self._upsert_verb(verb_to_create, repo)
-        await self._process_conjugations(verb, verb_payload.tenses, repo)
+            try:
+                objects_json = json.loads(objects_response)
+                can_have_cod = objects_json.get("can_have_cod", True)
+                can_have_coi = objects_json.get("can_have_coi", True)
+            except json.JSONDecodeError:
+                logger.warning("Failed to decode COD/COI response, using defaults.")
+                can_have_cod, can_have_coi = True, True
 
-        return verb
+            # Create a new VerbCreate object with all the data
+            verb_data = verb_payload.model_dump()
+            verb_data.pop("can_have_cod", None)
+            verb_data.pop("can_have_coi", None)
+
+            verb_to_create = VerbCreate(
+                **verb_data,
+                can_have_cod=can_have_cod,
+                can_have_coi=can_have_coi,
+            )
+
+            # Upsert the verb and its conjugations
+            verb = await self._upsert_verb(verb_to_create, repo)
+            await self._process_conjugations(verb, verb_payload.tenses, repo)
+
+            return verb
 
     async def _upsert_verb(self, verb_data: VerbCreate, repo: VerbRepository) -> Verb:
         """Helper to upsert a verb."""
