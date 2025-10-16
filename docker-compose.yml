@@ -13,13 +13,11 @@ services:
     volumes:
       - .:/app
       - /app/.venv  # Exclude .venv from volume mount (use container's version)
+    env_file:
+      - .env.compose.local
     environment:
-      - ENVIRONMENT=local
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      # Connect to Supabase Kong container on Docker network
+      # Connect to Supabase Kong container on Docker network  
       - SUPABASE_URL=http://supabase_kong_language-quiz-service:8000
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       # OpenTelemetry configuration - send to local OTEL Collector
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       - OTEL_SERVICE_NAME=language-quiz-service

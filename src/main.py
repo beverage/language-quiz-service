@@ -279,13 +279,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add API key authentication middleware
-app.add_middleware(ApiKeyAuthMiddleware)
-
 # Instrument FastAPI with OpenTelemetry (if enabled)
+# IMPORTANT: Must be done BEFORE adding middleware
 if OTEL_ENABLED:
     FastAPIInstrumentor.instrument_app(app)
     logger.info("✅ FastAPI instrumented with OpenTelemetry")
+
+# Add API key authentication middleware
+app.add_middleware(ApiKeyAuthMiddleware)
 
 # Include API routers
 app.include_router(health.router)

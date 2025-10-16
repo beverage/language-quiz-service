@@ -6,7 +6,9 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  setup           - First-time local environment setup"
-	@echo "  dev             - Start FastAPI development server (fast, no monitoring)"
+	@echo "  compose-env     - Generate .env.compose.local from local Supabase"
+	@echo "  compose-up      - Start docker-compose with local Supabase (recommended)"
+	@echo "  dev             - Start FastAPI development server with local Supabase"
 	@echo "  dev-monitored   - Start with Grafana Cloud observability"
 	@echo "  serve           - Start FastAPI server (production mode)"
 	@echo ""
@@ -35,7 +37,8 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make setup                 # First-time setup"
-	@echo "  make dev                   # Fast local development"
+	@echo "  make compose-up            # Start with docker-compose (recommended)"
+	@echo "  make dev                   # Fast local development (uvicorn)"
 	@echo "  make dev-monitored         # Local development with observability"
 	@echo "  make dashboards-deploy     # Deploy dashboards"
 	@echo "  make deploy ENV=staging    # Deploy to staging"
@@ -51,9 +54,24 @@ serve:
 	@echo "Starting FastAPI server..."
 	poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000
 
+compose-env:
+	@echo "🔧 Generating .env.compose.local from local Supabase..."
+	./scripts/generate_compose_env.sh
+
+compose-up: compose-env
+	@echo "🚀 Starting docker-compose with local Supabase..."
+	docker-compose up --build
+
 dev:
-	@echo "Starting FastAPI development server (fast, no monitoring)..."
-	poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+	@echo "🚀 Starting FastAPI development server with local Supabase..."
+	@if ! supabase status >/dev/null 2>&1; then \
+		echo "❌ Local Supabase is not running. Start it with: supabase start"; \
+		exit 1; \
+	fi
+	@./scripts/generate_compose_env.sh >/dev/null
+	@echo "✅ Using local Supabase configuration"
+	@set -a && source .env.compose.local && set +a && \
+		poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
 
 dev-monitored:
 	@echo "Starting FastAPI with Grafana Cloud observability..."

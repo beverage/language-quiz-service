@@ -198,3 +198,4 @@ temp/
 # Observability - Exported dashboards
 dashboards/
 *.dashboard.json
+.env.compose.local

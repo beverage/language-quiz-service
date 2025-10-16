@@ -8,6 +8,7 @@ import logging
 import traceback
 
 from src.cli.problems.display import display_problem, display_problem_summary
+from src.cli.utils.http_client import get_api_key, make_api_request
 from src.schemas.problems import (
     GrammarProblemConstraints,
     Problem,
@@ -19,11 +20,46 @@ from src.services.problem_service import ProblemService
 logger = logging.getLogger(__name__)
 
 
+async def _create_problem_http(
+    service_url: str,
+    api_key: str,
+    statement_count: int = 4,
+    constraints: GrammarProblemConstraints | None = None,
+) -> Problem:
+    """Create a problem via HTTP API."""
+    request_data = {
+        "statement_count": statement_count,
+    }
+    if constraints:
+        request_data["constraints"] = constraints.model_dump(exclude_none=True)
+    
+    response = await make_api_request(
+        method="POST",
+        endpoint="/api/v1/problems/random",
+        base_url=service_url,
+        api_key=api_key,
+        json_data=request_data,
+    )
+    return Problem(**response.json())
+
+
+async def _get_problem_http(service_url: str, api_key: str, problem_id: str) -> Problem:
+    """Get a problem by ID via HTTP API."""
+    response = await make_api_request(
+        method="GET",
+        endpoint=f"/api/v1/problems/{problem_id}",
+        base_url=service_url,
+        api_key=api_key,
+    )
+    return Problem(**response.json())
+
+
 async def create_random_problem_with_delay(
     statement_count: int = 4,
     constraints: GrammarProblemConstraints | None = None,
     display: bool = True,
     detailed: bool = False,
+    service_url: str | None = None,
 ) -> Problem:
     """Create a random problem (wrapper for batch operations)."""
     problem = await create_random_problem(
@@ -31,6 +67,7 @@ async def create_random_problem_with_delay(
         constraints=constraints,
         display=display,
         detailed=detailed,
+        service_url=service_url,
     )
     return problem
 
@@ -40,17 +77,28 @@ async def create_random_problem(
     constraints: GrammarProblemConstraints | None = None,
     display: bool = False,
     detailed: bool = False,
+    service_url: str | None = None,
 ) -> Problem:
-    """Create a random grammar problem using the ProblemsService."""
-    problems_service = ProblemService()
-
+    """Create a random grammar problem using the ProblemsService or HTTP API."""
     try:
         logger.debug(f"🎯 Creating random problem with {statement_count} statements")
 
-        problem = await problems_service.create_random_grammar_problem(
-            constraints=constraints,
-            statement_count=statement_count,
-        )
+        if service_url:
+            # HTTP mode - make API call
+            api_key = get_api_key()
+            problem = await _create_problem_http(
+                service_url=service_url,
+                api_key=api_key,
+                statement_count=statement_count,
+                constraints=constraints,
+            )
+        else:
+            # Direct mode - use service layer
+            problems_service = ProblemService()
+            problem = await problems_service.create_random_grammar_problem(
+                constraints=constraints,
+                statement_count=statement_count,
+            )
 
         if display:
             display_problem(problem, detailed=detailed)
@@ -71,6 +119,7 @@ async def create_random_problems_batch(
     workers: int = 25,
     display: bool = True,
     detailed: bool = False,
+    service_url: str | None = None,
 ) -> list[Problem]:
     """Create multiple random problems in parallel."""
     from src.cli.utils.queues import parallel_execute
@@ -84,6 +133,7 @@ async def create_random_problems_batch(
             constraints=constraints,
             display=display,  # Display individual problems in real-time
             detailed=detailed,
+            service_url=service_url,
         )
         for _ in range(quantity)
     ]

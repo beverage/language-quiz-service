@@ -29,7 +29,7 @@ async def get_problem_service() -> ProblemService:
     return ProblemService()
 
 
-@router.get(
+@router.post(
     "/random",
     response_model=ProblemResponse,
     summary="Generate random grammar problem",
@@ -122,11 +122,11 @@ async def get_problem_service() -> ProblemService:
     },
 )
 @limiter.limit("100/minute")
-async def get_random_problem(
+async def generate_random_problem(
     request: Request,
-    problem_request: ProblemRandomRequest = None,
     current_key: dict = Depends(get_current_api_key),
     service: ProblemService = Depends(get_problem_service),
+    problem_request: ProblemRandomRequest | None = None,
 ) -> ProblemResponse:
     """
     Generate a random grammar problem.
