@@ -47,12 +47,16 @@ class Settings(BaseSettings):
     supabase_project_ref: str = Field(default="test_ref", alias="SUPABASE_PROJECT_REF")
 
     # Observability - Grafana Cloud (OpenTelemetry)
-    grafana_cloud_instance_id: str | None = Field(default=None, alias="GRAFANA_CLOUD_INSTANCE_ID")
-    grafana_cloud_api_key: str | None = Field(default=None, alias="GRAFANA_CLOUD_API_KEY")
+    grafana_cloud_instance_id: str | None = Field(
+        default=None, alias="GRAFANA_CLOUD_INSTANCE_ID"
+    )
+    grafana_cloud_api_key: str | None = Field(
+        default=None, alias="GRAFANA_CLOUD_API_KEY"
+    )
     otel_exporter_otlp_endpoint: str | None = Field(
         default=None,
         alias="OTEL_EXPORTER_OTLP_ENDPOINT",
-        description="OpenTelemetry OTLP endpoint (e.g., Grafana Cloud)"
+        description="OpenTelemetry OTLP endpoint (e.g., Grafana Cloud)",
     )
 
     model_config = ConfigDict(

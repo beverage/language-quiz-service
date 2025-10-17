@@ -54,7 +54,10 @@ class TestProblemsAPIValidation:
         # Test GET to problems endpoint - endpoint is POST only
         # Note: FastAPI/TestClient may return 422 instead of 405 due to body validation
         response = client.get(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
-        assert response.status_code in [405, 422]  # Method not allowed or validation error
+        assert response.status_code in [
+            405,
+            422,
+        ]  # Method not allowed or validation error
 
         # Test PUT to problems endpoint with valid auth (should be 405, not 401)
         response = client.put(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
@@ -412,7 +415,9 @@ class TestRandomProblemParameterized:
             # Make multiple requests
             responses = []
             for _ in range(3):
-                response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+                response = client.post(
+                    f"{PROBLEMS_PREFIX}/random", headers=read_headers
+                )
                 responses.append(response)
 
             # All should succeed

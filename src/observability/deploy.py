@@ -47,7 +47,9 @@ class GrafanaDeployer:
         Returns:
             Dashboard JSON dict
         """
-        json_str = JSONEncoder(sort_keys=True, indent=2).encode(dashboard_builder.build())
+        json_str = JSONEncoder(sort_keys=True, indent=2).encode(
+            dashboard_builder.build()
+        )
         dashboard_json = json.loads(json_str)
 
         # Fix for Grafana 10.x: Add 'definition' field to query variables
@@ -60,7 +62,10 @@ class GrafanaDeployer:
         return dashboard_json
 
     def deploy_dashboard(
-        self, dashboard_builder: Any, folder_name: str = "General", overwrite: bool = True
+        self,
+        dashboard_builder: Any,
+        folder_name: str = "General",
+        overwrite: bool = True,
     ) -> dict:
         """
         Deploy a dashboard to Grafana.
@@ -250,7 +255,9 @@ def main():
         print("🔍 Validating dashboard definitions...")
         for name, dashboard_builder in dashboards.items():
             try:
-                json_str = JSONEncoder(sort_keys=True, indent=2).encode(dashboard_builder.build())
+                json_str = JSONEncoder(sort_keys=True, indent=2).encode(
+                    dashboard_builder.build()
+                )
                 json.loads(json_str)  # Validate JSON
                 print(f"   ✅ {name}: Valid")
             except Exception as e:
@@ -266,7 +273,9 @@ def main():
         output_path.mkdir(parents=True, exist_ok=True)
 
         for name, dashboard_builder in dashboards.items():
-            json_data = JSONEncoder(sort_keys=True, indent=2).encode(dashboard_builder.build())
+            json_data = JSONEncoder(sort_keys=True, indent=2).encode(
+                dashboard_builder.build()
+            )
             output_file = output_path / f"{name}.json"
             output_file.write_text(json_data)
             print(f"   ✅ Exported {name} → {output_file}")
@@ -320,4 +329,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

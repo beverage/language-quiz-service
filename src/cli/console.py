@@ -45,13 +45,27 @@ from src.schemas.problems import GrammarProblemConstraints
     "--detailed", default=False, is_flag=True, help="Show detailed problem information"
 )
 @click.option(
-    "--local", default=False, is_flag=True, help="Target local service at http://localhost:8000"
+    "--local",
+    default=False,
+    is_flag=True,
+    help="Target local service at http://localhost:8000",
 )
 @click.option(
-    "--remote", default=False, is_flag=True, help="Target remote service from LQS_SERVICE_URL"
+    "--remote",
+    default=False,
+    is_flag=True,
+    help="Target remote service from LQS_SERVICE_URL",
 )
 @click.pass_context
-async def cli(ctx, debug=False, debug_openai=False, debug_recovery=True, detailed=False, local=False, remote=False):
+async def cli(
+    ctx,
+    debug=False,
+    debug_openai=False,
+    debug_recovery=True,
+    detailed=False,
+    local=False,
+    remote=False,
+):
     # Load environment variables from .env file
     load_dotenv()
 
@@ -70,9 +84,9 @@ async def cli(ctx, debug=False, debug_openai=False, debug_recovery=True, detaile
     from src.cli.utils.http_client import get_service_url_from_flag
 
     ctx.ensure_object(dict)
-    ctx.obj['service_url'] = get_service_url_from_flag(local, remote)
-    ctx.obj['local'] = local
-    ctx.obj['remote'] = remote
+    ctx.obj["service_url"] = get_service_url_from_flag(local, remote)
+    ctx.obj["local"] = local
+    ctx.obj["remote"] = remote
 
     # Removed: await reflect_tables()  # SQLAlchemy dependency removed
 
@@ -140,7 +154,7 @@ async def problem_random(
         # Get flags from root context
         root_ctx = ctx.find_root()
         detailed = root_ctx.params.get("detailed", False)
-        service_url = root_ctx.obj.get('service_url') if root_ctx.obj else None
+        service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
 
         # Build constraints from CLI options
         constraints = None
@@ -255,7 +269,7 @@ async def batch(ctx, quantity: int, workers: int, statements: int):
     try:
         # Get service_url from root context
         root_ctx = ctx.find_root()
-        service_url = root_ctx.obj.get('service_url') if root_ctx.obj else None
+        service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
 
         results = await batch_operation(
             workers=workers,

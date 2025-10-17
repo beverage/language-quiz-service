@@ -54,7 +54,7 @@ async def download(ctx, verbs, output_json: bool, output_format: str):
     asyncclick.echo(f"Downloading {len(verbs)} verb(s): {', '.join(verbs)}")
 
     # Check if using HTTP mode
-    service_url = ctx.obj.get('service_url') if ctx.obj else None
+    service_url = ctx.obj.get("service_url") if ctx.obj else None
 
     # Import here to avoid circular imports
     from src.cli.utils.queues import parallel_execute
@@ -63,9 +63,7 @@ async def download(ctx, verbs, output_json: bool, output_format: str):
     if service_url:
         # HTTP mode - make API calls
         api_key = get_api_key()
-        tasks = [
-            _download_verb_http(verb, service_url, api_key) for verb in verbs
-        ]
+        tasks = [_download_verb_http(verb, service_url, api_key) for verb in verbs]
     else:
         # Direct mode - use service layer
         tasks = [download_verb(verb) for verb in verbs]
@@ -98,7 +96,7 @@ async def get(ctx, verb: str, output_json: bool, output_format: str):
     asyncclick.echo(f"Fetching verb {verb}.")
 
     # Check if using HTTP mode
-    service_url = ctx.obj.get('service_url') if ctx.obj else None
+    service_url = ctx.obj.get("service_url") if ctx.obj else None
 
     if service_url:
         # HTTP mode - make API call
@@ -118,7 +116,7 @@ async def get(ctx, verb: str, output_json: bool, output_format: str):
 async def random(ctx, output_json: bool, output_format: str):
     """Get a random verb."""
     # Check if using HTTP mode
-    service_url = ctx.obj.get('service_url') if ctx.obj else None
+    service_url = ctx.obj.get("service_url") if ctx.obj else None
 
     if service_url:
         # HTTP mode - make API call

@@ -137,7 +137,7 @@ else:
 
 # Import application modules AFTER OpenTelemetry is configured
 # This ensures that tracer instances in services/repositories are properly initialized
-from .api import api_keys, health, problems, sentences, verbs  # noqa: E402
+from .api import api_keys, cache_stats, health, problems, sentences, verbs  # noqa: E402
 from .core.auth import ApiKeyAuthMiddleware  # noqa: E402
 from .core.config import get_settings  # noqa: E402
 from .core.exceptions import (  # noqa: E402
@@ -163,7 +163,45 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Language Quiz Service...")
     logger.info(f"📊 Rate limiting: {settings.rate_limit_requests} requests/minute")
     logger.info(f"🌐 Environment: {settings.environment}")
+
+    # Initialize in-memory caches
+    from src.cache import api_key_cache, conjugation_cache, verb_cache
+    from src.clients.supabase import get_supabase_client
+    from src.repositories.api_keys_repository import ApiKeyRepository
+    from src.repositories.verb_repository import VerbRepository
+
+    try:
+        logger.info("💾 Loading in-memory caches...")
+
+        # Get database client
+        client = await get_supabase_client()
+
+        # Create repositories
+        verb_repo = VerbRepository(client)
+        api_key_repo = ApiKeyRepository(client)
+
+        # Load all caches in parallel
+        import asyncio
+
+        await asyncio.gather(
+            verb_cache.load(verb_repo),
+            conjugation_cache.load(verb_repo),
+            api_key_cache.load(api_key_repo),
+        )
+
+        # Log cache statistics
+        logger.info(f"📊 Verb cache: {verb_cache.get_stats()}")
+        logger.info(f"📊 Conjugation cache: {conjugation_cache.get_stats()}")
+        logger.info(f"📊 API key cache: {api_key_cache.get_stats()}")
+        logger.info("✅ All caches loaded successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize caches: {e}", exc_info=True)
+        raise
+
     yield
+
+    # Cleanup
     logger.info("🔄 Shutting down Language Quiz Service...")
 
 
@@ -270,6 +308,10 @@ app = FastAPI(
             "name": "sentences",
             "description": "Sentence generation endpoints (coming soon)",
         },
+        {
+            "name": "Cache",
+            "description": "Cache statistics and monitoring endpoints",
+        },
     ],
 )
 
@@ -308,6 +350,7 @@ v1_router.include_router(api_keys.router)
 v1_router.include_router(verbs.router)
 v1_router.include_router(sentences.router)
 v1_router.include_router(problems.router)
+v1_router.include_router(cache_stats.router)
 
 # TODO: Uncomment these when endpoints are implemented
 # v1_router.include_router(problems.router)

@@ -117,7 +117,10 @@ async def make_api_request(
             if response.status_code >= 400:
                 try:
                     error_data = response.json()
-                    error_msg = error_data.get("detail", error_data.get("message", f"HTTP {response.status_code}"))
+                    error_msg = error_data.get(
+                        "detail",
+                        error_data.get("message", f"HTTP {response.status_code}"),
+                    )
                     # Include full error details for debugging
                     logger.debug(f"Error response: {error_data}")
                 except (ValueError, Exception):
@@ -125,7 +128,9 @@ async def make_api_request(
 
                 # Add helpful context for common errors
                 if response.status_code == 401:
-                    error_msg += "\n💡 Hint: Check that your LQS_API_KEY is valid and active"
+                    error_msg += (
+                        "\n💡 Hint: Check that your LQS_API_KEY is valid and active"
+                    )
                 elif response.status_code == 403:
                     error_msg += "\n💡 Hint: Your API key may lack required permissions (read/write/admin)"
 
@@ -139,4 +144,3 @@ async def make_api_request(
             raise click.ClickException(
                 f"Request timeout connecting to {url} - is the API server running?"
             )
-
