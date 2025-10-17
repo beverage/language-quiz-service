@@ -147,7 +147,7 @@ test-cov:
 .PHONY: test-unit
 test-unit:
 	@echo "Running unit tests..."
-	poetry run pytest -n auto-m unit
+	poetry run pytest -n auto -m unit
 
 .PHONY: test-integration
 test-integration:

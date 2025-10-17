@@ -176,6 +176,22 @@ class VerbCache:
             self._hits += 1
         return verbs.copy()  # Return a copy to prevent external modification
 
+    async def get_random_verb(self, target_language_code: str = "eng") -> Verb | None:
+        """Get a random verb from cache for the specified language."""
+        if not self._loaded:
+            self._misses += 1
+            return None
+
+        verbs = self._verbs_by_language.get(target_language_code, [])
+        if not verbs:
+            self._misses += 1
+            return None
+
+        import random
+
+        self._hits += 1
+        return random.choice(verbs)
+
     async def refresh_verb(self, verb: Verb):
         """Add or update a verb in the cache."""
         async with self._lock:

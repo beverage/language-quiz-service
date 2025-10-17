@@ -1,8 +1,10 @@
 """Sentence service for business logic."""
 
+import asyncio
 import json
 import logging
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from src.clients.openai_client import OpenAIClient
 from src.core.exceptions import ContentGenerationError, NotFoundError
@@ -201,9 +203,41 @@ class SentenceService:
         else:
             logger.debug("⚡ Validation disabled - skipping additional LLM validation")
 
-        # Persist to repository
-        repo = await self._get_sentence_repository()
-        return await repo.create_sentence(sentence_request)
+        # Generate UUID and timestamp for both response and database
+        sentence_id = uuid4()
+        now = datetime.now(UTC)
+
+        # Persist to repository in background (fire and forget)
+        asyncio.create_task(
+            self._create_sentence_background(sentence_request, sentence_id, now)
+        )
+
+        # Return sentence immediately without waiting for DB write
+        # Construct a Sentence object from the SentenceCreate data
+        sentence = Sentence(
+            id=sentence_id,
+            created_at=now,
+            updated_at=now,
+            **sentence_request.model_dump(),
+        )
+        return sentence
+
+    async def _create_sentence_background(
+        self, sentence_data: SentenceCreate, sentence_id: UUID, timestamp: datetime
+    ) -> None:
+        """Create sentence in database in background (fire and forget)."""
+        try:
+            # Add the ID to the sentence data before persisting
+            sentence_dict = sentence_data.model_dump(mode="json")
+            sentence_dict["id"] = str(sentence_id)
+            sentence_dict["created_at"] = timestamp.isoformat()
+            sentence_dict["updated_at"] = timestamp.isoformat()
+
+            repo = await self._get_sentence_repository()
+            # Insert directly with our generated ID
+            await repo.client.table("sentences").insert(sentence_dict).execute()
+        except Exception as e:
+            logger.error(f"Failed to persist sentence {sentence_id} to database: {e}")
 
     async def get_all_sentences(self, limit: int = 100) -> list[Sentence]:
         """Get all sentences."""

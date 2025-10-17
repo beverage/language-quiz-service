@@ -1,5 +1,6 @@
 """Verb service for business logic with updated schema support."""
 
+import asyncio
 import json
 import logging
 from uuid import UUID
@@ -100,13 +101,20 @@ class VerbService:
         )
 
     async def get_random_verb(self, target_language_code: str = "eng") -> Verb | None:
-        """Get a random verb."""
-        repo = await self._get_verb_repository()
-        verb = await repo.get_random_verb(target_language_code)
+        """Get a random verb from cache."""
+        verb = await verb_cache.get_random_verb(target_language_code)
         if verb:
-            # Update last used timestamp
-            await repo.update_last_used(verb.id)
+            # Update last used timestamp (fire and forget)
+            asyncio.create_task(self._update_last_used_background(verb.id))
         return verb
+
+    async def _update_last_used_background(self, verb_id: UUID) -> None:
+        """Update last_used_at timestamp in background (fire and forget)."""
+        try:
+            repo = await self._get_verb_repository()
+            await repo.update_last_used(verb_id)
+        except Exception as e:
+            logger.warning(f"Failed to update last_used for verb {verb_id}: {e}")
 
     async def get_verb(self, verb_id: UUID) -> Verb | None:
         """Get a verb by ID."""

@@ -295,3 +295,54 @@ class TestVerbCache:
         stats = cache.get_stats()
         assert stats["misses"] == 1
         assert stats["loaded"] is False
+
+    async def test_get_random_verb_hit(self, mock_repository, sample_verbs):
+        """Should return a random verb from cache."""
+        cache = VerbCache()
+        await cache.load(mock_repository)
+
+        verb = await cache.get_random_verb("eng")
+        assert verb is not None
+        assert verb.target_language_code == "eng"
+        assert verb.infinitive in [v.infinitive for v in sample_verbs]
+
+        stats = cache.get_stats()
+        assert stats["hits"] == 1
+
+    async def test_get_random_verb_miss_not_loaded(self):
+        """Should return None if cache not loaded."""
+        cache = VerbCache()
+
+        verb = await cache.get_random_verb("eng")
+        assert verb is None
+
+        stats = cache.get_stats()
+        assert stats["misses"] == 1
+        assert stats["loaded"] is False
+
+    async def test_get_random_verb_miss_no_language(self, mock_repository):
+        """Should return None if no verbs for specified language."""
+        cache = VerbCache()
+        await cache.load(mock_repository)
+
+        verb = await cache.get_random_verb("deu")  # German - not in sample data
+        assert verb is None
+
+        stats = cache.get_stats()
+        assert stats["misses"] == 1
+
+    async def test_get_random_verb_distribution(self, mock_repository, sample_verbs):
+        """Should randomly select from available verbs."""
+        cache = VerbCache()
+        await cache.load(mock_repository)
+
+        # Get multiple random verbs
+        selected_verbs = set()
+        for _ in range(20):
+            verb = await cache.get_random_verb("eng")
+            if verb:
+                selected_verbs.add(verb.infinitive)
+
+        # Should have gotten different verbs (with high probability)
+        # With 3 verbs and 20 selections, we should see at least 2 different ones
+        assert len(selected_verbs) >= 2

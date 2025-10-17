@@ -102,8 +102,10 @@ async def test_delete_nonexistent_verb(verb_service):
 @pytest.mark.asyncio
 async def test_get_random_verb_updates_timestamp(verb_service):
     """Test that getting a random verb updates its last_used timestamp."""
-    # Create a verb first to ensure we have data
-    verb_data = VerbCreate(**generate_random_verb_data())
+    # Create a verb first to ensure we have data with eng language code
+    verb_data_dict = generate_random_verb_data()
+    verb_data_dict["target_language_code"] = "eng"  # Ensure it's eng
+    verb_data = VerbCreate(**verb_data_dict)
     await verb_service.create_verb(verb_data)
 
     # Get random verb

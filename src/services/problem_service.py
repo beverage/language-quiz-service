@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import random
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -190,12 +191,46 @@ class ProblemService:
             target_language_code=target_language_code,
         )
 
-        # Step 5: Create and return the problem
-        repo = await self._get_problem_repository()
-        created_problem = await repo.create_problem(problem_data)
+        # Step 5: Create problem in background (fire and forget)
+        # Generate UUID that will be used for both response and database
+        problem_id = uuid4()
+        now = datetime.now(UTC)
 
-        logger.debug(f"✅ Created grammar problem {created_problem.id}")
+        # Start background task to persist to database
+        asyncio.create_task(
+            self._create_problem_background(problem_data, problem_id, now)
+        )
+
+        # Return problem data immediately without waiting for DB write
+        # Construct a Problem object from the ProblemCreate data
+        from src.schemas.problems import Problem
+
+        created_problem = Problem(
+            id=problem_id,
+            created_at=now,
+            updated_at=now,
+            **problem_data.model_dump(),
+        )
+
+        logger.debug(f"✅ Returning grammar problem {created_problem.id}")
         return created_problem
+
+    async def _create_problem_background(
+        self, problem_data: ProblemCreate, problem_id: UUID, timestamp: datetime
+    ) -> None:
+        """Create problem in database in background (fire and forget)."""
+        try:
+            # Add the ID to the problem data before persisting
+            problem_dict = problem_data.model_dump(mode="json")
+            problem_dict["id"] = str(problem_id)
+            problem_dict["created_at"] = timestamp.isoformat()
+            problem_dict["updated_at"] = timestamp.isoformat()
+
+            repo = await self._get_problem_repository()
+            # Insert directly with our generated ID
+            await repo.client.table("problems").insert(problem_dict).execute()
+        except Exception as e:
+            logger.error(f"Failed to persist problem {problem_id} to database: {e}")
 
     def _generate_grammatical_parameters(
         self, verb, constraints: GrammarProblemConstraints
