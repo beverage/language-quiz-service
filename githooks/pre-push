@@ -1,0 +1,132 @@
+#!/bin/bash
+
+# Git pre-push hook for Language Quiz Service
+# This hook runs linting and tests before allowing a push to remote
+
+echo "🔍 Running pre-push checks..."
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+print_status() {
+    echo -e "${BLUE}[PRE-PUSH]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+# Try to source common shell profiles to ensure Poetry is in PATH
+source_shell_profiles() {
+    local profiles=(
+        "$HOME/.bashrc"
+        "$HOME/.bash_profile"
+        "$HOME/.zshrc"
+        "$HOME/.profile"
+    )
+    
+    for profile in "${profiles[@]}"; do
+        if [ -f "$profile" ]; then
+            # Source the profile but ignore any errors
+            set +e  # Temporarily disable exit on error
+            source "$profile" >/dev/null 2>&1
+            set -e  # Re-enable exit on error
+        fi
+    done
+}
+
+# Source shell profiles to get Poetry in PATH
+source_shell_profiles
+
+# Check if Poetry is available using standard command detection
+if ! command -v poetry >/dev/null 2>&1; then
+    print_error "Poetry not found in PATH."
+    echo ""
+    echo "📋 Installation options:"
+    echo "  1. Official installer: curl -sSL https://install.python-poetry.org | python3 -"
+    echo "  2. Homebrew (macOS): brew install poetry"
+    echo "  3. pip: pip install poetry"
+    echo ""
+    echo "After installation, restart your shell or run:"
+    echo "  source ~/.bashrc  # or ~/.zshrc"
+    echo ""
+    echo "To bypass this hook (NOT RECOMMENDED):"
+    echo "  git push --no-verify"
+    exit 1
+fi
+
+POETRY_CMD="poetry"
+print_status "Using Poetry: $(command -v poetry)"
+
+# Ensure we're using the project's existing environment
+print_status "Checking Poetry environment..."
+if ! $POETRY_CMD env info >/dev/null 2>&1; then
+    print_error "Poetry environment not found. Please run 'poetry install' first."
+    exit 1
+fi
+
+# Check if dependencies are installed in the current environment
+if ! $POETRY_CMD run python -c "import ruff" >/dev/null 2>&1; then
+    print_warning "Dependencies not found in Poetry environment. Installing..."
+    $POETRY_CMD install --no-interaction
+fi
+
+# Get the current branch
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+print_status "Checking branch: $current_branch"
+
+# Enable exit on error for the actual checks
+set -e
+
+# Run all quality checks using standardized Makefile targets
+print_status "Running code linting..."
+if make lint; then
+    print_success "Linting passed"
+else
+    print_error "Linting failed. Please fix the issues before pushing."
+    echo ""
+    echo "💡 Run 'make lint-fix' to auto-fix many issues"
+    exit 1
+fi
+
+print_status "Checking code formatting..."
+if make format-check; then
+    print_success "Code formatting is correct"
+else
+    print_error "Code formatting issues found. Please format the code before pushing."
+    echo ""
+    echo "💡 Run 'make format' to auto-format all files"
+    exit 1
+fi
+
+print_status "Running test suite with coverage..."
+if make test-cov; then
+    print_success "All tests passed with coverage"
+else
+    print_error "Tests failed or coverage below threshold. Please fix issues before pushing."
+    echo ""
+    echo "💡 Run 'make test-cov' locally for detailed test output and coverage report"
+    exit 1
+fi
+
+# Success message
+echo ""
+print_success "All pre-push checks passed! 🚀"
+print_status "Pushing to remote..."
+echo ""
+
+exit 0
+

@@ -18,6 +18,7 @@ help:
 	@echo "  lint-fix-unsafe - Fix linting issues with ruff (including unsafe fixes)"
 	@echo "  lint            - Run both lint-check and lint-fix"
 	@echo "  format          - Format code with ruff"
+	@echo "  format-check    - Check code formatting without modifying files"
 	@echo ""
 	@echo "Testing:"
 	@echo "  test            - Run all tests"
@@ -128,6 +129,10 @@ lint: lint-fix-unsafe lint-check
 format:
 	@echo "Formatting code with ruff on the whole project..."
 	poetry run ruff format .
+
+format-check:
+	@echo "Checking code formatting with ruff..."
+	poetry run ruff format --check .
 
 # Testing target
 test:
