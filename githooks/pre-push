@@ -122,6 +122,21 @@ else
     exit 1
 fi
 
+print_status "Running acceptance tests..."
+# Source .env to get SERVICE_API_KEY for local testing
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | grep 'SERVICE_API_KEY=' | xargs)
+fi
+
+if make test-acceptance; then
+    print_success "Acceptance tests passed"
+else
+    print_error "Acceptance tests failed. Please ensure SERVICE_API_KEY is set in .env and the service is working."
+    echo ""
+    echo "💡 Run 'make test-acceptance' locally for detailed output"
+    exit 1
+fi
+
 # Success message
 echo ""
 print_success "All pre-push checks passed! 🚀"

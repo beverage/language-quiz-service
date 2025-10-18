@@ -206,6 +206,28 @@ class TestVerbRepository:
 
     @pytest.mark.asyncio
     @pytest.mark.integration
+    async def test_get_all_conjugations(self, verb_repository):
+        """Test fetching all conjugations in a single query."""
+        # Create multiple conjugations for different verbs
+        conjugations_data = [generate_random_conjugation_data() for _ in range(3)]
+
+        for conj_data in conjugations_data:
+            await verb_repository.upsert_conjugation(ConjugationCreate(**conj_data))
+
+        # Fetch all conjugations at once
+        all_conjugations = await verb_repository.get_all_conjugations(limit=10000)
+
+        # Verify we got results
+        assert len(all_conjugations) >= 3
+
+        # Verify all our created conjugations are present
+        created_infinitives = {c["infinitive"] for c in conjugations_data}
+        fetched_infinitives = {c.infinitive for c in all_conjugations}
+
+        assert created_infinitives.issubset(fetched_infinitives)
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
     async def test_search_verbs(self, verb_repository):
         """Test verb search functionality using repository."""
         # Create test verbs with known values for searching

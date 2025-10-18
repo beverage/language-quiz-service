@@ -26,7 +26,7 @@ def get_api_key_from_env_or_flag(api_key_flag: str | None) -> str:
         click.ClickException: If no API key is found
     """
     # Check environment variable first
-    env_key = os.getenv("LQS_API_KEY")
+    env_key = os.getenv("SERVICE_API_KEY")
     if env_key:
         return env_key
 
@@ -36,13 +36,13 @@ def get_api_key_from_env_or_flag(api_key_flag: str | None) -> str:
 
     # Fail with helpful error
     raise click.ClickException(
-        "No API key provided. Set LQS_API_KEY environment variable or use --api-key flag."
+        "No API key provided. Set SERVICE_API_KEY environment variable or use --api-key flag."
     )
 
 
 def get_api_base_url() -> str:
-    """Get the API base URL from environment variable LQS_SERVICE_URL or default to localhost."""
-    base_url = os.getenv("LQS_SERVICE_URL", "http://localhost:8000")
+    """Get the API base URL from environment variable SERVICE_URL or default to localhost."""
+    base_url = os.getenv("SERVICE_URL", "http://localhost:8000")
     return base_url
 
 
@@ -118,7 +118,7 @@ async def make_api_request(
 )
 @click.option("--rate-limit", type=int, default=100, help="Requests per minute limit")
 @click.option("--allowed-ips", help="Comma-separated IP addresses or CIDR blocks")
-@click.option("--api-key", help="API key for authentication (or set LQS_API_KEY)")
+@click.option("--api-key", help="API key for authentication (or set SERVICE_API_KEY)")
 async def create(
     name: str,
     description: str | None,
@@ -174,7 +174,7 @@ async def create(
 
 @click.command()
 @click.option("--json", "output_json", is_flag=True, help="Output in JSON format")
-@click.option("--api-key", help="API key for authentication (or set LQS_API_KEY)")
+@click.option("--api-key", help="API key for authentication (or set SERVICE_API_KEY)")
 async def list_keys(output_json: bool, api_key: str | None):
     """List all API keys."""
 
@@ -240,7 +240,7 @@ async def list_keys(output_json: bool, api_key: str | None):
 
 @click.command()
 @click.argument("key_id", type=str)
-@click.option("--api-key", help="API key for authentication (or set LQS_API_KEY)")
+@click.option("--api-key", help="API key for authentication (or set SERVICE_API_KEY)")
 async def revoke(key_id: str, api_key: str | None):
     """Revoke an API key by UUID."""
 

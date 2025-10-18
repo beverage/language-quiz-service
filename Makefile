@@ -22,6 +22,10 @@ help:
 	@echo ""
 	@echo "Testing:"
 	@echo "  test            - Run all tests"
+	@echo "  test-unit       - Run unit tests only"
+	@echo "  test-integration - Run integration tests only"
+	@echo "  test-acceptance - Run acceptance tests (local :7900 or remote if CI=true)"
+	@echo "  test-cov        - Run tests with coverage report"
 	@echo "  start-supabase  - Start Supabase with minimal containers for testing"
 	@echo ""
 	@echo "Observability:"
@@ -136,13 +140,13 @@ format-check:
 
 # Testing target
 test:
-	@echo "Running all tests..."
-	poetry run pytest -n auto
+	@echo "Running all tests (excluding acceptance)..."
+	poetry run pytest -n auto -m "not acceptance"
 
 # Testing with coverage
 test-cov:
-	@echo "Running all tests with coverage..."
-	poetry run pytest -n auto --cov=src --cov-report=xml --cov-report=term-missing
+	@echo "Running all tests with coverage (excluding acceptance)..."
+	poetry run pytest -n auto -m "not acceptance" --cov=src --cov-report=xml --cov-report=term-missing
 
 .PHONY: test-unit
 test-unit:
@@ -153,6 +157,71 @@ test-unit:
 test-integration:
 	@echo "Running integration tests..."
 	poetry run pytest -n auto-m integration
+
+.PHONY: test-acceptance kill-port-7900 _acceptance-stack-up _acceptance-stack-down
+kill-port-7900:
+	@echo "🔪 Killing any existing process on port 7900..."
+	@lsof -ti:7900 | xargs kill -9 2>/dev/null || true
+	@sleep 2
+	@if lsof -ti:7900 >/dev/null 2>&1; then \
+		echo "⚠️  Port 7900 still in use after kill attempt"; \
+		lsof -i:7900; \
+		exit 1; \
+	else \
+		echo "✅ Port 7900 is now free"; \
+	fi
+
+_acceptance-stack-up:
+	@echo "🔧 Starting acceptance test service on :7900..."
+	@if ! supabase status >/dev/null 2>&1; then \
+		echo "❌ Local Supabase is not running. Start it with: supabase start"; \
+		exit 1; \
+	fi
+	@echo "Starting development server in background..."
+	@set -a; source .env; set +a; \
+	REQUIRE_AUTH=true \
+	SUPABASE_URL=http://127.0.0.1:54321 \
+	SUPABASE_SERVICE_ROLE_KEY=$(shell supabase status --output json | jq -r '.SERVICE_ROLE_KEY') \
+	poetry run uvicorn src.main:app --host 0.0.0.0 --port 7900 & echo $$! > .server_pid
+	@echo "Server PID: $$(cat .server_pid)"
+	@sleep 8
+	@echo "✅ Service started on :7900"
+
+_acceptance-stack-down:
+	@echo "🛑 Stopping acceptance test service..."
+	@SERVER_PID=$$(cat .server_pid 2>/dev/null || true); if [ -n "$$SERVER_PID" ]; then kill $$SERVER_PID 2>/dev/null || true; rm -f .server_pid; fi
+	@sleep 2
+
+test-acceptance:
+	@echo "🎯 Running acceptance tests..."
+	@if [ "$$CI" = "true" ] || [ -n "$$SERVICE_URL" ]; then \
+		echo "Testing against remote service: $$SERVICE_URL"; \
+		if [ -z "$$SERVICE_API_KEY" ]; then \
+			echo "❌ SERVICE_API_KEY is required for remote testing"; \
+			exit 1; \
+		fi; \
+		mkdir -p artifacts/acceptance; \
+		SERVICE_URL=$$SERVICE_URL SERVICE_API_KEY=$$SERVICE_API_KEY poetry run pytest --no-cov -m "acceptance" tests/acceptance --junitxml artifacts/acceptance/results.xml -v; \
+	else \
+		echo "Testing against local development server on :7900..."; \
+		if [ -z "$$SERVICE_API_KEY" ]; then \
+			echo "❌ SERVICE_API_KEY environment variable is required for local acceptance tests"; \
+			exit 1; \
+		fi; \
+		$(MAKE) kill-port-7900; \
+		$(MAKE) _acceptance-stack-up; \
+		echo "Running acceptance tests..."; \
+		mkdir -p artifacts/acceptance; \
+		SERVICE_URL=http://localhost:7900 SERVICE_API_KEY=$$SERVICE_API_KEY poetry run pytest --no-cov -m "acceptance" tests/acceptance --junitxml artifacts/acceptance/results.xml -v; \
+		TEST_RESULT=$$?; \
+		$(MAKE) _acceptance-stack-down; \
+		if [ $$TEST_RESULT -eq 0 ]; then \
+			echo "✅ Acceptance tests passed!"; \
+		else \
+			echo "❌ Acceptance tests failed!"; \
+			exit 1; \
+		fi; \
+	fi
 
 # Run everything
 all: format lint test

@@ -36,6 +36,21 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             if self._is_exempt_path(request.url.path):
                 return await call_next(request)
 
+            # Check if authentication is required
+            settings = get_settings()
+            if not settings.should_require_auth:
+                # Development mode - bypass authentication
+                logger.debug("Authentication bypassed (REQUIRE_AUTH=False)")
+                request.state.api_key_info = {
+                    "auth_type": "dev",
+                    "name": "dev_user",
+                    "is_admin": True,
+                    "permissions_scope": ["read", "write", "admin"],
+                    "bypassed": True,
+                }
+                request.state.client_ip = self._get_client_ip(request)
+                return await call_next(request)
+
             try:
                 # Extract API key from headers
                 with tracer.start_as_current_span("extract_api_key"):

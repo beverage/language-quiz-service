@@ -43,9 +43,11 @@ jobs:
     - uses: superfly/flyctl-actions/setup-flyctl@master
     
     - name: Check service status
+      env:
+        SERVICE_URL: ${{ secrets.SERVICE_URL }}
       run: |
         echo "🔍 Checking current staging service status..."
-        if curl -f -s ${{ vars.SERVICE_URL }}/health > /dev/null; then
+        if curl -f -s ${SERVICE_URL}/health > /dev/null; then
           echo "✅ Service is currently running"
           echo "Deployment will proceed normally"
         else
@@ -128,15 +130,99 @@ jobs:
     environment: staging
     
     steps:
+    - uses: actions/checkout@v4
+    
     - name: Health check
+      env:
+        SERVICE_URL: ${{ secrets.SERVICE_URL }}
       run: |
         echo "🔍 Validating deployment with health check..."
-        if curl -f -s ${{ vars.SERVICE_URL }}/health > /dev/null; then
-          echo "✅ Service is healthy and responding"
-          echo "🎉 Deployment successful!"
-        else
-          echo "❌ Service is not responding"
-          echo "URL: ${{ vars.SERVICE_URL }}/health"
-          echo "Deployment validation failed"
-          exit 1
-        fi 
+        
+        # Wait up to 60 seconds for service to be healthy
+        MAX_ATTEMPTS=12
+        ATTEMPT=0
+        
+        while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+          ATTEMPT=$((ATTEMPT + 1))
+          echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+          
+          if curl -f -s ${SERVICE_URL}/health > /dev/null; then
+            echo "✅ Service is healthy and responding"
+            echo "🎉 Deployment successful!"
+            exit 0
+          fi
+          
+          if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+            echo "Service not ready yet, waiting 5 seconds..."
+            sleep 5
+          fi
+        done
+        
+        echo "❌ Service is not responding after ${MAX_ATTEMPTS} attempts"
+        echo "Deployment validation failed"
+        exit 1
+
+  acceptance-tests:
+    name: "🔒 Acceptance Tests"
+    runs-on: ubuntu-latest
+    needs: [deploy-service, validate-service]
+    if: github.ref == 'refs/heads/staging'
+    environment: staging
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+        
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+        
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+        
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root
+      
+    - name: Install project
+      run: poetry install --no-interaction
+      
+    - name: Run acceptance tests
+      env:
+        CI: true
+        SERVICE_URL: ${{ secrets.SERVICE_URL }}
+        SERVICE_API_KEY: ${{ secrets.SERVICE_API_KEY }}
+      run: make test-acceptance
+      
+    - name: Upload acceptance test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: acceptance-test-results
+        path: artifacts/acceptance/results.xml
+        
+    - name: Rollback on failure
+      if: failure()
+      uses: superfly/flyctl-actions/setup-flyctl@master
+      
+    - name: Execute rollback
+      if: failure()
+      run: |
+        echo "❌ Acceptance tests failed - rolling back deployment"
+        flyctl releases --app language-quiz-app-staging --image --json > releases.json
+        PREVIOUS_IMAGE=$(jq -r '.[1].ImageRef' releases.json)
+        echo "Rolling back to image: ${PREVIOUS_IMAGE}"
+        flyctl deploy --app language-quiz-app-staging --image "${PREVIOUS_IMAGE}" --strategy immediate
+        echo "::error::Deployment rolled back due to acceptance test failures"
+        exit 1

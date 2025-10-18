@@ -25,6 +25,7 @@ async def _create_problem_http(
     api_key: str,
     statement_count: int = 4,
     constraints: GrammarProblemConstraints | None = None,
+    include_metadata: bool = False,
 ) -> Problem:
     """Create a problem via HTTP API."""
     request_data = {
@@ -33,12 +34,18 @@ async def _create_problem_http(
     if constraints:
         request_data["constraints"] = constraints.model_dump(exclude_none=True)
 
+    # Add include_metadata query parameter
+    params = {}
+    if include_metadata:
+        params["include_metadata"] = "true"
+
     response = await make_api_request(
         method="POST",
         endpoint="/api/v1/problems/random",
         base_url=service_url,
         api_key=api_key,
         json_data=request_data,
+        params=params,
     )
     return Problem(**response.json())
 
@@ -60,6 +67,7 @@ async def create_random_problem_with_delay(
     display: bool = True,
     detailed: bool = False,
     service_url: str | None = None,
+    output_json: bool = False,
 ) -> Problem:
     """Create a random problem (wrapper for batch operations)."""
     problem = await create_random_problem(
@@ -68,6 +76,7 @@ async def create_random_problem_with_delay(
         display=display,
         detailed=detailed,
         service_url=service_url,
+        output_json=output_json,
     )
     return problem
 
@@ -78,6 +87,7 @@ async def create_random_problem(
     display: bool = False,
     detailed: bool = False,
     service_url: str | None = None,
+    output_json: bool = False,
 ) -> Problem:
     """Create a random grammar problem using the ProblemsService or HTTP API."""
     try:
@@ -91,6 +101,7 @@ async def create_random_problem(
                 api_key=api_key,
                 statement_count=statement_count,
                 constraints=constraints,
+                include_metadata=output_json,  # Request metadata when JSON output
             )
         else:
             # Direct mode - use service layer
@@ -100,7 +111,12 @@ async def create_random_problem(
                 statement_count=statement_count,
             )
 
-        if display:
+        if output_json:
+            # Output raw JSON with all fields
+            import json
+
+            print(json.dumps(problem.model_dump(mode="json"), indent=2, default=str))
+        elif display:
             display_problem(problem, detailed=detailed)
 
         logger.debug(f"✅ Created problem {problem.id}")
@@ -120,6 +136,7 @@ async def create_random_problems_batch(
     display: bool = True,
     detailed: bool = False,
     service_url: str | None = None,
+    output_json: bool = False,
 ) -> list[Problem]:
     """Create multiple random problems in parallel."""
     from src.cli.utils.queues import parallel_execute
@@ -131,9 +148,10 @@ async def create_random_problems_batch(
         create_random_problem_with_delay(
             statement_count=statement_count,
             constraints=constraints,
-            display=display,  # Display individual problems in real-time
+            display=display and not output_json,  # Only display if not JSON mode
             detailed=detailed,
             service_url=service_url,
+            output_json=False,  # Don't output JSON for individual items in batch
         )
         for _ in range(quantity)
     ]
@@ -149,8 +167,17 @@ async def create_random_problems_batch(
         error_handler=handle_error,
     )
 
-    # Problems are already displayed in real-time during generation
-    if display and results:
+    # Output results
+    if output_json:
+        # Output all results as JSON array
+        import json
+
+        print(
+            json.dumps(
+                [p.model_dump(mode="json") for p in results], indent=2, default=str
+            )
+        )
+    elif display and results:
         logger.debug("🎯 Generated %s problems in total.", len(results))
 
     return results

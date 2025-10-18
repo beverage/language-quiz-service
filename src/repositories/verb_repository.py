@@ -331,6 +331,24 @@ class VerbRepository:
         )
         return [Conjugation.model_validate(conj) for conj in result.data]
 
+    async def get_all_conjugations(self, limit: int = 10000) -> list[Conjugation]:
+        """
+        Get all conjugations in a single query.
+
+        This is more efficient than calling get_conjugations() for each verb
+        individually (avoids N+1 query problem).
+
+        Args:
+            limit: Maximum number of conjugations to fetch (default: 10000)
+
+        Returns:
+            List of all conjugations
+        """
+        result = (
+            await self.client.table("conjugations").select("*").limit(limit).execute()
+        )
+        return [Conjugation.model_validate(conj) for conj in result.data]
+
     async def update_conjugation_by_verb_and_tense(
         self,
         infinitive: str,

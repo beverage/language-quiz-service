@@ -24,6 +24,15 @@ async def create_test_supabase_client(
 # Override environment variables IMMEDIATELY at module import time
 def _setup_test_environment():
     """Set up test environment variables before any other imports."""
+    # Skip local Supabase setup if running acceptance tests against remote service
+    # Acceptance tests set both CI=true and SERVICE_URL to indicate remote testing
+    if os.getenv("CI") == "true" and os.getenv("SERVICE_URL"):
+        # CI acceptance tests - using remote service, no local Supabase needed
+        # Just set REQUIRE_AUTH to ensure tests expect authentication
+        os.environ["REQUIRE_AUTH"] = "true"
+        return
+
+    # Local testing or CI unit/integration tests - set up local Supabase connection
     try:
         result = subprocess.run(
             ["supabase", "status", "--output", "json"],
@@ -56,6 +65,7 @@ def _setup_test_environment():
         "SUPABASE_SERVICE_ROLE_KEY": service_role_key,
         "SUPABASE_API_URL": "http://127.0.0.1:54321",
         "SUPABASE_ANON_KEY": service_role_key,  # Use service key for anon key in tests
+        "REQUIRE_AUTH": "true",  # Always require auth in tests
     }
 
     for key, value in test_env_vars.items():

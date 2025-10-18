@@ -18,6 +18,8 @@ services:
     environment:
       # Connect to Supabase Kong container on Docker network  
       - SUPABASE_URL=http://supabase_kong_language-quiz-service:8000
+      # Authentication - bypass in local development
+      - REQUIRE_AUTH=false
       # OpenTelemetry configuration - send to local OTEL Collector
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       - OTEL_SERVICE_NAME=language-quiz-service

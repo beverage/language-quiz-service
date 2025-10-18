@@ -38,36 +38,23 @@ class ConjugationCache:
         with tracer.start_as_current_span("conjugation_cache.load"):
             async with self._lock:
                 # Duck typing: check for the methods we need instead of isinstance
-                if not hasattr(repository, "get_all_verbs") or not hasattr(
-                    repository, "get_conjugations"
-                ):
-                    raise TypeError(
-                        "Repository must have get_all_verbs and get_conjugations methods"
-                    )
+                if not hasattr(repository, "get_all_conjugations"):
+                    raise TypeError("Repository must have get_all_conjugations method")
 
                 logger.info("Loading conjugations into cache...")
 
-                # We need to load all verbs to get their conjugations
-                verbs = await repository.get_all_verbs(limit=10000)
+                # Fetch all conjugations in a single query (avoids N+1 problem)
+                conjugations = await repository.get_all_conjugations(limit=10000)
 
                 self._conjugations.clear()
                 self._by_verb.clear()
 
-                conjugation_count = 0
-                for verb in verbs:
-                    conjugations = await repository.get_conjugations(
-                        infinitive=verb.infinitive,
-                        auxiliary=verb.auxiliary.value,
-                        reflexive=verb.reflexive,
-                    )
-
-                    for conj in conjugations:
-                        self._add_conjugation_to_indexes(conj)
-                        conjugation_count += 1
+                for conj in conjugations:
+                    self._add_conjugation_to_indexes(conj)
 
                 self._loaded = True
                 logger.info(
-                    f"✅ Loaded {conjugation_count} conjugations into cache "
+                    f"✅ Loaded {len(conjugations)} conjugations into cache "
                     f"({len(self._by_verb)} unique verbs)"
                 )
 

@@ -36,6 +36,13 @@ class Settings(BaseSettings):
     environment: str = Field(default="development")
     debug: bool = Field(default=False)
 
+    # Authentication settings
+    require_auth: bool = Field(
+        default=True,
+        alias="REQUIRE_AUTH",
+        description="Require authentication (default: true for security)",
+    )
+
     # OpenAI API settings
     openai_api_key: str = Field(default="test_key", alias="OPENAI_API_KEY")
     openai_model: str = "gpt-4-turbo-preview"
@@ -67,6 +74,16 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production environment."""
         return self.environment == "production"
+
+    @property
+    def is_development(self) -> bool:
+        """Check if running in development environment."""
+        return self.environment.lower() in ("development", "dev", "local")
+
+    @property
+    def should_require_auth(self) -> bool:
+        """Determine if authentication should be required."""
+        return self.require_auth or self.is_production
 
     @property
     def production_cors_origins(self) -> list[str]:

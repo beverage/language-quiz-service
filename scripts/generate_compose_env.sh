@@ -68,10 +68,10 @@ fi
 
 # Copy required vars from .env if they exist
 OPENAI_API_KEY=""
-LQS_API_KEY=""
+SERVICE_API_KEY=""
 if [ -f .env ]; then
   OPENAI_API_KEY=$(grep "^OPENAI_API_KEY=" .env | cut -d '=' -f2- || echo "")
-  LQS_API_KEY=$(grep "^LQS_API_KEY=" .env | cut -d '=' -f2- || echo "")
+  SERVICE_API_KEY=$(grep "^SERVICE_API_KEY=" .env | cut -d '=' -f2- || echo "")
 fi
 
 OUT_FILE=".env.compose.local"
@@ -92,13 +92,13 @@ ENVIRONMENT=development
 OPENAI_API_KEY=${OPENAI_API_KEY}
 
 # API Key for CLI testing (copied from .env)
-LQS_API_KEY=${LQS_API_KEY}
-LQS_SERVICE_URL=http://localhost:8000
+SERVICE_API_KEY=${SERVICE_API_KEY}
+SERVICE_URL=http://localhost:8000
 EOF
 
 echo_info "Wrote ${OUT_FILE} with local Supabase settings:"
 echo "  SUPABASE_URL=${HOSTED_API_URL}"
-echo "  API Key: ${LQS_API_KEY:0:15}... (from .env)"
+echo "  API Key: ${SERVICE_API_KEY:0:15}... (from .env)"
 echo ""
 echo "✅ Ready for docker-compose up"
 

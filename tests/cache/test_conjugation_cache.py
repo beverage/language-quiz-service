@@ -93,6 +93,9 @@ def mock_repository(sample_verbs, sample_conjugations):
                 and c.reflexive == reflexive
             ]
 
+        async def get_all_conjugations(self, limit=10000):
+            return sample_conjugations
+
     return MockVerbRepository()
 
 

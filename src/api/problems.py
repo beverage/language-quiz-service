@@ -60,6 +60,9 @@ async def get_problem_service() -> ProblemService:
     }
     ```
 
+    **Query Parameters**:
+    - `include_metadata`: Include source_statement_ids and metadata in response (default: false)
+
     **Required Permission**: `read`, `write`, or `admin`
     """,
     responses={
@@ -124,6 +127,7 @@ async def get_problem_service() -> ProblemService:
 @limiter.limit("100/minute")
 async def generate_random_problem(
     request: Request,
+    include_metadata: bool = False,
     current_key: dict = Depends(get_current_api_key),
     service: ProblemService = Depends(get_problem_service),
     problem_request: ProblemRandomRequest | None = Body(None),
@@ -152,7 +156,7 @@ async def generate_random_problem(
             f"Generated random problem {problem.id} for API key {current_key.get('name', 'unknown')}"
         )
 
-        return ProblemResponse.from_problem(problem)
+        return ProblemResponse.from_problem(problem, include_metadata=include_metadata)
 
     except LanguageResourceNotFoundError as e:
         logger.warning(
@@ -209,13 +213,8 @@ async def generate_random_problem(
     - Metadata and categorization tags
     - Creation and modification timestamps
 
-    **Request Body** (optional):
-    ```json
-    {
-      "include_metadata": true,
-      "target_language_code": "eng"
-    }
-    ```
+    **Query Parameters**:
+    - `include_metadata`: Include source_statement_ids and metadata in response (default: false)
 
     **Required Permission**: `read`, `write`, or `admin`
     """,
@@ -223,6 +222,7 @@ async def generate_random_problem(
 async def get_problem(
     problem_id: UUID,
     request: Request,
+    include_metadata: bool = False,
     current_key: dict = Depends(get_current_api_key),
     service: ProblemService = Depends(get_problem_service),
 ) -> ProblemResponse:
@@ -236,7 +236,7 @@ async def get_problem(
                 detail="Problem not found",
             )
 
-        return ProblemResponse.from_problem(problem)
+        return ProblemResponse.from_problem(problem, include_metadata=include_metadata)
 
     except HTTPException:
         raise

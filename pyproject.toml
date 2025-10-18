@@ -74,6 +74,8 @@ markers = [
     "integration: Integration tests with component interactions - mocked external services",
     "functional: API functional tests that can be run with or without authentication",
     "acceptance: End-to-end acceptance tests - full workflows",
+    "auth: Authentication and authorization tests",
+    "smoke: Basic smoke tests for service health",
     "security: Security-focused tests - authentication, authorization, validation",
 ]
 filterwarnings = [

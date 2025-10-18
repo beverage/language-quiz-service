@@ -35,8 +35,8 @@ def get_service_url_from_flag(local: bool, remote: bool) -> str | None:
         return "http://localhost:8000"
 
     if remote:
-        # Use LQS_SERVICE_URL from environment, default to localhost if not set
-        return os.getenv("LQS_SERVICE_URL", "http://localhost:8000")
+        # Use SERVICE_URL from environment, default to localhost if not set
+        return os.getenv("SERVICE_URL", "http://localhost:8000")
 
     # No flags = direct mode (use service layer directly)
     return None
@@ -52,10 +52,10 @@ def get_api_key() -> str:
     Raises:
         click.ClickException: If no API key is found
     """
-    api_key = os.getenv("LQS_API_KEY")
+    api_key = os.getenv("SERVICE_API_KEY")
     if not api_key:
         raise click.ClickException(
-            "No API key found. Set LQS_API_KEY environment variable for remote/local mode."
+            "No API key found. Set SERVICE_API_KEY environment variable for remote/local mode."
         )
 
     logger.debug(f"Using API key: {api_key[:10]}... (length: {len(api_key)})")
@@ -129,7 +129,7 @@ async def make_api_request(
                 # Add helpful context for common errors
                 if response.status_code == 401:
                     error_msg += (
-                        "\n💡 Hint: Check that your LQS_API_KEY is valid and active"
+                        "\n💡 Hint: Check that your SERVICE_API_KEY is valid and active"
                     )
                 elif response.status_code == 403:
                     error_msg += "\n💡 Hint: Your API key may lack required permissions (read/write/admin)"

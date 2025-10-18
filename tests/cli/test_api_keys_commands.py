@@ -21,7 +21,7 @@ class TestAPIKeyHelpers:
 
     def test_get_api_key_from_env_or_flag_env_priority(self):
         """Test that environment variable takes priority over flag."""
-        with patch.dict("os.environ", {"LQS_API_KEY": "env_key"}):
+        with patch.dict("os.environ", {"SERVICE_API_KEY": "env_key"}):
             result = get_api_key_from_env_or_flag("flag_key")
             assert result == "env_key"
 
@@ -40,7 +40,7 @@ class TestAPIKeyHelpers:
 
     def test_get_api_base_url_from_env(self):
         """Test getting base URL from environment variable."""
-        with patch.dict("os.environ", {"LQS_SERVICE_URL": "https://api.example.com"}):
+        with patch.dict("os.environ", {"SERVICE_URL": "https://api.example.com"}):
             result = get_api_base_url()
             assert result == "https://api.example.com"
 

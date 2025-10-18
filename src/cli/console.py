@@ -54,7 +54,7 @@ from src.schemas.problems import GrammarProblemConstraints
     "--remote",
     default=False,
     is_flag=True,
-    help="Target remote service from LQS_SERVICE_URL",
+    help="Target remote service from SERVICE_URL",
 )
 @click.pass_context
 async def cli(
@@ -139,6 +139,9 @@ async def problem():
 @click.option(
     "--tense", multiple=True, help="Limit to specific tenses (can specify multiple)"
 )
+@click.option(
+    "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
+)
 @click.pass_context
 async def problem_random(
     ctx,
@@ -148,6 +151,7 @@ async def problem_random(
     include_coi: bool,
     include_negation: bool,
     tense: tuple,
+    output_json: bool,
 ):
     """Generate random grammar problems."""
     try:
@@ -175,9 +179,10 @@ async def problem_random(
             await create_random_problem(
                 statement_count=statements,
                 constraints=constraints,
-                display=True,
+                display=not output_json,
                 detailed=detailed,
                 service_url=service_url,
+                output_json=output_json,
             )
         else:
             # Batch generation
@@ -185,9 +190,10 @@ async def problem_random(
                 quantity=count,
                 statement_count=statements,
                 constraints=constraints,
-                display=True,
+                display=not output_json,
                 detailed=detailed,
                 service_url=service_url,
+                output_json=output_json,
             )
 
     except Exception as ex:
