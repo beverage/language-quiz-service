@@ -337,7 +337,9 @@ class VerbService:
             )
 
             # Get AI response for main verb data
-            llm_response = await self.openai_client.handle_request(verb_prompt)
+            llm_response = await self.openai_client.handle_request(
+                verb_prompt, operation="verb_analysis"
+            )
             logger.debug("✅ LLM Response: %s", llm_response)
 
             repo = await self._get_verb_repository()
@@ -370,7 +372,9 @@ class VerbService:
                 verb_infinitive=verb_payload.infinitive,
                 auxiliary=verb_payload.auxiliary.value,
             )
-            objects_response = await self.openai_client.handle_request(objects_prompt)
+            objects_response = await self.openai_client.handle_request(
+                objects_prompt, operation="verb_object_detection"
+            )
             logger.debug(
                 "✅ Objects Response (%s, %s): %s",
                 verb_payload.infinitive,

@@ -22,19 +22,19 @@ def create_base_dashboard(
 ) -> dashboard.Dashboard:
     """
     Create a base dashboard with standard configuration.
-    
+
     Args:
         title: Dashboard title
         description: Dashboard description
         uid: Dashboard UID (for updating existing dashboards)
         tags: List of tags for categorization
         use_environment_filter: Whether to include environment template variable
-    
+
     Returns:
         Dashboard builder ready for panels
     """
     tags = tags or []
-    
+
     # Create datasource variable
     datasource_var = (
         dashboard.DatasourceVariable("datasource")
@@ -43,7 +43,7 @@ def create_base_dashboard(
         .regex("")
         .multi(False)
     )
-    
+
     builder = (
         dashboard.Dashboard(title)
         .description(description)
@@ -55,10 +55,10 @@ def create_base_dashboard(
         .time(DEFAULT_TIME_FROM, DEFAULT_TIME_TO)
         .with_variable(datasource_var)
     )
-    
+
     # Add environment filter if requested
     if use_environment_filter:
-        query_str = "label_values(deployment_environment)"
+        query_str = "label_values(environment)"
         builder = builder.with_variable(
             dashboard.QueryVariable("environment")
             .label("Environment")
@@ -68,5 +68,5 @@ def create_base_dashboard(
             .sort(VariableSort.ALPHABETICAL_ASC)
             .multi(False)
         )
-    
+
     return builder

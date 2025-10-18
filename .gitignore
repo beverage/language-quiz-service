@@ -195,7 +195,7 @@ logs/
 tmp/
 temp/
 
-# Observability - Exported dashboards
-dashboards/
+# Observability - Exported dashboard JSON files (not source Python files)
+/dashboards/
 *.dashboard.json
 .env.compose.local

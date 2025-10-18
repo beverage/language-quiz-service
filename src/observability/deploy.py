@@ -11,7 +11,7 @@ import requests
 from grafana_foundation_sdk.cog.encoder import JSONEncoder
 
 # Import dashboard generators
-from .dashboards import service_overview
+from .dashboards import llm_performance, service_overview
 
 
 class GrafanaDeployer:
@@ -248,6 +248,7 @@ def main():
     # Load dashboards
     dashboards = {
         "service_overview": service_overview.generate(),
+        "llm_performance": llm_performance.generate(),
     }
 
     # Validate mode

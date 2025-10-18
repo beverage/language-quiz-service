@@ -55,7 +55,9 @@ class SentenceService:
             prompt = self.prompt_generator.generate_correctness_prompt(sentence, verb)
 
             # Get AI response
-            response = await self.openai_client.handle_request(prompt)
+            response = await self.openai_client.handle_request(
+                prompt, operation="sentence_validation"
+            )
 
             # Parse validation response
             response_json = json.loads(response)
@@ -138,7 +140,9 @@ class SentenceService:
 
         # Generate AI prompt and request
         prompt = self.prompt_generator.generate_sentence_prompt(sentence_request, verb)
-        response = await self.openai_client.handle_request(prompt)
+        response = await self.openai_client.handle_request(
+            prompt, operation="sentence_generation"
+        )
         response_json = json.loads(response)
 
         # Update the sentence with AI response
