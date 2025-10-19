@@ -203,11 +203,11 @@ class TestCORSBehavior:
             "http://localhost:8080",
         ]
 
-        # Test production environment uses wildcard (current behavior)
+        # Test production environment requires explicit CORS configuration
         prod_settings = Settings(
             environment="production", cors_origins=["http://localhost:3000"]
         )
-        assert prod_settings.production_cors_origins == ["*"]
+        assert prod_settings.production_cors_origins == ["http://localhost:3000"]
 
         # Test is_production property
         assert not dev_settings.is_production
@@ -352,11 +352,11 @@ class TestSecurityConfiguration:
         )
         assert dev_settings.production_cors_origins == ["http://localhost:3000"]
 
-        # Production environment (currently returns wildcard)
+        # Production environment requires explicit CORS configuration (no wildcard)
         prod_settings = Settings(
             environment="production", cors_origins=["http://localhost:3000"]
         )
-        assert prod_settings.production_cors_origins == ["*"]
+        assert prod_settings.production_cors_origins == ["http://localhost:3000"]
 
 
 @pytest.mark.integration

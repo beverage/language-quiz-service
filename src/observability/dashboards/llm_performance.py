@@ -291,6 +291,58 @@ def create_token_usage_by_operation_panel() -> timeseries.Panel:
     )
 
 
+def create_insufficient_funds_alert() -> stat.Panel:
+    """Critical alert for OpenAI insufficient funds errors (0 = Ok, >0 = Insufficient)."""
+    return (
+        stat.Panel()
+        .title("⚠️ OpenAI Insufficient Funds (0 = Ok)")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum(llm_errors_total{environment="$environment", error_type="insufficient_funds"}) or vector(0)'
+            )
+            .legend_format("Errors")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.NONE)  # No sparkline for status
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="green"),
+                    Threshold(value=0.1, color="red"),  # ANY insufficient funds = RED
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=0, y=38, w=12, h=8))  # After token usage panels
+    )
+
+
+def create_llm_error_types_panel() -> timeseries.Panel:
+    """LLM errors by type (insufficient_funds, timeout, rate_limit, etc)."""
+    return (
+        timeseries.Panel()
+        .title("LLM Error Types")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum by (error_type) (rate(llm_errors_total{environment="$environment"}[5m]))'
+            )
+            .legend_format("{{error_type}}")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(50)
+        .grid_pos(GridPos(x=12, y=38, w=12, h=8))
+    )
+
+
 def generate() -> dashboard.Dashboard:
     """
     Generate the LLM Performance dashboard.
@@ -300,6 +352,7 @@ def generate() -> dashboard.Dashboard:
     - Latency distribution (p50, p95, p99)
     - Error rates and status codes
     - Performance by endpoint
+    - Critical alerts (insufficient funds, error types)
 
     Returns:
         Complete dashboard builder ready to build()
@@ -325,4 +378,7 @@ def generate() -> dashboard.Dashboard:
         .with_panel(create_llm_latency_by_operation_panel())  # (12, 22, 12, 8)
         .with_panel(create_token_usage_panel())  # (0, 30, 12, 8)
         .with_panel(create_token_usage_by_operation_panel())  # (12, 30, 12, 8)
+        # NEW: Production safety panels
+        .with_panel(create_insufficient_funds_alert())  # (0, 38, 12, 6)
+        .with_panel(create_llm_error_types_panel())  # (12, 38, 12, 8)
     )

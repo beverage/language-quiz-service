@@ -22,7 +22,10 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, alias="WEB_PORT")
 
     # Security & CORS
-    cors_origins: list[str] = Field(default=["*"])
+    cors_origins: list[str] = Field(
+        default=["*"],
+        description="Allowed CORS origins (comma-separated in env: CORS_ORIGINS)",
+    )
 
     # Rate Limiting
     rate_limit_requests: int = Field(
@@ -76,6 +79,11 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @property
+    def is_staging(self) -> bool:
+        """Check if running in staging environment."""
+        return self.environment == "staging"
+
+    @property
     def is_development(self) -> bool:
         """Check if running in development environment."""
         return self.environment.lower() in ("development", "dev", "local")
@@ -83,15 +91,30 @@ class Settings(BaseSettings):
     @property
     def should_require_auth(self) -> bool:
         """Determine if authentication should be required."""
-        return self.require_auth or self.is_production
+        return self.require_auth or self.is_production or self.is_staging
 
     @property
     def production_cors_origins(self) -> list[str]:
-        """Get production-safe CORS origins."""
-        if self.is_production:
-            # In production, be more restrictive - only allow specific domains
-            # For now, still allow all origins but this is where you'd add specific domains
-            return ["*"]  # TODO: Replace with actual production domains
+        """
+        Get CORS origins appropriate for the current environment.
+
+        In staging/production: REQUIRES explicit CORS_ORIGINS configuration.
+        In development: Uses configured cors_origins (defaults to ["*"]).
+
+        Raises:
+            ValueError: If CORS_ORIGINS is not explicitly set in staging/production.
+        """
+        if self.is_production or self.is_staging:
+            # REQUIRE explicit configuration in staging/production
+            if self.cors_origins == ["*"]:
+                raise ValueError(
+                    f"CORS_ORIGINS must be explicitly configured in {self.environment} environment. "
+                    "Set CORS_ORIGINS environment variable to allowed domains, e.g.: "
+                    'CORS_ORIGINS=\'["https://example.com","https://www.example.com"]\''
+                )
+            return self.cors_origins
+
+        # Development: allow default (["*"])
         return self.cors_origins
 
 

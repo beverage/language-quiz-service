@@ -267,13 +267,11 @@ class TestCORSConfiguration:
         )
         assert dev_settings.production_cors_origins == ["http://localhost:3000"]
 
-        # Test production environment
+        # Test production environment requires explicit CORS (no wildcard allowed)
         prod_settings = Settings(
             environment="production", cors_origins=["http://localhost:3000"]
         )
-        assert prod_settings.production_cors_origins == [
-            "*"
-        ]  # Currently returns * for production
+        assert prod_settings.production_cors_origins == ["http://localhost:3000"]
 
 
 @pytest.mark.functional

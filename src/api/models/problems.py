@@ -21,7 +21,10 @@ class ProblemRandomRequest(BaseModel):
         4, ge=2, le=6, description="Number of statements to generate"
     )
     target_language_code: str = Field(
-        "eng", description="Target language code for translations"
+        "eng",
+        min_length=3,
+        max_length=3,
+        description="Target language code for translations (ISO 639-3)",
     )
     model_config = ConfigDict(
         json_schema_extra={
@@ -109,11 +112,11 @@ class ProblemResponse(BaseModel):
             "topic_tags": problem.topic_tags,
             "created_at": problem.created_at,
             "updated_at": problem.updated_at,
+            # Always include these fields (empty if not requested)
+            "source_statement_ids": problem.source_statement_ids
+            if include_metadata
+            else None,
+            "metadata": problem.metadata if include_metadata else None,
         }
-
-        # Include optional fields if requested
-        if include_metadata:
-            response_data["source_statement_ids"] = problem.source_statement_ids
-            response_data["metadata"] = problem.metadata
 
         return cls(**response_data)

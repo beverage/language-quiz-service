@@ -47,6 +47,7 @@ async def _create_problem_http(
         json_data=request_data,
         params=params,
     )
+
     return Problem(**response.json())
 
 
@@ -58,6 +59,7 @@ async def _get_problem_http(service_url: str, api_key: str, problem_id: str) -> 
         base_url=service_url,
         api_key=api_key,
     )
+
     return Problem(**response.json())
 
 

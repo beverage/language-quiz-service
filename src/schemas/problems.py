@@ -42,8 +42,8 @@ class ProblemBase(BaseModel):
     target_language_code: str = Field(default="eng", max_length=3, min_length=3)
     statements: list[dict[str, Any]] = Field(..., min_length=1)
     topic_tags: list[str] = Field(default_factory=list)
-    source_statement_ids: list[UUID] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    source_statement_ids: list[UUID] | None = Field(default=None)
+    metadata: dict[str, Any] | None = Field(default=None)
 
     @field_validator("statements")
     @classmethod
@@ -211,13 +211,57 @@ class ProblemWithMetadata(Problem):
 class GrammarProblemConstraints(BaseModel):
     """Constraints for generating grammar problems."""
 
-    grammatical_focus: list[str] = Field(default_factory=list)
-    verb_infinitives: list[str] | None = None
-    tenses_used: list[str] | None = None
+    grammatical_focus: list[str] = Field(
+        default_factory=list,
+        max_length=10,  # Max 10 focus items
+        description="Grammatical concepts to focus on",
+    )
+    verb_infinitives: list[str] | None = Field(
+        None,
+        max_length=10,  # Max 10 verbs
+        description="Specific verbs to use",
+    )
+    tenses_used: list[str] | None = Field(
+        None,
+        max_length=10,  # Max 10 tenses
+        description="Specific tenses to use",
+    )
     includes_negation: bool | None = None
     includes_cod: bool | None = None
     includes_coi: bool | None = None
     difficulty_level: DifficultyLevel | None = None
+
+    @field_validator("grammatical_focus")
+    @classmethod
+    def validate_grammatical_focus_items(cls, v):
+        """Validate each item in grammatical_focus."""
+        if v:
+            for item in v:
+                if len(item) > 50:
+                    raise ValueError(
+                        "Each grammatical focus item must be <= 50 characters"
+                    )
+        return v
+
+    @field_validator("verb_infinitives")
+    @classmethod
+    def validate_verb_infinitives_items(cls, v):
+        """Validate each verb infinitive."""
+        if v:
+            for item in v:
+                if len(item) > 30:
+                    raise ValueError("Each verb infinitive must be <= 30 characters")
+        return v
+
+    @field_validator("tenses_used")
+    @classmethod
+    def validate_tenses_items(cls, v):
+        """Validate each tense."""
+        if v:
+            for item in v:
+                if len(item) > 30:
+                    raise ValueError("Each tense must be <= 30 characters")
+        return v
 
 
 class FunctionalProblemConstraints(BaseModel):

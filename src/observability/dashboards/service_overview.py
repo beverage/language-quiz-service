@@ -349,6 +349,212 @@ def create_db_operations_panel() -> timeseries.Panel:
     )
 
 
+# ============================================================================
+# Production Safety Panels
+# ============================================================================
+
+
+def create_quiz_requests_per_minute() -> timeseries.Panel:
+    """Quiz generation requests per minute (proxy for website usage)."""
+    return (
+        timeseries.Panel()
+        .title("Quiz Requests per Minute")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum(rate(http_server_duration_milliseconds_count{environment="$environment", http_target=~"/api/v1/problems.*"}[1m])) * 60'
+            )
+            .legend_format("Requests/min")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        .grid_pos(GridPos(x=0, y=54, w=12, h=8))
+    )
+
+
+def create_rate_limit_violations() -> stat.Panel:
+    """Rate limit violations (429 responses) - indicates we're throttling our own website."""
+    return (
+        stat.Panel()
+        .title("Rate Limit Hits (Website Throttled)")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum(increase(http_server_duration_milliseconds_count{environment="$environment", http_status_code="429"}[1h]))'
+            )
+            .legend_format("429s/hour")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="green"),
+                    Threshold(value=5.0, color="yellow"),
+                    Threshold(value=10.0, color="red"),  # Need to increase limits
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=12, y=54, w=6, h=8))
+    )
+
+
+def create_quiz_response_time_p95() -> timeseries.Panel:
+    """p95 response time for quiz endpoint (UX metric)."""
+    return (
+        timeseries.Panel()
+        .title("Quiz Response Time (p95)")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Milliseconds)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'histogram_quantile(0.95, sum(rate(http_server_duration_milliseconds_bucket{environment="$environment", http_target=~"/api/v1/problems.*"}[5m])) by (le))'
+            )
+            .legend_format("p95")
+            .ref_id("A")
+        )
+        .line_width(2)
+        .fill_opacity(10)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="green"),
+                    Threshold(value=5000.0, color="yellow"),  # 5s
+                    Threshold(value=10000.0, color="red"),  # 10s - poor UX
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=18, y=54, w=6, h=8))
+    )
+
+
+def create_problem_generation_success_rate() -> stat.Panel:
+    """Problem generation success rate (% of successful generations)."""
+    return (
+        stat.Panel()
+        .title("Problem Generation Success Rate")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Percent)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                '(sum(rate(http_server_duration_milliseconds_count{environment="$environment", http_target=~"/api/v1/problems.*", http_status_code="200"}[5m])) / sum(rate(http_server_duration_milliseconds_count{environment="$environment", http_target=~"/api/v1/problems.*"}[5m]))) * 100'
+            )
+            .legend_format("Success %")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="red"),
+                    Threshold(value=90.0, color="yellow"),
+                    Threshold(value=95.0, color="green"),  # Target: >95%
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=0, y=62, w=8, h=6))
+    )
+
+
+def create_input_tokens_today() -> stat.Panel:
+    """Input tokens in last 24h (cheaper: $0.150/1M for gpt-4o-mini)."""
+    return (
+        stat.Panel()
+        .title("Input Tokens (24h)")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum(increase(llm_tokens_input_total{environment="$environment"}[24h]))'
+            )
+            .legend_format("Input")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .grid_pos(GridPos(x=8, y=62, w=4, h=6))
+    )
+
+
+def create_output_tokens_today() -> stat.Panel:
+    """Output tokens in last 24h (expensive: $0.600/1M for gpt-4o-mini)."""
+    return (
+        stat.Panel()
+        .title("Output Tokens (24h)")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum(increase(llm_tokens_output_total{environment="$environment"}[24h]))'
+            )
+            .legend_format("Output")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="green"),
+                    Threshold(value=50000.0, color="yellow"),  # 50k tokens
+                    Threshold(value=100000.0, color="orange"),  # 100k tokens
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=12, y=62, w=4, h=6))
+    )
+
+
+def create_http_error_rate_gauge() -> stat.Panel:
+    """HTTP 5xx error rate as percentage gauge."""
+    return (
+        stat.Panel()
+        .title("HTTP Error Rate")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Percent)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                '(sum(rate(http_server_duration_milliseconds_count{environment="$environment", http_target!="/", http_status_code=~"5.."}[5m])) / sum(rate(http_server_duration_milliseconds_count{environment="$environment", http_target!="/"}[5m]))) * 100'
+            )
+            .legend_format("Error %")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="green"),
+                    Threshold(value=1.0, color="yellow"),
+                    Threshold(value=5.0, color="red"),  # >5% error rate
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=16, y=62, w=8, h=6))
+    )
+
+
 def generate() -> dashboard.Dashboard:
     """
     Generate the Service Overview dashboard.
@@ -358,6 +564,7 @@ def generate() -> dashboard.Dashboard:
     - Traffic: Request rate
     - Errors: Error rate and count
     - Saturation: Active requests and database performance
+    - Production Safety: Rate limiting, quiz metrics, error tracking
 
     Returns:
         Complete dashboard builder ready to build()
@@ -388,4 +595,12 @@ def generate() -> dashboard.Dashboard:
         .with_panel(create_request_by_endpoint_panel())  # (12, 38, 12, 8) - right
         .with_panel(create_db_query_duration_panel())  # (0, 46, 12, 8)
         .with_panel(create_db_operations_panel())  # (12, 46, 12, 8)
+        # NEW: Production safety panels
+        .with_panel(create_quiz_requests_per_minute())  # (0, 54, 12, 8)
+        .with_panel(create_rate_limit_violations())  # (12, 54, 6, 8)
+        .with_panel(create_quiz_response_time_p95())  # (18, 54, 6, 8)
+        .with_panel(create_problem_generation_success_rate())  # (0, 62, 8, 6)
+        .with_panel(create_input_tokens_today())  # (8, 62, 4, 6)
+        .with_panel(create_output_tokens_today())  # (12, 62, 4, 6)
+        .with_panel(create_http_error_rate_gauge())  # (16, 62, 8, 6)
     )

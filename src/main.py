@@ -140,6 +140,7 @@ else:
 from .api import api_keys, cache_stats, health, problems, sentences, verbs  # noqa: E402
 from .core.auth import ApiKeyAuthMiddleware  # noqa: E402
 from .core.config import get_settings  # noqa: E402
+from .core.endpoint_access import EndpointAccessMiddleware  # noqa: E402
 from .core.exceptions import (  # noqa: E402
     AppException,
     ContentGenerationError,
@@ -335,6 +336,14 @@ app.add_middleware(
 if OTEL_ENABLED:
     FastAPIInstrumentor.instrument_app(app)
     logger.info("✅ FastAPI instrumented with OpenTelemetry")
+
+# Add endpoint access control middleware (before authentication)
+# This blocks access to non-public endpoints in staging/production
+app.add_middleware(EndpointAccessMiddleware)
+logger.info(
+    f"🔒 Endpoint access control: {'ENABLED' if settings.is_staging or settings.is_production else 'DISABLED'} "
+    f"(environment: {settings.environment})"
+)
 
 # Add API key authentication middleware
 app.add_middleware(ApiKeyAuthMiddleware)

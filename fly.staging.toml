@@ -12,7 +12,7 @@ primary_region = 'ams'
   ENVIRONMENT = "staging"
   WEB_PORT = "8080"
   RATE_LIMIT_REQUESTS = "100"
-  
+
   # OpenTelemetry Resource Attributes
   OTEL_SERVICE_NAME = "language-quiz-service"
   OTEL_SERVICE_NAMESPACE = "lqs"

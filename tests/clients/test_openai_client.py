@@ -248,14 +248,14 @@ async def test_handle_request_error_records_metrics(mock_metrics, mock_span):
     """Test that failed LLM requests record error metrics and span attributes."""
     client = OpenAIClient(api_key="test-key")
 
-    # Mock an error
-    error = Exception("API rate limit exceeded")
+    # Mock an error (using message that won't be categorized)
+    error = Exception("API connection failed")
     client.client.chat.completions.create = AsyncMock(side_effect=error)
 
     with patch(
         "src.clients.openai_client.trace.get_current_span", return_value=mock_span
     ):
-        with pytest.raises(Exception, match="API rate limit exceeded"):
+        with pytest.raises(Exception, match="API connection failed"):
             await client.handle_request("Test prompt", operation="test_operation")
 
     # Verify error metrics were recorded
@@ -264,7 +264,7 @@ async def test_handle_request_error_records_metrics(mock_metrics, mock_span):
     assert duration_call[1]["attributes"]["model"] == "gpt-4o-mini"
     assert duration_call[1]["attributes"]["status"] == "error"
     assert duration_call[1]["attributes"]["operation"] == "test_operation"
-    assert duration_call[1]["attributes"]["error_type"] == "Exception"
+    assert duration_call[1]["attributes"]["error_type"] == "unknown"
 
     # Verify error counter was incremented
     mock_metrics["total"].add.assert_called_once_with(
@@ -273,7 +273,7 @@ async def test_handle_request_error_records_metrics(mock_metrics, mock_span):
             "model": "gpt-4o-mini",
             "status": "error",
             "operation": "test_operation",
-            "error_type": "Exception",
+            "error_type": "unknown",
         },
     )
 
@@ -283,8 +283,8 @@ async def test_handle_request_error_records_metrics(mock_metrics, mock_span):
     }
     assert span_attributes["llm.model"] == "gpt-4o-mini"
     assert span_attributes["llm.operation"] == "test_operation"
-    assert span_attributes["llm.error.type"] == "Exception"
-    assert span_attributes["llm.error.message"] == "API rate limit exceeded"
+    assert span_attributes["llm.error.type"] == "unknown"
+    assert span_attributes["llm.error.message"] == "API connection failed"
 
     # Verify span status was set to error
     mock_span.set_status.assert_called_once()

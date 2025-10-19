@@ -199,3 +199,5 @@ temp/
 /dashboards/
 *.dashboard.json
 .env.compose.local
+
+artifacts/
