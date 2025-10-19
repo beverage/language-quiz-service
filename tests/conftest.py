@@ -115,3 +115,109 @@ async def ensure_verb_cache_loaded():
             traceback.print_exc()
 
     yield
+
+
+@pytest.fixture(scope="session")
+async def test_keys():
+    """
+    Generate test API keys once at session startup.
+
+    Creates 4 test keys in parallel using the repository layer (no auth required):
+    - admin: Full admin permissions
+    - write: Read/write permissions
+    - read: Read-only permissions
+    - inactive: Inactive key for testing auth failures
+
+    Returns dict with plain text API keys.
+    Keys are generated fresh each test session for clean state.
+    """
+    import asyncio
+
+    from src.repositories.api_keys_repository import ApiKeyRepository
+    from src.schemas.api_keys import ApiKeyCreate, generate_api_key, hash_api_key
+
+    # Get Supabase client with service role (bypasses auth)
+    supabase_url = os.getenv("SUPABASE_URL")
+    service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+    if not supabase_url or not service_role_key:
+        pytest.fail("Supabase environment variables not set for test key generation")
+
+    client = await acreate_client(supabase_url, service_role_key)
+    repository = ApiKeyRepository(client)
+
+    # Generate all keys with their hashes
+    admin_key, admin_prefix = generate_api_key()
+    admin_hash = hash_api_key(admin_key)
+
+    write_key, write_prefix = generate_api_key()
+    write_hash = hash_api_key(write_key)
+
+    read_key, read_prefix = generate_api_key()
+    read_hash = hash_api_key(read_key)
+
+    inactive_key, inactive_prefix = generate_api_key()
+    inactive_hash = hash_api_key(inactive_key)
+
+    # Create all keys in parallel using repository (fast!)
+    admin_result, write_result, read_result, inactive_result = await asyncio.gather(
+        repository.create_api_key(
+            ApiKeyCreate(name="Test Admin Key", permissions_scope=["admin"]),
+            admin_hash,
+            admin_prefix,
+        ),
+        repository.create_api_key(
+            ApiKeyCreate(name="Test Write Key", permissions_scope=["read", "write"]),
+            write_hash,
+            write_prefix,
+        ),
+        repository.create_api_key(
+            ApiKeyCreate(name="Test Read Key", permissions_scope=["read"]),
+            read_hash,
+            read_prefix,
+        ),
+        repository.create_api_key(
+            ApiKeyCreate(name="Test Inactive Key", permissions_scope=["read"]),
+            inactive_hash,
+            inactive_prefix,
+        ),
+    )
+
+    # Deactivate the inactive key
+    from src.schemas.api_keys import ApiKeyUpdate
+
+    await repository.update_api_key(inactive_result.id, ApiKeyUpdate(is_active=False))
+
+    # Note: Supabase AsyncClient doesn't have a close() method in this version
+    # The client will be garbage collected at session end
+
+    return {
+        "admin": admin_key,
+        "write": write_key,
+        "read": read_key,
+        "inactive": inactive_key,
+    }
+
+
+@pytest.fixture
+def admin_headers(test_keys):
+    """HTTP headers with admin API key for authenticated requests."""
+    return {"X-API-Key": test_keys["admin"]}
+
+
+@pytest.fixture
+def write_headers(test_keys):
+    """HTTP headers with write API key for authenticated requests."""
+    return {"X-API-Key": test_keys["write"]}
+
+
+@pytest.fixture
+def read_headers(test_keys):
+    """HTTP headers with read-only API key for authenticated requests."""
+    return {"X-API-Key": test_keys["read"]}
+
+
+@pytest.fixture
+def inactive_headers(test_keys):
+    """HTTP headers with inactive API key for testing auth failures."""
+    return {"X-API-Key": test_keys["inactive"]}

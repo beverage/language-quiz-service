@@ -22,11 +22,6 @@ from tests.verbs.fixtures import (
     sample_verb,
 )
 
-# Test data for API key
-VALID_WRITE_API_KEY = (
-    "test_key_write_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
-)
-
 
 @pytest.fixture
 def client():
@@ -34,28 +29,8 @@ def client():
     return TestClient(app)
 
 
-@pytest.fixture
-def admin_headers():
-    """Headers with admin test API key."""
-    return {
-        "X-API-Key": "test_key_admin_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
-    }
-
-
-@pytest.fixture
-def write_headers():
-    """Headers with read/write test API key."""
-    return {
-        "X-API-Key": "test_key_write_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
-    }
-
-
-@pytest.fixture
-def read_headers():
-    """Headers with read-only test API key."""
-    return {
-        "X-API-Key": "test_key_read_1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
-    }
+# Note: admin_headers, write_headers, and read_headers are now provided
+# by tests/conftest.py with dynamically generated test keys
 
 
 @pytest.mark.integration

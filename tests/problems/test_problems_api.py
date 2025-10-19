@@ -21,28 +21,8 @@ def client():
     return TestClient(app)
 
 
-@pytest.fixture
-def read_headers():
-    """Headers for read API key."""
-    return {
-        "X-API-Key": "test_key_read_1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
-    }
-
-
-@pytest.fixture
-def write_headers():
-    """Headers for write API key."""
-    return {
-        "X-API-Key": "test_key_write_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
-    }
-
-
-@pytest.fixture
-def admin_headers():
-    """Headers for admin API key."""
-    return {
-        "X-API-Key": "test_key_admin_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
-    }
+# Note: admin_headers, write_headers, and read_headers are now provided
+# by tests/conftest.py with dynamically generated test keys
 
 
 @pytest.mark.unit
@@ -125,13 +105,12 @@ class TestProblemsAPIAuthentication:
         response = client.post(f"{PROBLEMS_PREFIX}/random", headers=headers)
         assert response.status_code == 401
 
-    def test_wrong_scope_permissions(self, client: TestClient, mock_llm_responses):
+    def test_wrong_scope_permissions(
+        self, client: TestClient, read_headers, mock_llm_responses
+    ):
         """Test that keys without required scope are rejected."""
         # This test demonstrates scope validation, but our current implementation
         # allows read access for all active keys, so this test validates the current behavior
-        read_headers = {
-            "X-API-Key": "test_key_read_1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
-        }
 
         with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
             mock_client = AsyncMock()

@@ -194,7 +194,11 @@ _acceptance-stack-down:
 
 test-acceptance:
 	@echo "🎯 Running acceptance tests..."
-	@if [ "$$CI" = "true" ] || [ -n "$$SERVICE_URL" ]; then \
+	@# Load .env if it exists (for local development)
+	@if [ -f .env ]; then \
+		export $$(grep -v '^#' .env | grep SERVICE_API_KEY | xargs); \
+	fi; \
+	if [ "$$CI" = "true" ] || [ -n "$$SERVICE_URL" ]; then \
 		echo "Testing against remote service: $$SERVICE_URL"; \
 		if [ -z "$$SERVICE_API_KEY" ]; then \
 			echo "❌ SERVICE_API_KEY is required for remote testing"; \
@@ -206,6 +210,7 @@ test-acceptance:
 		echo "Testing against local development server on :7900..."; \
 		if [ -z "$$SERVICE_API_KEY" ]; then \
 			echo "❌ SERVICE_API_KEY environment variable is required for local acceptance tests"; \
+			echo "💡 Add SERVICE_API_KEY to your .env file"; \
 			exit 1; \
 		fi; \
 		$(MAKE) kill-port-7900; \

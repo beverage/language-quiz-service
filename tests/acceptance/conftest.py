@@ -31,18 +31,28 @@ def service_url() -> str:
 
 
 @pytest.fixture(scope="session")
-def service_api_key() -> str:
+def service_api_key(request) -> str:
     """
-    Get API key from environment.
+    Get API key for acceptance tests.
 
-    Required for testing authenticated endpoints.
+    - CI/Remote: Use SERVICE_API_KEY from environment (production/staging key)
+    - Local: Use the dynamically generated admin key from parent conftest
+
+    Note: test_keys fixture is defined in tests/conftest.py and is shared
+    across all test types (unit, integration, acceptance).
     """
-    api_key = os.getenv("SERVICE_API_KEY")
-    if not api_key:
-        pytest.fail(
-            "SERVICE_API_KEY environment variable required for acceptance tests"
-        )
-    return api_key
+    # CI or remote testing: use real production/staging key
+    if os.getenv("CI") == "true":
+        api_key = os.getenv("SERVICE_API_KEY")
+        if not api_key:
+            pytest.fail("CI=true but SERVICE_API_KEY not set")
+        return api_key
+
+    # Local testing: use the admin key from the shared test_keys fixture
+    # This key is generated once per session and stored in the local database
+    # Use request.getfixturevalue() to lazy-load the fixture only when needed
+    test_keys = request.getfixturevalue("test_keys")
+    return test_keys["admin"]
 
 
 @pytest.fixture(scope="session")

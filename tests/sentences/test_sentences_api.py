@@ -25,36 +25,8 @@ def client():
     return TestClient(app)
 
 
-@pytest.fixture
-def admin_headers():
-    """Headers with admin test API key."""
-    return {
-        "X-API-Key": "test_key_admin_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
-    }
-
-
-@pytest.fixture
-def write_headers():
-    """Headers with read/write test API key."""
-    return {
-        "X-API-Key": "test_key_write_1234567890abcdef1234567890abcdef1234567890abcdef123456789"
-    }
-
-
-@pytest.fixture
-def read_headers():
-    """Headers with read-only test API key."""
-    return {
-        "X-API-Key": "test_key_read_1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
-    }
-
-
-@pytest.fixture
-def inactive_headers():
-    """Headers with inactive test API key."""
-    return {
-        "X-API-Key": "test_key_inactive_1234567890abcdef1234567890abcdef1234567890abcdef12345"
-    }
+# Note: admin_headers, write_headers, read_headers, and inactive_headers
+# are now provided by tests/conftest.py with dynamically generated test keys
 
 
 @pytest.mark.security
