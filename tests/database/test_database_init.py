@@ -9,7 +9,7 @@ from src.cli.database.init import (
     COI_TEST_VERBS,
     ETRE_VERBS,
     PRONOMINAL_VERBS,
-    init_verbs,
+    _init_verbs_impl,
 )
 
 
@@ -35,7 +35,7 @@ async def test_init_verbs():
             )
         ]
 
-        await init_verbs()
+        await _init_verbs_impl()
 
         total_verbs = (
             len(ETRE_VERBS)

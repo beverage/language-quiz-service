@@ -1,31 +1,101 @@
 services:
-  database:
-    image: "postgres:latest"
-    labels:
-      - openai-language-test
+  # Language Quiz Service - FastAPI app with OpenTelemetry
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: language-quiz-service-local
     networks:
-      - lqnet
+      - supabase_network
+      - observability
     ports:
-      - 5432:5432
-    environment:
-      POSTGRES_DB: language_app
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      - "8000:8000"
     volumes:
-      - type: volume
-        source: pg-data
-        target: /var/lib/postgresql/data
-      - ./database:/docker-entrypoint-initdb.d
+      - .:/app
+      - /app/.venv  # Exclude .venv from volume mount (use container's version)
+    env_file:
+      - .env.compose.local
+    environment:
+      # Connect to Supabase Kong container on Docker network  
+      - SUPABASE_URL=http://supabase_kong_language-quiz-service:8000
+      # Authentication - bypass in local development
+      - REQUIRE_AUTH=false
+      # OpenTelemetry configuration - send to local OTEL Collector
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      - OTEL_SERVICE_NAME=language-quiz-service
+      - OTEL_SERVICE_NAMESPACE=lqs
+      - OTEL_DEPLOYMENT_ENVIRONMENT=local
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "postgres"]
-      interval: 1m30s
-      timeout: 30s
-      retries: 5
-      start_period: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - otel-collector
+
+  # OpenTelemetry Collector - receives OTLP and writes to Prometheus
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: otel-collector
+    networks:
+      - observability
+    ports:
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+      - "8888:8888"  # Collector internal metrics
+      - "8889:8889"  # Prometheus exporter
+    volumes:
+      - ./config/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    depends_on:
+      - prometheus
+
+  # Prometheus - stores metrics
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: prometheus
+    networks:
+      - observability
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+  # Grafana - visualization and dashboards
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: grafana
+    networks:
+      - observability
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-lqs}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-test}
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    depends_on:
+      - prometheus
 
 networks:
-  lqnet:
+  supabase_network:
+    external: true
+    name: supabase_network_language-quiz-service
+  observability:
     driver: bridge
 
 volumes:
-  pg-data:
+  prometheus-data:
+  grafana-data:

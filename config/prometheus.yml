@@ -1,0 +1,39 @@
+# Prometheus configuration for local development
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'local'
+    environment: 'local'
+
+# Alertmanager configuration (for future use)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: []
+
+# Rule files (for future alerting rules)
+# rule_files:
+#   - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Scrape Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Scrape OTEL Collector metrics endpoint
+  - job_name: 'otel-collector'
+    scrape_interval: 10s
+    static_configs:
+      - targets: ['otel-collector:8889']
+
+# Remote write configuration (receives from Grafana Agent)
+# This is handled by Prometheus's /api/v1/write endpoint automatically
+
+# Storage retention is configured via command line flags in docker-compose
+# --storage.tsdb.retention.time and --storage.tsdb.retention.size
+

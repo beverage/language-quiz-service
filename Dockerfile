@@ -12,16 +12,15 @@ RUN poetry install --only=main --no-root
 FROM python:3.12-slim
 WORKDIR /app
 
-# Install debugging tools temporarily
+# Install curl for health checks
 RUN apt-get update && apt-get install -y \
-    iputils-ping \
-    dnsutils \
-    netcat-openbsd \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/.venv .venv/
 COPY src/ ./src/
 COPY README.md ./
+COPY scripts/docker-entrypoint.sh /entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
@@ -34,4 +33,6 @@ ENV WEB_PORT=${WEB_PORT}
 
 EXPOSE ${WEB_PORT}
 
-CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${WEB_PORT}"]
+# Entrypoint: starts uvicorn server
+# OpenTelemetry instrumentation is configured in src/main.py based on environment variables
+ENTRYPOINT ["/entrypoint.sh"]

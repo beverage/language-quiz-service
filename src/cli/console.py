@@ -44,7 +44,28 @@ from src.schemas.problems import GrammarProblemConstraints
 @click.option(
     "--detailed", default=False, is_flag=True, help="Show detailed problem information"
 )
-async def cli(debug=False, debug_openai=False, debug_recovery=True, detailed=False):
+@click.option(
+    "--local",
+    default=False,
+    is_flag=True,
+    help="Target local service at http://localhost:8000",
+)
+@click.option(
+    "--remote",
+    default=False,
+    is_flag=True,
+    help="Target remote service from SERVICE_URL",
+)
+@click.pass_context
+async def cli(
+    ctx,
+    debug=False,
+    debug_openai=False,
+    debug_recovery=True,
+    detailed=False,
+    local=False,
+    remote=False,
+):
     # Load environment variables from .env file
     load_dotenv()
 
@@ -58,6 +79,14 @@ async def cli(debug=False, debug_openai=False, debug_recovery=True, detailed=Fal
 
     if debug_recovery:
         logging.getLogger("recovery").setLevel(logging.DEBUG)
+
+    # Store service URL in context for commands to access
+    from src.cli.utils.http_client import get_service_url_from_flag
+
+    ctx.ensure_object(dict)
+    ctx.obj["service_url"] = get_service_url_from_flag(local, remote)
+    ctx.obj["local"] = local
+    ctx.obj["remote"] = remote
 
     # Removed: await reflect_tables()  # SQLAlchemy dependency removed
 
@@ -110,6 +139,9 @@ async def problem():
 @click.option(
     "--tense", multiple=True, help="Limit to specific tenses (can specify multiple)"
 )
+@click.option(
+    "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
+)
 @click.pass_context
 async def problem_random(
     ctx,
@@ -119,11 +151,14 @@ async def problem_random(
     include_coi: bool,
     include_negation: bool,
     tense: tuple,
+    output_json: bool,
 ):
     """Generate random grammar problems."""
     try:
-        # Get debug flag from parent context for detailed display mode
-        detailed = ctx.find_root().params.get("detailed", False)
+        # Get flags from root context
+        root_ctx = ctx.find_root()
+        detailed = root_ctx.params.get("detailed", False)
+        service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
 
         # Build constraints from CLI options
         constraints = None
@@ -144,8 +179,10 @@ async def problem_random(
             await create_random_problem(
                 statement_count=statements,
                 constraints=constraints,
-                display=True,
+                display=not output_json,
                 detailed=detailed,
+                service_url=service_url,
+                output_json=output_json,
             )
         else:
             # Batch generation
@@ -153,8 +190,10 @@ async def problem_random(
                 quantity=count,
                 statement_count=statements,
                 constraints=constraints,
-                display=True,
+                display=not output_json,
                 detailed=detailed,
+                service_url=service_url,
+                output_json=output_json,
             )
 
     except Exception as ex:
@@ -229,15 +268,21 @@ async def problem_stats():
 @click.argument("quantity", default=10, type=click.INT)
 @click.option("--workers", default=10, type=click.INT)
 @click.option("--statements", "-s", default=4, help="Number of statements per problem")
-async def batch(quantity: int, workers: int, statements: int):
+@click.pass_context
+async def batch(ctx, quantity: int, workers: int, statements: int):
     """Generate multiple problems in parallel."""
 
     try:
+        # Get service_url from root context
+        root_ctx = ctx.find_root()
+        service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
+
         results = await batch_operation(
             workers=workers,
             quantity=quantity,
             method=create_random_problem_with_delay,
             display=True,
+            service_url=service_url,
         )
         print(f"{Style.BOLD}Generated {len(results)}{Style.RESET}")
     except Exception as ex:

@@ -6,12 +6,14 @@ import logging
 
 from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from opentelemetry import trace
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.core.config import get_settings
 from src.services.api_key_service import ApiKeyService
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
@@ -23,59 +25,83 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         """Process the request and validate API key if required."""
+        with tracer.start_as_current_span(
+            "auth_middleware",
+            attributes={
+                "http.method": request.method,
+                "http.route": request.url.path,
+            },
+        ):
+            # Check if this path is exempt from authentication
+            if self._is_exempt_path(request.url.path):
+                return await call_next(request)
 
-        # Check if this path is exempt from authentication
-        if self._is_exempt_path(request.url.path):
-            return await call_next(request)
+            # Check if authentication is required
+            settings = get_settings()
+            if not settings.should_require_auth:
+                # Development mode - bypass authentication
+                logger.debug("Authentication bypassed (REQUIRE_AUTH=False)")
+                request.state.api_key_info = {
+                    "auth_type": "dev",
+                    "name": "dev_user",
+                    "is_admin": True,
+                    "permissions_scope": ["read", "write", "admin"],
+                    "bypassed": True,
+                }
+                request.state.client_ip = self._get_client_ip(request)
+                return await call_next(request)
 
-        try:
-            # Extract API key from headers
-            api_key = self._extract_api_key(request)
-            if not api_key:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="API key required. Provide X-API-Key header.",
+            try:
+                # Extract API key from headers
+                with tracer.start_as_current_span("extract_api_key"):
+                    api_key = self._extract_api_key(request)
+                    if not api_key:
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="API key required. Provide X-API-Key header.",
+                        )
+
+                # Validate API key and get key info (includes IP checking and usage tracking)
+                with tracer.start_as_current_span("validate_api_key"):
+                    client_ip = self._get_client_ip(request)
+                    key_info = await self._validate_api_key_with_ip(api_key, client_ip)
+                    if not key_info:
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid API key",
+                        )
+
+                # Add key info to request state for downstream use
+                request.state.api_key_info = key_info
+                request.state.client_ip = client_ip
+
+                # Continue processing the request
+                response = await call_next(request)
+                return response
+
+            except HTTPException as exc:
+                # Return standardized JSON response for authentication errors
+                return JSONResponse(
+                    status_code=exc.status_code,
+                    content={
+                        "error": True,
+                        "message": exc.detail,
+                        "status_code": exc.status_code,
+                        "path": str(request.url.path),
+                    },
                 )
-
-            # Validate API key and get key info (includes IP checking and usage tracking)
-            client_ip = self._get_client_ip(request)
-            key_info = await self._validate_api_key_with_ip(api_key, client_ip)
-            if not key_info:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
+            except Exception as e:
+                logger.error(f"Authentication middleware error: {e}", exc_info=True)
+                # Return standardized JSON response for unexpected auth errors
+                return JSONResponse(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    content={
+                        "error": True,
+                        "message": "Authentication service error",
+                        "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        "path": str(request.url.path),
+                    },
                 )
-
-            # Add key info to request state for downstream use
-            request.state.api_key_info = key_info
-            request.state.client_ip = client_ip
-
-            # Continue processing the request
-            response = await call_next(request)
-            return response
-
-        except HTTPException as exc:
-            # Return standardized JSON response for authentication errors
-            return JSONResponse(
-                status_code=exc.status_code,
-                content={
-                    "error": True,
-                    "message": exc.detail,
-                    "status_code": exc.status_code,
-                    "path": str(request.url.path),
-                },
-            )
-        except Exception as e:
-            logger.error(f"Authentication middleware error: {e}", exc_info=True)
-            # Return standardized JSON response for unexpected auth errors
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "error": True,
-                    "message": "Authentication service error",
-                    "status_code": status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    "path": str(request.url.path),
-                },
-            )
 
     def _is_exempt_path(self, path: str) -> bool:
         """Check if the request path is exempt from authentication."""

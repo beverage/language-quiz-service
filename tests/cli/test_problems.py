@@ -182,6 +182,8 @@ class TestCLIProblemsCreation:
             constraints=sample_constraints,
             display=True,
             detailed=False,
+            service_url=None,
+            output_json=False,
         )
 
     @patch("src.cli.utils.queues.parallel_execute")

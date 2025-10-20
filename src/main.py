@@ -5,7 +5,9 @@ This module sets up the FastAPI application with all necessary configurations,
 middleware, and route handlers.
 """
 
+import base64
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
@@ -16,21 +18,135 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .api import api_keys, health, problems, sentences, verbs
-from .core.auth import ApiKeyAuthMiddleware
-from .core.config import get_settings
-from .core.exceptions import (
+# Configure logging BEFORE other imports
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+# ============================================================================
+# OpenTelemetry Setup (Conditional - only if OTEL_EXPORTER_OTLP_ENDPOINT set)
+# ============================================================================
+# IMPORTANT: Must be configured BEFORE importing API/service/repository modules
+# so that tracer instances are properly initialized
+# ============================================================================
+OTEL_ENABLED = bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+
+if OTEL_ENABLED:
+    logger.info("📊 Initializing OpenTelemetry instrumentation...")
+
+    from opentelemetry import metrics, trace
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+        OTLPMetricExporter,
+    )
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.aiohttp_client import AioHttpClientInstrumentor
+    from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+    from opentelemetry.instrumentation.logging import LoggingInstrumentor
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    # ========================================================================
+    # Build authentication from user-friendly env vars
+    # ========================================================================
+    # User only needs to set: GRAFANA_CLOUD_INSTANCE_ID, GRAFANA_CLOUD_API_KEY
+    # We encode and set OTEL_EXPORTER_OTLP_HEADERS for the SDK
+    instance_id = os.getenv("GRAFANA_CLOUD_INSTANCE_ID")
+    api_key = os.getenv("GRAFANA_CLOUD_API_KEY")
+
+    if instance_id and api_key:
+        # Encode credentials as base64(instance_id:api_key)
+        credentials = f"{instance_id}:{api_key}"
+        encoded = base64.b64encode(credentials.encode()).decode()
+
+        # Set SDK env var at runtime - SDK will read this automatically
+        os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=Basic {encoded}"
+        logger.info("🔐 Using Grafana Cloud credentials for authentication")
+    else:
+        logger.warning("⚠️  No Grafana Cloud credentials - telemetry may fail")
+
+    # Configure resource with service information from environment variables
+    # SDK will also automatically pick up OTEL_RESOURCE_ATTRIBUTES if set
+    resource_attrs = {}
+
+    if service_name := os.getenv("OTEL_SERVICE_NAME"):
+        resource_attrs[SERVICE_NAME] = service_name
+
+    if service_namespace := os.getenv("OTEL_SERVICE_NAMESPACE"):
+        resource_attrs["service.namespace"] = service_namespace
+
+    if deployment_env := os.getenv("OTEL_DEPLOYMENT_ENVIRONMENT"):
+        resource_attrs["deployment.environment"] = deployment_env
+
+    resource = Resource.create(attributes=resource_attrs)
+
+    # ========================================================================
+    # Set up Traces Provider
+    # ========================================================================
+    tracer_provider = TracerProvider(resource=resource)
+
+    # SDK auto-configures from OTEL_EXPORTER_OTLP_* env vars
+    otlp_trace_exporter = OTLPSpanExporter()
+
+    # Add span processor
+    tracer_provider.add_span_processor(BatchSpanProcessor(otlp_trace_exporter))
+
+    # Set as global tracer provider
+    trace.set_tracer_provider(tracer_provider)
+
+    # ========================================================================
+    # Set up Metrics Provider
+    # ========================================================================
+    # SDK auto-configures from OTEL_EXPORTER_OTLP_* env vars
+    otlp_metric_exporter = OTLPMetricExporter()
+
+    # Configure periodic metric reader
+    metric_reader = PeriodicExportingMetricReader(
+        otlp_metric_exporter,
+        export_interval_millis=15000,  # Export every 15 seconds
+    )
+
+    # Create meter provider
+    meter_provider = MeterProvider(
+        resource=resource,  # Same resource as traces
+        metric_readers=[metric_reader],
+    )
+
+    # Set as global meter provider
+    metrics.set_meter_provider(meter_provider)
+
+    # ========================================================================
+    # Instrument libraries (auto-instruments traces AND metrics)
+    # ========================================================================
+    AsyncPGInstrumentor().instrument()  # PostgreSQL (not actively used, but available)
+    HTTPXClientInstrumentor().instrument()  # Supabase REST API client
+    AioHttpClientInstrumentor().instrument()  # OpenAI client
+    LoggingInstrumentor().instrument(set_logging_format=True)
+
+    logger.info(
+        f"✅ OpenTelemetry configured (traces + metrics) - sending to {os.getenv('OTEL_EXPORTER_OTLP_ENDPOINT')}"
+    )
+else:
+    logger.info("⚡ OpenTelemetry disabled (no OTEL_EXPORTER_OTLP_ENDPOINT set)")
+# ============================================================================
+
+# Import application modules AFTER OpenTelemetry is configured
+# This ensures that tracer instances in services/repositories are properly initialized
+from .api import api_keys, cache_stats, health, problems, sentences, verbs  # noqa: E402
+from .core.auth import ApiKeyAuthMiddleware  # noqa: E402
+from .core.config import get_settings  # noqa: E402
+from .core.endpoint_access import EndpointAccessMiddleware  # noqa: E402
+from .core.exceptions import (  # noqa: E402
     AppException,
     ContentGenerationError,
     NotFoundError,
     ValidationError,
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -48,7 +164,45 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Language Quiz Service...")
     logger.info(f"📊 Rate limiting: {settings.rate_limit_requests} requests/minute")
     logger.info(f"🌐 Environment: {settings.environment}")
+
+    # Initialize in-memory caches
+    from src.cache import api_key_cache, conjugation_cache, verb_cache
+    from src.clients.supabase import get_supabase_client
+    from src.repositories.api_keys_repository import ApiKeyRepository
+    from src.repositories.verb_repository import VerbRepository
+
+    try:
+        logger.info("💾 Loading in-memory caches...")
+
+        # Get database client
+        client = await get_supabase_client()
+
+        # Create repositories
+        verb_repo = VerbRepository(client)
+        api_key_repo = ApiKeyRepository(client)
+
+        # Load all caches in parallel
+        import asyncio
+
+        await asyncio.gather(
+            verb_cache.load(verb_repo),
+            conjugation_cache.load(verb_repo),
+            api_key_cache.load(api_key_repo),
+        )
+
+        # Log cache statistics
+        logger.info(f"📊 Verb cache: {verb_cache.get_stats()}")
+        logger.info(f"📊 Conjugation cache: {conjugation_cache.get_stats()}")
+        logger.info(f"📊 API key cache: {api_key_cache.get_stats()}")
+        logger.info("✅ All caches loaded successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize caches: {e}", exc_info=True)
+        raise
+
     yield
+
+    # Cleanup
     logger.info("🔄 Shutting down Language Quiz Service...")
 
 
@@ -155,6 +309,10 @@ app = FastAPI(
             "name": "sentences",
             "description": "Sentence generation endpoints (coming soon)",
         },
+        {
+            "name": "Cache",
+            "description": "Cache statistics and monitoring endpoints",
+        },
     ],
 )
 
@@ -173,6 +331,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Instrument FastAPI with OpenTelemetry (if enabled)
+# IMPORTANT: Must be done BEFORE adding middleware
+if OTEL_ENABLED:
+    FastAPIInstrumentor.instrument_app(app)
+    logger.info("✅ FastAPI instrumented with OpenTelemetry")
+
+# Add endpoint access control middleware (before authentication)
+# This blocks access to non-public endpoints in staging/production
+app.add_middleware(EndpointAccessMiddleware)
+logger.info(
+    f"🔒 Endpoint access control: {'ENABLED' if settings.is_staging or settings.is_production else 'DISABLED'} "
+    f"(environment: {settings.environment})"
+)
+
 # Add API key authentication middleware
 app.add_middleware(ApiKeyAuthMiddleware)
 
@@ -187,6 +359,7 @@ v1_router.include_router(api_keys.router)
 v1_router.include_router(verbs.router)
 v1_router.include_router(sentences.router)
 v1_router.include_router(problems.router)
+v1_router.include_router(cache_stats.router)
 
 # TODO: Uncomment these when endpoints are implemented
 # v1_router.include_router(problems.router)

@@ -132,9 +132,9 @@ generate_grammar_problem_constraints() -> GrammarProblemConstraints
 Critical test data is pre-seeded via `sql/test/` scripts:
 
 - **`sql/test/1-LoadTestKeys.sql`**: API keys for authentication testing
-  - `sk_live_test_read_key` - Read-only permissions
-  - `sk_live_test_write_key` - Write permissions  
-  - `sk_live_test_admin_key` - Admin permissions
+  - `test_key_read_*` - Read-only permissions
+  - `test_key_write_*` - Write permissions  
+  - `test_key_admin_*` - Admin permissions
 - **`sql/test/2-LoadTestVerbs.sql`**: Baseline verbs for conflict testing
   - Common French verbs (être, avoir, parler, etc.)
   - Used for uniqueness constraint testing
@@ -312,7 +312,7 @@ def test_download_verb_with_mocked_llm(client, write_headers):
 ```python
 def test_invalid_api_key_returns_401(client):
     """Test authentication with invalid API key."""
-    headers = {"X-API-Key": "sk_live_invalid_key"}
+    headers = {"X-API-Key": "test_key_invalid_fake"}
     response = client.get("/api/v1/verbs/random", headers=headers)
     assert response.status_code == 401
     assert "invalid api key" in response.json()["message"].lower()

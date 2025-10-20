@@ -1,38 +1,87 @@
-.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev build deploy logs up down start-supabase
+.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev dev-monitored build deploy logs up down start-supabase setup dashboards-deploy dashboards-validate dashboards-export
 
 # Default target
 help:
 	@echo "Available targets:"
+	@echo ""
+	@echo "Development:"
+	@echo "  setup           - First-time local environment setup"
+	@echo "  compose-env     - Generate .env.compose.local from local Supabase"
+	@echo "  compose-up      - Start docker-compose with local Supabase (recommended)"
+	@echo "  dev             - Start FastAPI development server with local Supabase"
+	@echo "  dev-monitored   - Start with Grafana Cloud observability"
+	@echo "  serve           - Start FastAPI server (production mode)"
+	@echo ""
+	@echo "Code Quality:"
 	@echo "  lint-check      - Check code with ruff"
 	@echo "  lint-fix        - Fix linting issues with ruff"
 	@echo "  lint-fix-unsafe - Fix linting issues with ruff (including unsafe fixes)"
 	@echo "  lint            - Run both lint-check and lint-fix"
-	@echo "  format          - Format code with ruff (excludes src/cli)"
-	@echo "  test            - Run tests with pytest"
-	@echo "  serve           - Start FastAPI development server"
-	@echo "  dev             - Start FastAPI development server with auto-reload"
+	@echo "  format          - Format code with ruff"
+	@echo "  format-check    - Check code formatting without modifying files"
+	@echo ""
+	@echo "Testing:"
+	@echo "  test            - Run all tests"
+	@echo "  test-unit       - Run unit tests only"
+	@echo "  test-integration - Run integration tests only"
+	@echo "  test-acceptance - Run acceptance tests (local :7900 or remote if CI=true)"
+	@echo "  test-cov        - Run tests with coverage report"
+	@echo "  start-supabase  - Start Supabase with minimal containers for testing"
+	@echo ""
+	@echo "Observability:"
+	@echo "  dashboards-deploy   - Deploy dashboards to Grafana (local or cloud)"
+	@echo "  dashboards-validate - Validate dashboard definitions"
+	@echo "  dashboards-export   - Export dashboards as JSON files"
+	@echo ""
+	@echo "Deployment:"
 	@echo "  build           - Build Docker container"
 	@echo "  deploy          - Deploy to fly.io (ENV=staging|production, default: staging)"
 	@echo "  logs            - Show service logs (ENV=staging|production, default: staging)"
 	@echo "  up              - Start all machines (ENV=staging|production, default: staging)"
 	@echo "  down            - Stop all machines (ENV=staging|production, default: staging)"
-	@echo "  start-supabase  - Start Supabase with minimal containers for testing"
-	@echo "  all             - Run format, lint, and test"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make deploy ENV=staging    # Deploy to staging (default)"
+	@echo "  make setup                 # First-time setup"
+	@echo "  make compose-up            # Start with docker-compose (recommended)"
+	@echo "  make dev                   # Fast local development (uvicorn)"
+	@echo "  make dev-monitored         # Local development with observability"
+	@echo "  make dashboards-deploy     # Deploy dashboards"
+	@echo "  make deploy ENV=staging    # Deploy to staging"
 	@echo "  make deploy ENV=production # Deploy to production"
-	@echo "  make up     ENV=production # Start staging machines (default)"
-	@echo "  make logs   ENV=production # Show production logs"
+
+# Setup targets
+setup:
+	@echo "Setting up local development environment..."
+	@./scripts/setup-local-env.sh
 
 # FastAPI development targets
 serve:
 	@echo "Starting FastAPI server..."
 	poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000
 
+compose-env:
+	@echo "🔧 Generating .env.compose.local from local Supabase..."
+	./scripts/generate_compose_env.sh
+
+compose-up: compose-env
+	@echo "🚀 Starting docker-compose with local Supabase..."
+	docker-compose up --build
+
 dev:
-	@echo "Starting FastAPI development server with auto-reload..."
-	poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+	@echo "🚀 Starting FastAPI development server with local Supabase..."
+	@if ! supabase status >/dev/null 2>&1; then \
+		echo "❌ Local Supabase is not running. Start it with: supabase start"; \
+		exit 1; \
+	fi
+	@./scripts/generate_compose_env.sh >/dev/null
+	@echo "✅ Using local Supabase configuration"
+	@set -a && source .env.compose.local && set +a && \
+		poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+dev-monitored:
+	@echo "Starting FastAPI with Grafana Cloud observability..."
+	@./scripts/dev-with-monitoring.sh
+
 
 # Docker targets
 build:
@@ -85,25 +134,99 @@ format:
 	@echo "Formatting code with ruff on the whole project..."
 	poetry run ruff format .
 
+format-check:
+	@echo "Checking code formatting with ruff..."
+	poetry run ruff format --check .
+
 # Testing target
 test:
-	@echo "Running all tests..."
-	poetry run pytest -n auto
+	@echo "Running all tests (excluding acceptance)..."
+	poetry run pytest -n auto -m "not acceptance"
 
 # Testing with coverage
 test-cov:
-	@echo "Running all tests with coverage..."
-	poetry run pytest -n auto --cov=src --cov-report=xml --cov-report=term-missing
+	@echo "Running all tests with coverage (excluding acceptance)..."
+	poetry run pytest -n auto -m "not acceptance" --cov=src --cov-report=xml --cov-report=term-missing
 
 .PHONY: test-unit
 test-unit:
 	@echo "Running unit tests..."
-	poetry run pytest -n auto-m unit
+	poetry run pytest -n auto -m unit
 
 .PHONY: test-integration
 test-integration:
 	@echo "Running integration tests..."
 	poetry run pytest -n auto-m integration
+
+.PHONY: test-acceptance kill-port-7900 _acceptance-stack-up _acceptance-stack-down
+kill-port-7900:
+	@echo "🔪 Killing any existing process on port 7900..."
+	@lsof -ti:7900 | xargs kill -9 2>/dev/null || true
+	@sleep 2
+	@if lsof -ti:7900 >/dev/null 2>&1; then \
+		echo "⚠️  Port 7900 still in use after kill attempt"; \
+		lsof -i:7900; \
+		exit 1; \
+	else \
+		echo "✅ Port 7900 is now free"; \
+	fi
+
+_acceptance-stack-up:
+	@echo "🔧 Starting acceptance test service on :7900..."
+	@if ! supabase status >/dev/null 2>&1; then \
+		echo "❌ Local Supabase is not running. Start it with: supabase start"; \
+		exit 1; \
+	fi
+	@echo "Starting development server in background..."
+	@set -a; source .env; set +a; \
+	REQUIRE_AUTH=true \
+	SUPABASE_URL=http://127.0.0.1:54321 \
+	SUPABASE_SERVICE_ROLE_KEY=$(shell supabase status --output json | jq -r '.SERVICE_ROLE_KEY') \
+	poetry run uvicorn src.main:app --host 0.0.0.0 --port 7900 & echo $$! > .server_pid
+	@echo "Server PID: $$(cat .server_pid)"
+	@sleep 8
+	@echo "✅ Service started on :7900"
+
+_acceptance-stack-down:
+	@echo "🛑 Stopping acceptance test service..."
+	@SERVER_PID=$$(cat .server_pid 2>/dev/null || true); if [ -n "$$SERVER_PID" ]; then kill $$SERVER_PID 2>/dev/null || true; rm -f .server_pid; fi
+	@sleep 2
+
+test-acceptance:
+	@echo "🎯 Running acceptance tests..."
+	@# Load .env if it exists (for local development)
+	@if [ -f .env ]; then \
+		export $$(grep -v '^#' .env | grep SERVICE_API_KEY | xargs); \
+	fi; \
+	if [ "$$CI" = "true" ] || [ -n "$$SERVICE_URL" ]; then \
+		echo "Testing against remote service: $$SERVICE_URL"; \
+		if [ -z "$$SERVICE_API_KEY" ]; then \
+			echo "❌ SERVICE_API_KEY is required for remote testing"; \
+			exit 1; \
+		fi; \
+		mkdir -p artifacts/acceptance; \
+		SERVICE_URL=$$SERVICE_URL SERVICE_API_KEY=$$SERVICE_API_KEY poetry run pytest --no-cov -m "acceptance" tests/acceptance --junitxml artifacts/acceptance/results.xml -v; \
+	else \
+		echo "Testing against local development server on :7900..."; \
+		if [ -z "$$SERVICE_API_KEY" ]; then \
+			echo "❌ SERVICE_API_KEY environment variable is required for local acceptance tests"; \
+			echo "💡 Add SERVICE_API_KEY to your .env file"; \
+			exit 1; \
+		fi; \
+		$(MAKE) kill-port-7900; \
+		$(MAKE) _acceptance-stack-up; \
+		echo "Running acceptance tests..."; \
+		mkdir -p artifacts/acceptance; \
+		SERVICE_URL=http://localhost:7900 SERVICE_API_KEY=$$SERVICE_API_KEY poetry run pytest --no-cov -m "acceptance" tests/acceptance --junitxml artifacts/acceptance/results.xml -v; \
+		TEST_RESULT=$$?; \
+		$(MAKE) _acceptance-stack-down; \
+		if [ $$TEST_RESULT -eq 0 ]; then \
+			echo "✅ Acceptance tests passed!"; \
+		else \
+			echo "❌ Acceptance tests failed!"; \
+			exit 1; \
+		fi; \
+	fi
 
 # Run everything
 all: format lint test
@@ -112,4 +235,18 @@ all: format lint test
 .PHONY: install-githooks
 install-githooks:
 	@echo "Installing git hooks..."
-	@./scripts/install-githooks.sh 
+	@./scripts/install-githooks.sh
+
+# Observability targets
+.PHONY: dashboards-deploy dashboards-validate dashboards-export
+dashboards-deploy:
+	@echo "Deploying dashboards to Grafana..."
+	poetry run python -m src.observability.deploy
+
+dashboards-validate:
+	@echo "Validating dashboard definitions..."
+	poetry run python -m src.observability.deploy --validate
+
+dashboards-export:
+	@echo "Exporting dashboards as JSON..."
+	poetry run python -m src.observability.deploy --export --output-dir ./dashboards 

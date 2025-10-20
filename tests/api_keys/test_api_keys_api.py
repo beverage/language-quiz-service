@@ -25,36 +25,8 @@ def client():
     return TestClient(app)
 
 
-@pytest.fixture
-def admin_headers():
-    """Headers with admin test API key."""
-    return {
-        "X-API-Key": "sk_live_adm1234567890123456789012345678901234567890123456789012345678901234"
-    }
-
-
-@pytest.fixture
-def write_headers():
-    """Headers with read/write test API key."""
-    return {
-        "X-API-Key": "sk_live_wrt1234567890123456789012345678901234567890123456789012345678901234"
-    }
-
-
-@pytest.fixture
-def read_headers():
-    """Headers with read-only test API key."""
-    return {
-        "X-API-Key": "sk_live_red1234567890123456789012345678901234567890123456789012345678901234"
-    }
-
-
-@pytest.fixture
-def inactive_headers():
-    """Headers with inactive test API key."""
-    return {
-        "X-API-Key": "sk_live_ina1234567890123456789012345678901234567890123456789012345678901234"
-    }
+# Note: admin_headers, write_headers, read_headers, and inactive_headers
+# are now provided by tests/conftest.py with dynamically generated test keys
 
 
 @pytest.mark.security
@@ -260,7 +232,9 @@ class TestApiKeysAPIIntegration:
         response = client.get(f"{API_KEY_PREFIX}/current", headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
-        assert data["name"] == "Test Admin Key 11112222-3333-4444"
+        assert data["name"] == "Test Admin Key"  # Dynamically generated key
+        assert data["permissions_scope"] == ["admin"]
+        assert data["is_active"] is True
 
     def test_get_api_key_by_id_not_found(self, client: TestClient, admin_headers):
         """Test getting a non-existent API key by ID."""

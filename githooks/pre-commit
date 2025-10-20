@@ -1,15 +1,89 @@
-#!/bin/sh
-#
-# Pre-commit hook that runs unsafe linting fixes and formatting.
+#!/bin/bash
 
-echo "Running pre-commit hook: Fixing and formatting..."
+# Git pre-commit hook for Language Quiz Service
+# This hook automatically fixes linting issues and formats code before commit
 
-# Run unsafe linting fixes and formatting from the Makefile
-make lint-fix-unsafe
-make format
+echo "🔧 Running pre-commit auto-fixes..."
 
-# Add any changed files back to the commit
-# This ensures that any auto-fixes are included in the commit.
-git add .
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-echo "Pre-commit hook finished." 
+# Function to print colored output
+print_status() {
+    echo -e "${BLUE}[PRE-COMMIT]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+# Check if make is available
+if ! command -v make &> /dev/null; then
+    print_error "make command not found. Please install make."
+    exit 1
+fi
+
+# Check if we're in the project root (should have Makefile)
+if [ ! -f "Makefile" ]; then
+    print_error "Makefile not found. Please run git commit from the project root."
+    exit 1
+fi
+
+# Run auto-fixing linting with unsafe fixes
+print_status "Running automatic linting fixes..."
+if ! make lint-fix-unsafe; then
+    print_error "Linting fixes failed. Please review the output above."
+    exit 1
+fi
+print_success "Linting fixes completed"
+
+# Run code formatting
+print_status "Running code formatting..."
+if ! make format; then
+    print_error "Code formatting failed. Please review the output above."
+    exit 1
+fi
+print_success "Code formatting completed"
+
+# Check if any files were modified by the fixes
+if git diff --cached --quiet; then
+    print_success "No changes needed - code is already properly formatted and linted"
+else
+    print_warning "Code was automatically fixed and formatted"
+    print_status "Staging the automatically fixed files..."
+    
+    # Get list of cached files that might have been modified
+    cached_files=$(git diff --cached --name-only)
+    
+    # Re-stage any modified files
+    for file in $cached_files; do
+        if [ -f "$file" ]; then
+            git add "$file"
+            print_status "Re-staged: $file"
+        fi
+    done
+    
+    print_success "Automatically fixed files have been re-staged"
+    echo ""
+    print_warning "Your code was automatically modified and re-staged for commit"
+    print_status "The following changes were made:"
+    echo "  • Linting issues fixed with unsafe fixes enabled"
+    echo "  • Code formatted according to project standards"
+    echo ""
+    print_status "You can review the changes with: git diff --cached"
+fi
+
+print_success "Pre-commit checks completed! 🎉"
+exit 0 

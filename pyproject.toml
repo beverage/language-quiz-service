@@ -26,6 +26,18 @@ bcrypt = "^4.3.0"
 pytest-xdist = "^3.8.0"
 python-dotenv = "^1.1.1"
 bump-pydantic = "^0.8.0"
+opentelemetry-distro = ">=0.59b0"
+opentelemetry-exporter-otlp = "^1.37.0"
+opentelemetry-instrumentation-fastapi = ">=0.59b0"
+opentelemetry-instrumentation-aiohttp-client = ">=0.59b0"
+opentelemetry-instrumentation-asyncpg = ">=0.59b0"
+opentelemetry-instrumentation-logging = ">=0.59b0"
+grafana-foundation-sdk = "^1759918510!10.1.0"
+opentelemetry-instrumentation = ">=0.59b0"
+opentelemetry-instrumentation-httpx = ">=0.59b0"
+opentelemetry-instrumentation-asgi = ">=0.59b0"
+opentelemetry-semantic-conventions = ">=0.59b0"
+opentelemetry-util-http = ">=0.59b0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"
@@ -62,6 +74,8 @@ markers = [
     "integration: Integration tests with component interactions - mocked external services",
     "functional: API functional tests that can be run with or without authentication",
     "acceptance: End-to-end acceptance tests - full workflows",
+    "auth: Authentication and authorization tests",
+    "smoke: Basic smoke tests for service health",
     "security: Security-focused tests - authentication, authorization, validation",
 ]
 filterwarnings = [
@@ -85,7 +99,8 @@ omit = [
     "src/cli/console.py",
     "src/cli/sentences/prompts.py",
     "src/cli/verbs/prompts.py",
-    "src/cli/utils/*"
+    "src/cli/utils/*",
+    "src/observability/*"
 ]
 
 [tool.coverage.report]

@@ -1,6 +1,8 @@
 import asyncio
 import logging
 
+import asyncclick as click
+
 from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
@@ -103,8 +105,8 @@ COI_TEST_VERBS = [
 ]
 
 
-async def init_verbs():
-    """Seeds the database with a predefined list of French verbs in parallel."""
+async def _init_verbs_impl():
+    """Implementation of verb seeding (separate from Click command for testing)."""
     verb_service = VerbService()
     logger.info("Starting to seed verbs into the database...")
 
@@ -128,3 +130,9 @@ async def init_verbs():
             logger.info(f"Successfully processed '{infinitive}'.")
 
     logger.info("Verb seeding process completed.")
+
+
+@click.command()
+async def init_verbs():
+    """Seeds the database with a predefined list of French verbs in parallel."""
+    await _init_verbs_impl()

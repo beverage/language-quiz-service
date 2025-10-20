@@ -21,7 +21,10 @@ class ProblemRandomRequest(BaseModel):
         4, ge=2, le=6, description="Number of statements to generate"
     )
     target_language_code: str = Field(
-        "eng", description="Target language code for translations"
+        "eng",
+        min_length=3,
+        max_length=3,
+        description="Target language code for translations (ISO 639-3)",
     )
     model_config = ConfigDict(
         json_schema_extra={
@@ -76,9 +79,17 @@ class ProblemResponse(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
+    # Optional detailed fields (included when include_metadata=true)
+    source_statement_ids: list[UUID] | None = Field(
+        None, description="IDs of source sentences used to generate this problem"
+    )
+    metadata: dict | None = Field(
+        None, description="Additional metadata (verb info, grammatical focus, etc.)"
+    )
+
     @classmethod
-    def from_problem(cls, problem):
-        """Create from domain model, excluding source_statement_ids and metadata."""
+    def from_problem(cls, problem, include_metadata: bool = False):
+        """Create from domain model with optional metadata inclusion."""
         # Convert statements from dict to response models
         statements = []
         for stmt_dict in problem.statements:
@@ -90,15 +101,22 @@ class ProblemResponse(BaseModel):
             )
             statements.append(stmt)
 
-        return cls(
-            id=problem.id,
-            problem_type=problem.problem_type,
-            title=problem.title,
-            instructions=problem.instructions,
-            statements=statements,
-            correct_answer_index=problem.correct_answer_index,
-            target_language_code=problem.target_language_code,
-            topic_tags=problem.topic_tags,
-            created_at=problem.created_at,
-            updated_at=problem.updated_at,
-        )
+        response_data = {
+            "id": problem.id,
+            "problem_type": problem.problem_type,
+            "title": problem.title,
+            "instructions": problem.instructions,
+            "statements": statements,
+            "correct_answer_index": problem.correct_answer_index,
+            "target_language_code": problem.target_language_code,
+            "topic_tags": problem.topic_tags,
+            "created_at": problem.created_at,
+            "updated_at": problem.updated_at,
+            # Always include these fields (empty if not requested)
+            "source_statement_ids": problem.source_statement_ids
+            if include_metadata
+            else None,
+            "metadata": problem.metadata if include_metadata else None,
+        }
+
+        return cls(**response_data)

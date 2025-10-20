@@ -3,7 +3,7 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -29,7 +29,7 @@ async def get_problem_service() -> ProblemService:
     return ProblemService()
 
 
-@router.get(
+@router.post(
     "/random",
     response_model=ProblemResponse,
     summary="Generate random grammar problem",
@@ -59,6 +59,9 @@ async def get_problem_service() -> ProblemService:
       "target_language_code": "eng"
     }
     ```
+
+    **Query Parameters**:
+    - `include_metadata`: Include source_statement_ids and metadata in response (default: false)
 
     **Required Permission**: `read`, `write`, or `admin`
     """,
@@ -122,11 +125,12 @@ async def get_problem_service() -> ProblemService:
     },
 )
 @limiter.limit("100/minute")
-async def get_random_problem(
+async def generate_random_problem(
     request: Request,
-    problem_request: ProblemRandomRequest = None,
+    include_metadata: bool = False,
     current_key: dict = Depends(get_current_api_key),
     service: ProblemService = Depends(get_problem_service),
+    problem_request: ProblemRandomRequest | None = Body(None),
 ) -> ProblemResponse:
     """
     Generate a random grammar problem.
@@ -152,7 +156,7 @@ async def get_random_problem(
             f"Generated random problem {problem.id} for API key {current_key.get('name', 'unknown')}"
         )
 
-        return ProblemResponse.from_problem(problem)
+        return ProblemResponse.from_problem(problem, include_metadata=include_metadata)
 
     except LanguageResourceNotFoundError as e:
         logger.warning(
@@ -209,13 +213,8 @@ async def get_random_problem(
     - Metadata and categorization tags
     - Creation and modification timestamps
 
-    **Request Body** (optional):
-    ```json
-    {
-      "include_metadata": true,
-      "target_language_code": "eng"
-    }
-    ```
+    **Query Parameters**:
+    - `include_metadata`: Include source_statement_ids and metadata in response (default: false)
 
     **Required Permission**: `read`, `write`, or `admin`
     """,
@@ -223,6 +222,7 @@ async def get_random_problem(
 async def get_problem(
     problem_id: UUID,
     request: Request,
+    include_metadata: bool = False,
     current_key: dict = Depends(get_current_api_key),
     service: ProblemService = Depends(get_problem_service),
 ) -> ProblemResponse:
@@ -236,7 +236,7 @@ async def get_problem(
                 detail="Problem not found",
             )
 
-        return ProblemResponse.from_problem(problem)
+        return ProblemResponse.from_problem(problem, include_metadata=include_metadata)
 
     except HTTPException:
         raise

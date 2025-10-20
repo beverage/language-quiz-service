@@ -3,6 +3,7 @@
 import logging
 from uuid import UUID
 
+from src.cache import api_key_cache
 from src.clients.supabase import get_supabase_client
 from src.core.exceptions import NotFoundError, RepositoryError, ServiceError
 from src.repositories.api_keys_repository import ApiKeyRepository
@@ -46,6 +47,9 @@ class ApiKeyService:
         # Create the API key in the database
         api_key = await repo.create_api_key(api_key_data, key_hash, key_prefix)
 
+        # Refresh cache with new key
+        await api_key_cache.refresh_key(api_key)
+
         # Return the response with the plain text key (only time it's shown)
         return ApiKeyWithPlainText(
             api_key=api_key_plain,
@@ -79,12 +83,22 @@ class ApiKeyService:
 
         if not api_key:
             raise NotFoundError(f"API key with ID {api_key_id} not found")
+
+        # Refresh cache with updated key
+        await api_key_cache.refresh_key(api_key)
+
         return ApiKeyResponse.model_validate(api_key.model_dump())
 
     async def revoke_api_key(self, api_key_id: UUID) -> bool:
         """Revoke an API key (soft delete)."""
         repo = await self._get_api_key_repository()
-        return await repo.delete_api_key(api_key_id)
+        success = await repo.delete_api_key(api_key_id)
+
+        if success:
+            # Invalidate cache
+            await api_key_cache.invalidate_key(api_key_id)
+
+        return success
 
     async def authenticate_api_key(
         self, api_key_plain: str, client_ip: str | None = None
@@ -99,7 +113,12 @@ class ApiKeyService:
         Returns:
             ApiKeyResponse if valid, None if invalid
         """
-        if not api_key_plain or not api_key_plain.startswith("sk_"):
+        # Allow both production keys (sk_*) and test keys (test_key_*)
+        if not api_key_plain or not (
+            api_key_plain.startswith("sk_")
+            or api_key_plain.startswith("test_key_")
+            or api_key_plain.startswith("lqs_")
+        ):
             return None
 
         repo = await self._get_api_key_repository()
@@ -108,8 +127,16 @@ class ApiKeyService:
             # Get the key prefix for lookup (first 12 chars to match generation function)
             key_prefix = api_key_plain[:12]  # sk_live_ + first 4 chars
 
-            # Look up the key by prefix
-            api_key = await repo.get_api_key_by_prefix(key_prefix)
+            # Try cache first (hot path optimization)
+            api_key = await api_key_cache.get_by_prefix(key_prefix)
+
+            # Cache miss - look up in database
+            if not api_key:
+                api_key = await repo.get_api_key_by_prefix(key_prefix)
+
+                # Warm cache for next time
+                if api_key and api_key.is_active:
+                    await api_key_cache.refresh_key(api_key)
 
             if not api_key or not api_key.is_active:
                 logger.warning(
@@ -129,8 +156,10 @@ class ApiKeyService:
                 )
                 return None
 
-            # Increment usage count atomically
-            await repo.increment_usage(api_key.id)
+            # Increment usage count atomically (fire-and-forget to not block request)
+            import asyncio
+
+            asyncio.create_task(repo.increment_usage(api_key.id))
 
             logger.info(f"API key authenticated: {api_key.name} ({api_key.key_prefix})")
 

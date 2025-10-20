@@ -30,7 +30,7 @@ class TestApiKeyRepository:
         key_name = f"test-key-{uuid.uuid4()}"
         key_data = ApiKeyCreate(name=key_name, permissions_scope=["read"])
         key_hash = f"testhash-{uuid.uuid4()}"
-        key_prefix = f"sk_test_{uuid.uuid4()}"
+        key_prefix = f"test_prefix_{uuid.uuid4()}"
 
         created_key = await self.repository.create_api_key(
             key_data, key_hash, key_prefix
@@ -64,7 +64,7 @@ class TestApiKeyRepository:
 
     async def test_get_api_key_by_prefix_success(self):
         """Test retrieving an API key by its prefix."""
-        prefix = f"sk_test_{uuid.uuid4()}"
+        prefix = f"test_prefix_{uuid.uuid4()}"
         key_data = ApiKeyCreate(
             name=f"prefix-test-{uuid.uuid4()}", permissions_scope=["read"]
         )

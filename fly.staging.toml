@@ -13,12 +13,18 @@ primary_region = 'ams'
   WEB_PORT = "8080"
   RATE_LIMIT_REQUESTS = "100"
 
+  # OpenTelemetry Resource Attributes
+  OTEL_SERVICE_NAME = "language-quiz-service"
+  OTEL_SERVICE_NAMESPACE = "lqs"
+  OTEL_DEPLOYMENT_ENVIRONMENT = "staging"
+
 [http_service]
   internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
+  max_machines_running = 1  # Single instance for in-memory cache
   processes = ['app']
 
 [[vm]]

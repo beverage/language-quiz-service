@@ -22,7 +22,10 @@ class Settings(BaseSettings):
     port: int = Field(default=8000, alias="WEB_PORT")
 
     # Security & CORS
-    cors_origins: list[str] = Field(default=["*"])
+    cors_origins: list[str] = Field(
+        default=["*"],
+        description="Allowed CORS origins (comma-separated in env: CORS_ORIGINS)",
+    )
 
     # Rate Limiting
     rate_limit_requests: int = Field(
@@ -36,6 +39,13 @@ class Settings(BaseSettings):
     environment: str = Field(default="development")
     debug: bool = Field(default=False)
 
+    # Authentication settings
+    require_auth: bool = Field(
+        default=True,
+        alias="REQUIRE_AUTH",
+        description="Require authentication (default: true for security)",
+    )
+
     # OpenAI API settings
     openai_api_key: str = Field(default="test_key", alias="OPENAI_API_KEY")
     openai_model: str = "gpt-4-turbo-preview"
@@ -45,6 +55,19 @@ class Settings(BaseSettings):
     supabase_key: str = Field(default="test_key", alias="SUPABASE_SERVICE_ROLE_KEY")
     supabase_anon_key: str = Field(default="test_key", alias="SUPABASE_ANON_KEY")
     supabase_project_ref: str = Field(default="test_ref", alias="SUPABASE_PROJECT_REF")
+
+    # Observability - Grafana Cloud (OpenTelemetry)
+    grafana_cloud_instance_id: str | None = Field(
+        default=None, alias="GRAFANA_CLOUD_INSTANCE_ID"
+    )
+    grafana_cloud_api_key: str | None = Field(
+        default=None, alias="GRAFANA_CLOUD_API_KEY"
+    )
+    otel_exporter_otlp_endpoint: str | None = Field(
+        default=None,
+        alias="OTEL_EXPORTER_OTLP_ENDPOINT",
+        description="OpenTelemetry OTLP endpoint (e.g., Grafana Cloud)",
+    )
 
     model_config = ConfigDict(
         env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
@@ -56,12 +79,42 @@ class Settings(BaseSettings):
         return self.environment == "production"
 
     @property
+    def is_staging(self) -> bool:
+        """Check if running in staging environment."""
+        return self.environment == "staging"
+
+    @property
+    def is_development(self) -> bool:
+        """Check if running in development environment."""
+        return self.environment.lower() in ("development", "dev", "local")
+
+    @property
+    def should_require_auth(self) -> bool:
+        """Determine if authentication should be required."""
+        return self.require_auth or self.is_production or self.is_staging
+
+    @property
     def production_cors_origins(self) -> list[str]:
-        """Get production-safe CORS origins."""
-        if self.is_production:
-            # In production, be more restrictive - only allow specific domains
-            # For now, still allow all origins but this is where you'd add specific domains
-            return ["*"]  # TODO: Replace with actual production domains
+        """
+        Get CORS origins appropriate for the current environment.
+
+        In staging/production: REQUIRES explicit CORS_ORIGINS configuration.
+        In development: Uses configured cors_origins (defaults to ["*"]).
+
+        Raises:
+            ValueError: If CORS_ORIGINS is not explicitly set in staging/production.
+        """
+        if self.is_production or self.is_staging:
+            # REQUIRE explicit configuration in staging/production
+            if self.cors_origins == ["*"]:
+                raise ValueError(
+                    f"CORS_ORIGINS must be explicitly configured in {self.environment} environment. "
+                    "Set CORS_ORIGINS environment variable to allowed domains, e.g.: "
+                    'CORS_ORIGINS=\'["https://example.com","https://www.example.com"]\''
+                )
+            return self.cors_origins
+
+        # Development: allow default (["*"])
         return self.cors_origins
 
 

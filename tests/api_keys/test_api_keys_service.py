@@ -120,6 +120,6 @@ class TestApiKeyServiceIntegration:
     ):
         """Test that authentication returns None for an invalid or non-existent key."""
         result = await api_key_service.authenticate_api_key(
-            "sk_live_thisisnotarealkeyandisinvalid"
+            "test_key_invalid_not_a_real_key_12345678"
         )
         assert result is None

@@ -16,7 +16,7 @@ from src.schemas.problems import (
     ProblemType,
     ProblemUpdate,
 )
-from supabase import Client
+from supabase import AsyncClient
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +25,13 @@ class ProblemRepository:
     """Repository for problem data access operations."""
 
     @classmethod
-    async def create(cls, client: Client | None = None) -> "ProblemRepository":
+    async def create(cls, client: AsyncClient | None = None) -> "ProblemRepository":
         """Asynchronously create an instance of ProblemRepository."""
         if client is None:
             client = await get_supabase_client()
         return cls(client)
 
-    def __init__(self, client: Client):
+    def __init__(self, client: AsyncClient):
         """Initialize the repository with a Supabase client."""
         self.client = client
 

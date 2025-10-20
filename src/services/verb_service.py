@@ -1,11 +1,14 @@
 """Verb service for business logic with updated schema support."""
 
+import asyncio
 import json
 import logging
 from uuid import UUID
 
+from opentelemetry import trace
 from pydantic import ValidationError
 
+from src.cache import conjugation_cache, verb_cache
 from src.clients.openai_client import OpenAIClient
 from src.clients.supabase import get_supabase_client
 from src.core.exceptions import ContentGenerationError
@@ -22,9 +25,10 @@ from src.schemas.verbs import (
     VerbUpdate,
     VerbWithConjugations,
 )
-from supabase import Client
+from supabase import AsyncClient
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class VerbService:
@@ -33,7 +37,7 @@ class VerbService:
         self.openai_client: OpenAIClient = OpenAIClient()
         self.verb_prompt_generator: VerbPromptGenerator = VerbPromptGenerator()
         self.verb_repository: VerbRepository | None = None
-        self.db_client: Client | None = None
+        self.db_client: AsyncClient | None = None
 
     async def _get_db_client(self):
         if not self.db_client:
@@ -51,7 +55,12 @@ class VerbService:
     async def create_verb(self, verb_data: VerbCreate) -> Verb:
         """Create a new verb."""
         repo = await self._get_verb_repository()
-        return await repo.create_verb(verb_data)
+        verb = await repo.create_verb(verb_data)
+
+        # Refresh cache with new verb
+        await verb_cache.refresh_verb(verb)
+
+        return verb
 
     async def delete_verb(self, verb_id: UUID) -> bool:
         """Delete a verb and all its conjugations."""
@@ -69,7 +78,18 @@ class VerbService:
         )
 
         # Then delete the verb
-        return await repo.delete_verb(verb_id)
+        success = await repo.delete_verb(verb_id)
+
+        if success:
+            # Invalidate caches
+            await verb_cache.invalidate_verb(verb_id)
+            await conjugation_cache.invalidate_verb_conjugations(
+                verb.infinitive,
+                verb.auxiliary.value,
+                verb.reflexive,
+            )
+
+        return success
 
     async def get_all_verbs(
         self, limit: int = 100, target_language_code: str | None = None
@@ -81,18 +101,37 @@ class VerbService:
         )
 
     async def get_random_verb(self, target_language_code: str = "eng") -> Verb | None:
-        """Get a random verb."""
-        repo = await self._get_verb_repository()
-        verb = await repo.get_random_verb(target_language_code)
+        """Get a random verb from cache."""
+        verb = await verb_cache.get_random_verb(target_language_code)
         if verb:
-            # Update last used timestamp
-            await repo.update_last_used(verb.id)
+            # Update last used timestamp (fire and forget)
+            asyncio.create_task(self._update_last_used_background(verb.id))
         return verb
+
+    async def _update_last_used_background(self, verb_id: UUID) -> None:
+        """Update last_used_at timestamp in background (fire and forget)."""
+        try:
+            repo = await self._get_verb_repository()
+            await repo.update_last_used(verb_id)
+        except Exception as e:
+            logger.warning(f"Failed to update last_used for verb {verb_id}: {e}")
 
     async def get_verb(self, verb_id: UUID) -> Verb | None:
         """Get a verb by ID."""
+        # Try cache first
+        verb = await verb_cache.get_by_id(verb_id)
+        if verb:
+            return verb
+
+        # Cache miss - fetch from database
         repo = await self._get_verb_repository()
-        return await repo.get_verb(verb_id)
+        verb = await repo.get_verb(verb_id)
+
+        # Warm cache for next time
+        if verb:
+            await verb_cache.refresh_verb(verb)
+
+        return verb
 
     async def get_verb_by_infinitive(
         self,
@@ -104,16 +143,41 @@ class VerbService:
         """
         Get a verb by infinitive and optional parameters.
 
-        Since infinitive is no longer unique, additional parameters may be needed.
-        If not specified, returns the first match found.
+        The infinitive should include "se " prefix for reflexive verbs (e.g., "se coucher").
+        Additional parameters (auxiliary, reflexive) can be used for exact matching if needed.
         """
-        repo = await self._get_verb_repository()
-        return await repo.get_verb_by_infinitive(
-            infinitive=infinitive,
-            auxiliary=auxiliary,
-            reflexive=reflexive,
-            target_language_code=target_language_code,
-        )
+        with tracer.start_as_current_span(
+            "verb_service.get_verb_by_infinitive",
+            attributes={"infinitive": infinitive},
+        ):
+            # Try cache first with simple infinitive lookup
+            verb = await verb_cache.get_by_infinitive_simple(
+                infinitive, target_language_code
+            )
+            if verb:
+                # If we have additional filters, verify they match
+                if auxiliary is not None and verb.auxiliary.value != auxiliary:
+                    verb = None
+                elif reflexive is not None and verb.reflexive != reflexive:
+                    verb = None
+
+                if verb:
+                    return verb
+
+            # Cache miss or filter mismatch - fetch from database
+            repo = await self._get_verb_repository()
+            verb = await repo.get_verb_by_infinitive(
+                infinitive=infinitive,
+                auxiliary=auxiliary,
+                reflexive=reflexive,
+                target_language_code=target_language_code,
+            )
+
+            # Warm cache for next time
+            if verb:
+                await verb_cache.refresh_verb(verb)
+
+            return verb
 
     async def get_verbs_by_infinitive(self, infinitive: str) -> list[Verb]:
         """Get all verb variants with the same infinitive."""
@@ -123,23 +187,48 @@ class VerbService:
     async def update_verb(self, verb_id: UUID, verb_data: VerbUpdate) -> Verb | None:
         """Update a verb."""
         repo = await self._get_verb_repository()
-        return await repo.update_verb(verb_id, verb_data)
+        verb = await repo.update_verb(verb_id, verb_data)
+
+        # Refresh cache with updated verb
+        if verb:
+            await verb_cache.refresh_verb(verb)
+
+        return verb
 
     # ===== CONJUGATION OPERATIONS =====
 
     async def create_conjugation(self, conjugation: ConjugationCreate) -> Conjugation:
         """Create a new conjugation."""
         repo = await self._get_verb_repository()
-        return await repo.create_conjugation(conjugation)
+        conj = await repo.create_conjugation(conjugation)
+
+        # Refresh cache with new conjugation
+        await conjugation_cache.refresh_conjugation(conj)
+
+        return conj
 
     async def get_conjugations(
         self, infinitive: str, auxiliary: str, reflexive: bool = False
     ) -> list[Conjugation]:
         """Get all conjugations for a verb."""
+        # Try cache first
+        conjugations = await conjugation_cache.get_conjugations_for_verb(
+            infinitive, auxiliary, reflexive
+        )
+        if conjugations:
+            return conjugations
+
+        # Cache miss - fetch from database
         repo = await self._get_verb_repository()
-        return await repo.get_conjugations(
+        conjugations = await repo.get_conjugations(
             infinitive=infinitive, auxiliary=auxiliary, reflexive=reflexive
         )
+
+        # Warm cache for next time
+        for conj in conjugations:
+            await conjugation_cache.refresh_conjugation(conj)
+
+        return conjugations
 
     async def get_conjugations_by_verb_id(self, verb_id: UUID) -> list[Conjugation]:
         """Get conjugations by verb ID (backwards compatibility)."""
@@ -164,13 +253,19 @@ class VerbService:
     ) -> Conjugation | None:
         """Update a conjugation by verb parameters and tense."""
         repo = await self._get_verb_repository()
-        return await repo.update_conjugation_by_verb_and_tense(
+        conj = await repo.update_conjugation_by_verb_and_tense(
             infinitive=infinitive,
             auxiliary=auxiliary,
             reflexive=reflexive,
             tense=tense,
             conjugation=conjugation_data,
         )
+
+        # Refresh cache with updated conjugation
+        if conj:
+            await conjugation_cache.refresh_conjugation(conj)
+
+        return conj
 
     # ===== COMPOSITE OPERATIONS =====
 
@@ -226,79 +321,91 @@ class VerbService:
         Phase 1: Get verb data without COD/COI flags
         Phase 2: Use auxiliary to determine COD/COI flags
         """
-        logger.info("Fetching verb %s", requested_verb)
+        with tracer.start_as_current_span(
+            "verb_service.download_verb",
+            attributes={
+                "verb": requested_verb,
+                "target_language": target_language_code,
+            },
+        ):
+            logger.info("Fetching verb %s", requested_verb)
 
-        # Phase 1: Generate main verb prompt (without COD/COI)
-        verb_prompt = self.verb_prompt_generator.generate_verb_prompt(
-            verb_infinitive=requested_verb, target_language_code=target_language_code
-        )
-
-        # Get AI response for main verb data
-        llm_response = await self.openai_client.handle_request(verb_prompt)
-        logger.debug("✅ LLM Response: %s", llm_response)
-
-        repo = await self._get_verb_repository()
-        try:
-            response_json = json.loads(llm_response)
-            verb_payload = LLMVerbPayload.model_validate(response_json)
-        except (json.JSONDecodeError, ValidationError) as e:
-            logger.error(f"Failed to decode or validate LLM response: {e}")
-            raise ContentGenerationError(
-                content_type="verb",
-                message=f"Failed to parse verb data from AI for '{requested_verb}'",
-            ) from e
-
-        # Check if this specific verb variant already exists using the correct unique tuple
-        # NOTE: Verb uniqueness is determined by (infinitive, auxiliary, reflexive, target_language_code)
-        existing_verb = await repo.get_verb_by_infinitive(
-            infinitive=verb_payload.infinitive,
-            auxiliary=verb_payload.auxiliary.value,
-            reflexive=verb_payload.reflexive,
-            target_language_code=target_language_code,  # Include in uniqueness check
-        )
-        if existing_verb:
-            raise ContentGenerationError(
-                content_type="verb",
-                message=f"Verb '{verb_payload.infinitive}' with auxiliary '{verb_payload.auxiliary.value}', reflexive={verb_payload.reflexive}, and target_language='{target_language_code}' already exists.",
+            # Phase 1: Generate main verb prompt (without COD/COI)
+            verb_prompt = self.verb_prompt_generator.generate_verb_prompt(
+                verb_infinitive=requested_verb,
+                target_language_code=target_language_code,
             )
 
-        # Phase 2: Use the auxiliary from Phase 1 to determine COD/COI
-        objects_prompt = self.verb_prompt_generator.generate_objects_prompt(
-            verb_infinitive=verb_payload.infinitive,
-            auxiliary=verb_payload.auxiliary.value,
-        )
-        objects_response = await self.openai_client.handle_request(objects_prompt)
-        logger.debug(
-            "✅ Objects Response (%s, %s): %s",
-            verb_payload.infinitive,
-            verb_payload.auxiliary,
-            objects_response,
-        )
+            # Get AI response for main verb data
+            llm_response = await self.openai_client.handle_request(
+                verb_prompt, operation="verb_analysis"
+            )
+            logger.debug("✅ LLM Response: %s", llm_response)
 
-        try:
-            objects_json = json.loads(objects_response)
-            can_have_cod = objects_json.get("can_have_cod", True)
-            can_have_coi = objects_json.get("can_have_coi", True)
-        except json.JSONDecodeError:
-            logger.warning("Failed to decode COD/COI response, using defaults.")
-            can_have_cod, can_have_coi = True, True
+            repo = await self._get_verb_repository()
+            try:
+                response_json = json.loads(llm_response)
+                verb_payload = LLMVerbPayload.model_validate(response_json)
+            except (json.JSONDecodeError, ValidationError) as e:
+                logger.error(f"Failed to decode or validate LLM response: {e}")
+                raise ContentGenerationError(
+                    content_type="verb",
+                    message=f"Failed to parse verb data from AI for '{requested_verb}'",
+                ) from e
 
-        # Create a new VerbCreate object with all the data
-        verb_data = verb_payload.model_dump()
-        verb_data.pop("can_have_cod", None)
-        verb_data.pop("can_have_coi", None)
+            # Check if this specific verb variant already exists using the correct unique tuple
+            # NOTE: Verb uniqueness is determined by (infinitive, auxiliary, reflexive, target_language_code)
+            existing_verb = await repo.get_verb_by_infinitive(
+                infinitive=verb_payload.infinitive,
+                auxiliary=verb_payload.auxiliary.value,
+                reflexive=verb_payload.reflexive,
+                target_language_code=target_language_code,  # Include in uniqueness check
+            )
+            if existing_verb:
+                raise ContentGenerationError(
+                    content_type="verb",
+                    message=f"Verb '{verb_payload.infinitive}' with auxiliary '{verb_payload.auxiliary.value}', reflexive={verb_payload.reflexive}, and target_language='{target_language_code}' already exists.",
+                )
 
-        verb_to_create = VerbCreate(
-            **verb_data,
-            can_have_cod=can_have_cod,
-            can_have_coi=can_have_coi,
-        )
+            # Phase 2: Use the auxiliary from Phase 1 to determine COD/COI
+            objects_prompt = self.verb_prompt_generator.generate_objects_prompt(
+                verb_infinitive=verb_payload.infinitive,
+                auxiliary=verb_payload.auxiliary.value,
+            )
+            objects_response = await self.openai_client.handle_request(
+                objects_prompt, operation="verb_object_detection"
+            )
+            logger.debug(
+                "✅ Objects Response (%s, %s): %s",
+                verb_payload.infinitive,
+                verb_payload.auxiliary,
+                objects_response,
+            )
 
-        # Upsert the verb and its conjugations
-        verb = await self._upsert_verb(verb_to_create, repo)
-        await self._process_conjugations(verb, verb_payload.tenses, repo)
+            try:
+                objects_json = json.loads(objects_response)
+                can_have_cod = objects_json.get("can_have_cod", True)
+                can_have_coi = objects_json.get("can_have_coi", True)
+            except json.JSONDecodeError:
+                logger.warning("Failed to decode COD/COI response, using defaults.")
+                can_have_cod, can_have_coi = True, True
 
-        return verb
+            # Create a new VerbCreate object with all the data
+            verb_data = verb_payload.model_dump()
+            verb_data.pop("can_have_cod", None)
+            verb_data.pop("can_have_coi", None)
+
+            verb_to_create = VerbCreate(
+                **verb_data,
+                can_have_cod=can_have_cod,
+                can_have_coi=can_have_coi,
+            )
+
+            # Upsert the verb and its conjugations
+            verb = await self._upsert_verb(verb_to_create, repo)
+            await self._process_conjugations(verb, verb_payload.tenses, repo)
+
+            return verb
 
     async def _upsert_verb(self, verb_data: VerbCreate, repo: VerbRepository) -> Verb:
         """Helper to upsert a verb."""
