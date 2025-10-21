@@ -88,6 +88,7 @@ class OpenAIClient:
             response = await self.client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
+                service_tier="priority",
             )
 
             # Calculate duration

@@ -16,6 +16,8 @@ services:
     env_file:
       - .env.compose.local
     environment:
+      # Environment type - enables hot-reload for uvicorn
+      - ENVIRONMENT=local
       # Connect to Supabase Kong container on Docker network  
       - SUPABASE_URL=http://supabase_kong_language-quiz-service:8000
       # Authentication - bypass in local development
