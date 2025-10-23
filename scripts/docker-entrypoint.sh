@@ -19,5 +19,13 @@ else
     echo "⚡ OpenTelemetry disabled (no OTEL_EXPORTER_OTLP_ENDPOINT set)"
 fi
 
+# Build uvicorn command with optional reload flag for local development
+UVICORN_CMD="/app/.venv/bin/uvicorn src.main:app --host ${WEB_HOST:-0.0.0.0} --port ${WEB_PORT:-8000}"
+
+if [ "${ENVIRONMENT}" = "local" ] || [ "${ENVIRONMENT}" = "development" ]; then
+    echo "🔄 Hot-reload enabled"
+    UVICORN_CMD="$UVICORN_CMD --reload"
+fi
+
 # Start the application
-cd /app && exec /app/.venv/bin/uvicorn src.main:app --host "${WEB_HOST:-0.0.0.0}" --port "${WEB_PORT:-8000}"
+cd /app && exec $UVICORN_CMD

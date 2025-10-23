@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+import os
 import traceback
 
 import asyncclick as click
@@ -21,6 +22,7 @@ from src.cli.cloud.service import down as service_down
 from src.cli.cloud.service import up as service_up
 from src.cli.database.clear import clear_database
 from src.cli.database.init import init_verbs
+from src.cli.database.wipe import wipe_database
 from src.cli.problems.create import (
     create_random_problem,
     create_random_problem_with_delay,
@@ -68,6 +70,27 @@ async def cli(
 ):
     # Load environment variables from .env file
     load_dotenv()
+
+    # If --local flag is set, override Supabase credentials to use local instance
+    if local:
+        from src.cli.utils.local_supabase import get_local_supabase_config
+        from src.core.config import reset_settings
+
+        click.echo("🔧 Configuring local Supabase connection...")
+        local_config = get_local_supabase_config()
+
+        click.echo(f"   Setting SUPABASE_URL to {local_config['SUPABASE_URL']}")
+        for key, value in local_config.items():
+            if value:  # Only set if value is non-empty
+                os.environ[key] = value
+
+        # Force settings reload with new environment variables
+        reset_settings()
+
+        # Verify the override worked
+        from src.core.config import settings
+
+        click.echo(f"   ✅ Settings now use: {settings.supabase_url}")
 
     logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
 
@@ -122,6 +145,7 @@ async def database():
 
 database.add_command(clear_database, name="clean")
 database.add_command(init_verbs, name="init")
+database.add_command(wipe_database, name="wipe")
 
 
 @cli.group()

@@ -12,6 +12,7 @@ from src.core.exceptions import (
     NotFoundError,
     ServiceError,
 )
+from src.prompts.compositional_prompts import CompositionalPromptBuilder
 from src.repositories.problem_repository import ProblemRepository
 from src.schemas.problems import (
     GrammarProblemConstraints,
@@ -44,11 +45,15 @@ class ProblemService:
         problem_repository: ProblemRepository | None = None,
         sentence_service: SentenceService | None = None,
         verb_service: VerbService | None = None,
+        compositional_builder: CompositionalPromptBuilder | None = None,
     ):
         """Initialize the problems service with injectable dependencies."""
         self.problem_repository = problem_repository
         self.sentence_service = sentence_service or SentenceService()
         self.verb_service = verb_service or VerbService()
+        self.compositional_builder = (
+            compositional_builder or CompositionalPromptBuilder()
+        )
 
     async def _get_problem_repository(self) -> ProblemRepository:
         """Asynchronously get the problems repository, creating it if it doesn't exist."""
@@ -134,25 +139,69 @@ class ProblemService:
 
         logger.debug(f"📝 Selected verb: {verb.infinitive}")
 
+        # Step 1b: Fetch conjugations once for all sentences (performance optimization)
+        conjugations = await self.verb_service.get_conjugations(
+            infinitive=verb.infinitive,
+            auxiliary=verb.auxiliary.value,
+            reflexive=verb.reflexive,
+        )
+        logger.debug(
+            f"📚 Fetched {len(conjugations)} conjugations for {verb.infinitive}"
+        )
+
         # Step 2: Generate random grammatical parameters
         grammatical_params = self._generate_grammatical_parameters(verb, constraints)
+
+        # Step 2b: Select error types for incorrect sentences using compositional approach
+        # Create a temporary sentence object to determine available error types
+        from src.schemas.sentences import SentenceBase
+
+        temp_sentence = SentenceBase(
+            content="",
+            translation="",
+            verb_id=verb.id,
+            is_correct=False,
+            **grammatical_params,
+        )
+
+        # Select 3 error types (one per incorrect sentence)
+        selected_error_types = self.compositional_builder.select_error_types(
+            temp_sentence, verb, count=statement_count - 1
+        )
+        logger.debug(
+            f"🎯 Selected error types: {[e.value for e in selected_error_types]}"
+        )
 
         # Step 3: Generate statements using your existing sentence system (in parallel)
         correct_answer_index = random.randint(0, statement_count - 1)
 
+        # Select unique pronouns for variety (avoid repetition)
+        available_pronouns = list(Pronoun)
+        random.shuffle(available_pronouns)
+        selected_pronouns = available_pronouns[:statement_count]
+
         # Prepare all sentence generation tasks
         sentence_tasks = []
+        error_type_index = 0
         for i in range(statement_count):
             is_correct = i == correct_answer_index
 
-            # Generate sentence with variations for incorrect answers
-            sentence_params = self._vary_parameters_for_statement(
-                grammatical_params, i, is_correct, verb
-            )
+            # Determine error type for this incorrect sentence
+            error_type = None
+            if not is_correct:
+                # Cycle through available error types (reusing is fine - each will produce different errors)
+                error_type = selected_error_types[
+                    error_type_index % len(selected_error_types)
+                ]
+                error_type_index += 1
+
+            # Use base parameters but vary the pronoun for each sentence
+            sentence_params = grammatical_params.copy()
+            sentence_params["pronoun"] = selected_pronouns[i]
 
             logger.debug(
                 f"🔄 Preparing statement {i+1}/{statement_count} "
-                f"{'(correct)' if is_correct else '(incorrect)'}"
+                f"{'(correct)' if is_correct else f'(incorrect: {error_type.value})'}"
             )
 
             # Create task but don't await yet
@@ -161,6 +210,9 @@ class ProblemService:
                 **sentence_params,
                 is_correct=is_correct,
                 target_language_code=target_language_code,
+                error_type=error_type,  # Pass the selected error type
+                verb=verb,  # Pass pre-fetched verb to avoid duplicate DB call
+                conjugations=conjugations,  # Pass pre-fetched conjugations
             )
             sentence_tasks.append(task)
 
@@ -289,74 +341,78 @@ class ProblemService:
             "negation": negation,
         }
 
-    def _vary_parameters_for_statement(
-        self,
-        base_params: dict[str, Any],
-        statement_index: int,
-        is_correct: bool,
-        verb,
-    ) -> dict[str, Any]:
-        """Create parameter variations for each statement."""
-        params = base_params.copy()
-
-        if is_correct:
-            # Correct statement uses base parameters as-is
-            return params
-
-        # For incorrect statements, introduce targeted errors
-        error_type = statement_index % 3  # Cycle through error types
-
-        if error_type == 0 and params["direct_object"] != DirectObject.NONE:
-            # Error: Wrong direct object type or incorrect indirect object usage
-            if random.choice([True, False]):
-                # Switch to indirect object incorrectly
-                params["direct_object"] = DirectObject.NONE
-                params["indirect_object"] = random.choice(
-                    [i for i in IndirectObject if i != IndirectObject.NONE]
-                )
-            else:
-                # Wrong direct object gender/number
-                current = params["direct_object"]
-                available = [
-                    d for d in DirectObject if d != DirectObject.NONE and d != current
-                ]
-                if available:
-                    params["direct_object"] = random.choice(available)
-
-        elif error_type == 1 and params["indirect_object"] != IndirectObject.NONE:
-            # Error: Wrong indirect object type or incorrect direct object usage
-            if random.choice([True, False]):
-                # Switch to direct object incorrectly
-                params["indirect_object"] = IndirectObject.NONE
-                params["direct_object"] = random.choice(
-                    [d for d in DirectObject if d != DirectObject.NONE]
-                )
-            else:
-                # Wrong indirect object gender/number
-                current = params["indirect_object"]
-                available = [
-                    i
-                    for i in IndirectObject
-                    if i != IndirectObject.NONE and i != current
-                ]
-                if available:
-                    params["indirect_object"] = random.choice(available)
-
-        elif error_type == 2:
-            # Error: Wrong negation or pronoun agreement
-            if params["negation"] != Negation.NONE:
-                # Wrong negation type
-                current = params["negation"]
-                available = [n for n in Negation if n != Negation.NONE and n != current]
-                if available:
-                    params["negation"] = random.choice(available)
-            else:
-                # Add incorrect negation
-                params["negation"] = random.choice(
-                    [n for n in Negation if n != Negation.NONE]
-                )
-
-        return params
+    # NOTE: Legacy method - no longer used with compositional prompt builder
+    # The compositional approach generates errors through targeted prompts rather than
+    # parameter variation. This method is kept for reference/rollback purposes.
+    #
+    # def _vary_parameters_for_statement(
+    #     self,
+    #     base_params: dict[str, Any],
+    #     statement_index: int,
+    #     is_correct: bool,
+    #     verb,
+    # ) -> dict[str, Any]:
+    #     """Create parameter variations for each statement."""
+    #     params = base_params.copy()
+    #
+    #     if is_correct:
+    #         # Correct statement uses base parameters as-is
+    #         return params
+    #
+    #     # For incorrect statements, introduce targeted errors
+    #     error_type = statement_index % 3  # Cycle through error types
+    #
+    #     if error_type == 0 and params["direct_object"] != DirectObject.NONE:
+    #         # Error: Wrong direct object type or incorrect indirect object usage
+    #         if random.choice([True, False]):
+    #             # Switch to indirect object incorrectly
+    #             params["direct_object"] = DirectObject.NONE
+    #             params["indirect_object"] = random.choice(
+    #                 [i for i in IndirectObject if i != IndirectObject.NONE]
+    #             )
+    #         else:
+    #             # Wrong direct object gender/number
+    #             current = params["direct_object"]
+    #             available = [
+    #                 d for d in DirectObject if d != DirectObject.NONE and d != current
+    #             ]
+    #             if available:
+    #                 params["direct_object"] = random.choice(available)
+    #
+    #     elif error_type == 1 and params["indirect_object"] != IndirectObject.NONE:
+    #         # Error: Wrong indirect object type or incorrect direct object usage
+    #         if random.choice([True, False]):
+    #             # Switch to direct object incorrectly
+    #             params["indirect_object"] = IndirectObject.NONE
+    #             params["direct_object"] = random.choice(
+    #                 [d for d in DirectObject if d != DirectObject.NONE]
+    #             )
+    #         else:
+    #             # Wrong indirect object gender/number
+    #             current = params["indirect_object"]
+    #             available = [
+    #                 i
+    #                 for i in IndirectObject
+    #                 if i != IndirectObject.NONE and i != current
+    #             ]
+    #             if available:
+    #                 params["indirect_object"] = random.choice(available)
+    #
+    #     elif error_type == 2:
+    #         # Error: Wrong negation or pronoun agreement
+    #         if params["negation"] != Negation.NONE:
+    #             # Wrong negation type
+    #             current = params["negation"]
+    #             available = [n for n in Negation if n != Negation.NONE and n != current]
+    #             if available:
+    #                 params["negation"] = random.choice(available)
+    #         else:
+    #             # Add incorrect negation
+    #             params["negation"] = random.choice(
+    #                 [n for n in Negation if n != Negation.NONE]
+    #             )
+    #
+    #     return params
 
     def _package_grammar_problem(
         self,

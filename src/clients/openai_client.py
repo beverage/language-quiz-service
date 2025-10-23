@@ -66,29 +66,42 @@ class OpenAIClient:
             max_retries=1,  # Limit retries to avoid cost accumulation
         )
 
-    async def handle_request(self, prompt: str, operation: str | None = None) -> str:
+    async def handle_request(
+        self, prompt: str, model: str, operation: str | None = None
+    ) -> str:
         """
         Send a chat completion request to OpenAI and return the content string.
 
         Args:
             prompt: The prompt to send to OpenAI
+            model: The model to use (e.g., "gpt-4o-mini", "gpt-5-nano-2025-08-07")
             operation: Optional operation name for metrics (e.g., "problem_generation", "sentence_validation")
 
         Returns:
             Cleaned response content
         """
-        model = "gpt-4o-mini"
         start_time = time.time()
         status = "success"
+
+        # Determine if this is a reasoning model (o1, o3, or gpt-5 series)
+        is_reasoning_model = any(x in model.lower() for x in ["o1", "o3", "gpt-5"])
 
         # Get current span for adding attributes
         span = trace.get_current_span()
 
         try:
-            response = await self.client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-            )
+            # Build request parameters
+            request_params = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "service_tier": "priority",
+            }
+
+            # Only add reasoning_effort for reasoning models
+            if is_reasoning_model:
+                request_params["reasoning_effort"] = "low"
+
+            response = await self.client.chat.completions.create(**request_params)
 
             # Calculate duration
             duration_ms = (time.time() - start_time) * 1000

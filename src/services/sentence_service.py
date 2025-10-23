@@ -7,8 +7,12 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from src.clients.openai_client import OpenAIClient
+from src.core.config import settings
 from src.core.exceptions import ContentGenerationError, NotFoundError
-from src.prompts.sentence_prompts import SentencePromptGenerator
+from src.prompts.compositional_prompts import (
+    CompositionalPromptBuilder,
+    ErrorType,
+)
 from src.repositories.sentence_repository import SentenceRepository
 from src.schemas.sentences import (
     CorrectnessValidationResponse,
@@ -21,6 +25,7 @@ from src.schemas.sentences import (
     SentenceUpdate,
     Tense,
 )
+from src.schemas.verbs import Verb
 from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
@@ -32,13 +37,17 @@ class SentenceService:
         openai_client: OpenAIClient = None,
         sentence_repository: SentenceRepository | None = None,
         verb_service: VerbService | None = None,
-        prompt_generator: SentencePromptGenerator | None = None,
+        compositional_builder: CompositionalPromptBuilder | None = None,
+        use_compositional: bool = True,
     ):
         """Initialize the sentence service with injectable dependencies."""
         self.openai_client = openai_client or OpenAIClient()
         self.sentence_repository = sentence_repository
         self.verb_service = verb_service or VerbService()
-        self.prompt_generator = prompt_generator or SentencePromptGenerator()
+        self.compositional_builder = (
+            compositional_builder or CompositionalPromptBuilder()
+        )
+        self.use_compositional = use_compositional
 
     async def _get_sentence_repository(self) -> SentenceRepository:
         """Asynchronously get the sentence repository, creating it if it doesn't exist."""
@@ -56,7 +65,7 @@ class SentenceService:
 
             # Get AI response
             response = await self.openai_client.handle_request(
-                prompt, operation="sentence_validation"
+                prompt, model=settings.reasoning_model, operation="sentence_validation"
             )
 
             # Parse validation response
@@ -108,14 +117,55 @@ class SentenceService:
         is_correct: bool = True,
         target_language_code: str = "eng",
         validate: bool = False,
+        error_type: ErrorType | None = None,
+        verb: Verb | None = None,
+        conjugations: list | None = None,
     ) -> Sentence:
-        """Generate a sentence using AI integration with validation."""
+        """Generate a sentence using AI integration with validation.
+
+        Args:
+            verb: Optional pre-fetched verb to avoid duplicate DB calls
+            conjugations: Optional pre-fetched conjugations to avoid duplicate DB calls
+        """
         logger.debug(f"Generating sentence for verb_id {verb_id}")
 
-        # Get the verb details first
-        verb = await self.verb_service.get_verb(verb_id)
-        if not verb:
-            raise NotFoundError(f"Verb with ID {verb_id} not found")
+        # Get the verb details (use provided or fetch)
+        if verb is None:
+            verb = await self.verb_service.get_verb(verb_id)
+            if not verb:
+                raise NotFoundError(f"Verb with ID {verb_id} not found")
+
+        # Fetch conjugations to get the correct form for this pronoun+tense
+        correct_conjugation_form = None
+        try:
+            if conjugations is None:
+                conjugations = await self.verb_service.get_conjugations(
+                    infinitive=verb.infinitive,
+                    auxiliary=verb.auxiliary.value,
+                    reflexive=verb.reflexive,
+                )
+            # Find the conjugation for this tense
+            tense_conjugation = next(
+                (c for c in conjugations if c.tense == tense), None
+            )
+            if tense_conjugation:
+                # Extract the form for this pronoun
+                pronoun_to_field = {
+                    Pronoun.FIRST_PERSON: tense_conjugation.first_person_singular,
+                    Pronoun.SECOND_PERSON: tense_conjugation.second_person_singular,
+                    Pronoun.THIRD_PERSON: tense_conjugation.third_person_singular,
+                    Pronoun.FIRST_PERSON_PLURAL: tense_conjugation.first_person_plural,
+                    Pronoun.SECOND_PERSON_PLURAL: tense_conjugation.second_person_plural,
+                    Pronoun.THIRD_PERSON_PLURAL: tense_conjugation.third_person_plural,
+                }
+                correct_conjugation_form = pronoun_to_field.get(pronoun)
+                if correct_conjugation_form:
+                    logger.debug(
+                        f"✓ Found correct conjugation: '{correct_conjugation_form}' "
+                        f"for {pronoun.value} + {verb.infinitive} + {tense.value}"
+                    )
+        except Exception as e:
+            logger.warning(f"Could not fetch conjugation: {e}")
 
         logger.debug(
             f"➡️ Generating: {verb.infinitive}, {pronoun.value}, {tense.value}, "
@@ -139,9 +189,36 @@ class SentenceService:
         )
 
         # Generate AI prompt and request
-        prompt = self.prompt_generator.generate_sentence_prompt(sentence_request, verb)
+        if self.use_compositional:
+            # Use new compositional prompt builder
+            if not is_correct and error_type is None:
+                raise ValueError(
+                    "error_type must be provided for incorrect sentences when using compositional prompts"
+                )
+            prompt = self.compositional_builder.build_prompt(
+                sentence_request,
+                verb,
+                error_type=error_type,
+                correct_conjugation=correct_conjugation_form,
+            )
+            logger.debug(
+                "🎨 Using compositional prompt builder"
+                + (f" with error type: {error_type.value}" if error_type else "")
+                + (
+                    f" (known correct: '{correct_conjugation_form}')"
+                    if correct_conjugation_form
+                    else ""
+                )
+            )
+        else:
+            # Use legacy prompt generator
+            prompt = self.prompt_generator.generate_sentence_prompt(
+                sentence_request, verb
+            )
+            logger.debug("📝 Using legacy prompt generator")
+
         response = await self.openai_client.handle_request(
-            prompt, operation="sentence_generation"
+            prompt, model=settings.reasoning_model, operation="sentence_generation"
         )
         response_json = json.loads(response)
 

@@ -27,43 +27,31 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
 
 @router.post(
     "/download",
-    response_model=VerbResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Download and store a new French verb",
+    response_model=VerbWithConjugationsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Download conjugations for an existing verb",
     description="""
-    Download a French verb from AI service and store it in the database.
+    Download conjugations for an existing verb using AI.
 
-    This endpoint uses AI to generate comprehensive verb information including:
-    - **Conjugations**: Complete conjugation tables for all supported tenses
-    - **Auxiliary Information**: Whether the verb uses avoir or être
-    - **Participle Forms**: Past participle (for compound tenses) and present participle
-    - **Classification**: French verb group (1st, 2nd, or 3rd group)
-    - **Grammatical Properties**: Irregularity status, direct/indirect object compatibility
-    - **Translation**: Target language translation with language code support
+    **Important**: This endpoint requires the verb to already exist in the database.
+    Verbs must be added via database migrations. This endpoint only generates and stores
+    conjugations for existing verbs.
+
+    **What it does:**
+    1. Verifies the verb exists in the database
+    2. Generates conjugations using AI for all tense forms
+    3. Stores conjugations in the database (overwrites existing ones)
+    4. Returns the complete verb with all conjugations
 
     **Input Requirements:**
     - `infinitive`: French verb in infinitive form (e.g., "parler", "être", "se lever")
-    - `target_language_code`: ISO 639-3 language code for translation (default: "eng")
-
-    **AI Processing:**
-    The endpoint leverages advanced language models to:
-    1. Validate the French verb exists and is properly formed
-    2. Generate complete conjugation patterns for all tenses
-    3. Determine auxiliary verb requirements and reflexivity
-    4. Classify the verb according to French grammar rules
-    5. Provide accurate translations in the target language
-
-    **Use Cases:**
-    - Expanding vocabulary database with new verbs
-    - Educational content creation for language learning
-    - Automated curriculum development
-    - Language analysis and linguistic research
+    - `target_language_code`: ISO 639-3 language code (default: "eng")
 
     **Required Permission**: `write` or `admin`
     """,
     responses={
-        201: {
-            "description": "Verb successfully downloaded and stored",
+        200: {
+            "description": "Conjugations successfully downloaded and stored",
             "content": {
                 "application/json": {
                     "example": {
@@ -78,37 +66,37 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
                         "classification": "first_group",
                         "is_irregular": False,
                         "can_have_cod": True,
-                        "can_have_coi": True,
+                        "can_have_coi": False,
                         "created_at": "2024-01-15T10:30:00Z",
                         "updated_at": "2024-01-15T10:30:00Z",
                         "last_used_at": None,
+                        "conjugations": [
+                            {
+                                "infinitive": "parler",
+                                "auxiliary": "avoir",
+                                "reflexive": False,
+                                "tense": "present",
+                                "first_person_singular": "parle",
+                                "second_person_singular": "parles",
+                                "third_person_singular": "parle",
+                                "first_person_plural": "parlons",
+                                "second_person_plural": "parlez",
+                                "third_person_plural": "parlent",
+                            }
+                        ],
                     }
                 }
             },
         },
-        400: {
-            "description": "Invalid request parameters or verb not found",
+        404: {
+            "description": "Verb not found in database",
             "content": {
                 "application/json": {
-                    "examples": {
-                        "invalid_verb": {
-                            "summary": "Invalid French verb",
-                            "value": {
-                                "error": True,
-                                "message": "Invalid French verb 'xyz123' - not found in French dictionary",
-                                "status_code": 400,
-                                "path": "/api/v1/verbs/download",
-                            },
-                        },
-                        "invalid_language": {
-                            "summary": "Invalid language code",
-                            "value": {
-                                "error": True,
-                                "message": "Invalid language code 'xyz' - must be ISO 639-3 format",
-                                "status_code": 400,
-                                "path": "/api/v1/verbs/download",
-                            },
-                        },
+                    "example": {
+                        "error": True,
+                        "message": "Verb 'nonexistent' not found in database. Verbs must be added via database migrations before downloading conjugations.",
+                        "status_code": 404,
+                        "path": "/api/v1/verbs/download",
                     }
                 }
             },
@@ -164,9 +152,12 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
 async def download_verb(
     request: VerbDownloadRequest,
     current_key: dict = Depends(get_current_api_key),
-) -> VerbResponse:
+) -> VerbWithConjugationsResponse:
     """
-    Download a verb from LLM and store it.
+    Download conjugations for an existing verb.
+
+    The verb must already exist in the database. This endpoint only downloads
+    conjugations using LLM, not the verb itself. To add new verbs, use database migrations.
 
     Requires 'write' or 'admin' permission.
     """
@@ -175,28 +166,25 @@ async def download_verb(
     if "write" not in permissions and "admin" not in permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Write or admin permission required to download verbs",
+            detail="Write or admin permission required to download conjugations",
         )
 
     try:
         service = VerbService()
-        verb = await service.download_verb(
-            requested_verb=request.infinitive,
+        verb_with_conjugations = await service.download_conjugations(
+            infinitive=request.infinitive,
             target_language_code=request.target_language_code,
         )
 
         logger.info(
-            f"Downloaded verb {request.infinitive} by {current_key.get('name', 'unknown')}"
+            f"Downloaded conjugations for {request.infinitive} by {current_key.get('name', 'unknown')}"
         )
 
         # Convert service schema to API response model
-        return VerbResponse(**verb.model_dump())
+        return VerbWithConjugationsResponse(**verb_with_conjugations.model_dump())
 
     except ContentGenerationError as e:
-        # If the verb already exists, it's a conflict
-        if "already exists" in str(e):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
-        # Otherwise, it's a service unavailable error from the LLM
+        # Service unavailable error from the LLM
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e)
         )
@@ -214,7 +202,7 @@ async def download_verb(
         logger.exception("An unexpected error occurred: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred while processing the verb.",
+            detail="An unexpected error occurred while processing the conjugations.",
         )
 
 

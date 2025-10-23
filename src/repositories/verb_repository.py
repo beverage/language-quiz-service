@@ -375,7 +375,9 @@ class VerbRepository:
             return Conjugation.model_validate(result.data[0])
         return None
 
-    async def upsert_conjugation(self, conjugation_data: ConjugationCreate) -> None:
+    async def upsert_conjugation(
+        self, conjugation_data: ConjugationCreate
+    ) -> Conjugation:
         """Upsert a conjugation."""
         existing = await self.get_conjugation(
             conjugation_data.infinitive,
@@ -389,12 +391,14 @@ class VerbRepository:
                     mode="json"
                 )  # Use mode="json" for enum serialization
             )
-            await self.update_conjugation_by_verb_and_tense(
+            result = await self.update_conjugation_by_verb_and_tense(
                 conjugation_data.infinitive,
                 conjugation_data.auxiliary.value,
                 conjugation_data.reflexive,
                 conjugation_data.tense,
                 update_payload,
             )
+            # Return the updated conjugation, or fall back to existing if update returns None
+            return result if result else existing
         else:
-            await self.create_conjugation(conjugation_data)
+            return await self.create_conjugation(conjugation_data)

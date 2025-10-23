@@ -48,7 +48,19 @@ class Settings(BaseSettings):
 
     # OpenAI API settings
     openai_api_key: str = Field(default="test_key", alias="OPENAI_API_KEY")
-    openai_model: str = "gpt-4-turbo-preview"
+    openai_model: str = "gpt-4-turbo-preview"  # Legacy, kept for backward compatibility
+
+    # Multi-model configuration
+    standard_model: str = Field(
+        default="gpt-4o-mini",
+        alias="STANDARD_MODEL",
+        description="Standard model for knowledge retrieval tasks (verbs, simple queries)",
+    )
+    reasoning_model: str = Field(
+        default="gpt-5-nano-2025-08-07",
+        alias="REASONING_MODEL",
+        description="Reasoning model for complex tasks (problems, sentences)",
+    )
 
     # Supabase settings
     supabase_url: str = Field(default="http://test.supabase.co", alias="SUPABASE_URL")

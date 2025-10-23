@@ -107,7 +107,9 @@ async def test_handle_request_records_metrics(
     with patch(
         "src.clients.openai_client.trace.get_current_span", return_value=mock_span
     ):
-        result = await client.handle_request("Test prompt", operation="test_operation")
+        result = await client.handle_request(
+            "Test prompt", model="gpt-4o-mini", operation="test_operation"
+        )
 
     # Verify response
     assert result == "Test response content"
@@ -168,7 +170,9 @@ async def test_handle_request_sets_span_attributes(
     with patch(
         "src.clients.openai_client.trace.get_current_span", return_value=mock_span
     ):
-        await client.handle_request("Test prompt", operation="sentence_validation")
+        await client.handle_request(
+            "Test prompt", model="gpt-4o-mini", operation="sentence_validation"
+        )
 
     # Verify span attributes were set
     span_attributes = {
@@ -195,7 +199,7 @@ async def test_handle_request_without_operation(
     with patch(
         "src.clients.openai_client.trace.get_current_span", return_value=mock_span
     ):
-        result = await client.handle_request("Test prompt")
+        result = await client.handle_request("Test prompt", model="gpt-4o-mini")
 
     # Verify response
     assert result == "Test response content"
@@ -224,7 +228,9 @@ async def test_handle_request_without_usage_data(
     with patch(
         "src.clients.openai_client.trace.get_current_span", return_value=mock_span
     ):
-        result = await client.handle_request("Test prompt", operation="test_op")
+        result = await client.handle_request(
+            "Test prompt", model="gpt-4o-mini", operation="test_op"
+        )
 
     # Verify response
     assert result == "Test response content"
@@ -256,7 +262,9 @@ async def test_handle_request_error_records_metrics(mock_metrics, mock_span):
         "src.clients.openai_client.trace.get_current_span", return_value=mock_span
     ):
         with pytest.raises(Exception, match="API connection failed"):
-            await client.handle_request("Test prompt", operation="test_operation")
+            await client.handle_request(
+                "Test prompt", model="gpt-4o-mini", operation="test_operation"
+            )
 
     # Verify error metrics were recorded
     duration_call = mock_metrics["duration"].record.call_args
@@ -306,7 +314,9 @@ async def test_handle_request_logs_success(
     with patch(
         "src.clients.openai_client.trace.get_current_span", return_value=mock_span
     ):
-        await client.handle_request("Test prompt", operation="verb_analysis")
+        await client.handle_request(
+            "Test prompt", model="gpt-4o-mini", operation="verb_analysis"
+        )
 
     # Verify log message
     assert "LLM request completed" in caplog.text
@@ -332,7 +342,9 @@ async def test_handle_request_logs_error(mock_metrics, mock_span, caplog):
         "src.clients.openai_client.trace.get_current_span", return_value=mock_span
     ):
         with pytest.raises(ValueError):
-            await client.handle_request("Test prompt", operation="sentence_generation")
+            await client.handle_request(
+                "Test prompt", model="gpt-4o-mini", operation="sentence_generation"
+            )
 
     # Verify error log message
     assert "LLM request failed" in caplog.text
@@ -376,7 +388,9 @@ async def test_span_not_recording(mock_openai_response, mock_metrics):
     with patch(
         "src.clients.openai_client.trace.get_current_span", return_value=mock_span
     ):
-        await client.handle_request("Test prompt", operation="test_op")
+        await client.handle_request(
+            "Test prompt", model="gpt-4o-mini", operation="test_op"
+        )
 
     # Verify span attributes were not set
     mock_span.set_attribute.assert_not_called()

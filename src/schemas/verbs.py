@@ -275,7 +275,7 @@ class ConjugationBase(BaseModel):
 
 
 class LLMVerbPayload(VerbBase):
-    tenses: list[ConjugationBase]
+    tenses: list[ConjugationBase] = []  # Default to empty list when not provided
 
 
 class ConjugationCreate(ConjugationBase):
