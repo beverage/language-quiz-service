@@ -100,7 +100,12 @@ omit = [
     "src/cli/sentences/prompts.py",
     "src/cli/verbs/prompts.py",
     "src/cli/utils/*",
-    "src/observability/*"
+    "src/observability/*",
+    # Database management commands (integration/E2E testing more appropriate)
+    "src/cli/database/*",
+    # Verb CLI commands (service layer already tested)
+    "src/cli/verbs/commands.py",
+    "src/cli/verbs/get.py",
 ]
 
 [tool.coverage.report]

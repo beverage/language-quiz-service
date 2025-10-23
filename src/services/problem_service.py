@@ -139,6 +139,16 @@ class ProblemService:
 
         logger.debug(f"📝 Selected verb: {verb.infinitive}")
 
+        # Step 1b: Fetch conjugations once for all sentences (performance optimization)
+        conjugations = await self.verb_service.get_conjugations(
+            infinitive=verb.infinitive,
+            auxiliary=verb.auxiliary.value,
+            reflexive=verb.reflexive,
+        )
+        logger.debug(
+            f"📚 Fetched {len(conjugations)} conjugations for {verb.infinitive}"
+        )
+
         # Step 2: Generate random grammatical parameters
         grammatical_params = self._generate_grammatical_parameters(verb, constraints)
 
@@ -201,6 +211,8 @@ class ProblemService:
                 is_correct=is_correct,
                 target_language_code=target_language_code,
                 error_type=error_type,  # Pass the selected error type
+                verb=verb,  # Pass pre-fetched verb to avoid duplicate DB call
+                conjugations=conjugations,  # Pass pre-fetched conjugations
             )
             sentence_tasks.append(task)
 

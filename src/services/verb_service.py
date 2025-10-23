@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from src.cache import conjugation_cache, verb_cache
 from src.clients.openai_client import OpenAIClient
 from src.clients.supabase import get_supabase_client
+from src.core.config import settings
 from src.core.exceptions import ContentGenerationError
 from src.prompts.verb_prompts import VerbPromptGenerator
 from src.repositories.verb_repository import VerbRepository
@@ -313,14 +314,44 @@ class VerbService:
     # ===== LLM INTEGRATION =====
 
     async def download_verb(
-        self, requested_verb: str, target_language_code: str = "eng"
+        self,
+        requested_verb: str,
+        target_language_code: str = "eng",
+        with_conjugations: bool = True,
     ) -> Verb:
         """
-        Download a verb using AI integration with two-phase approach.
+        DEPRECATED: This method is no longer used. Verbs are now managed via database migrations.
 
-        Phase 1: Get verb data without COD/COI flags
-        Phase 2: Use auxiliary to determine COD/COI flags
+        This method previously downloaded complete verb data (properties + conjugations) from LLM.
+        It has been replaced by:
+        - Database migrations for verb properties (see supabase/migrations/)
+        - download_conjugations() for conjugation-only downloads
+
+        Kept for potential future use in emergency verb additions or tooling.
+
+        DO NOT USE in production code. Will be removed in a future version.
+
+        Original behavior:
+        - Phase 1: Get verb data (auxiliary, classification, etc.)
+        - Phase 2: Use auxiliary to determine COD/COI flags
+        - Phase 3 (optional): Download conjugations if with_conjugations=True
+
+        Args:
+            requested_verb: The verb infinitive to download
+            target_language_code: Target language for translation (default: "eng")
+            with_conjugations: Whether to download conjugations (default: True)
+
+        Returns:
+            Verb: The downloaded verb
+
+        Raises:
+            ContentGenerationError: If LLM fails to generate verb data
         """
+        logger.warning(
+            f"DEPRECATED: download_verb() called for '{requested_verb}'. "
+            "This method is deprecated. Use download_conjugations() instead."
+        )
+
         with tracer.start_as_current_span(
             "verb_service.download_verb",
             attributes={
@@ -334,11 +365,12 @@ class VerbService:
             verb_prompt = self.verb_prompt_generator.generate_verb_prompt(
                 verb_infinitive=requested_verb,
                 target_language_code=target_language_code,
+                include_tenses=with_conjugations,  # Only ask for tenses if we need them
             )
 
             # Get AI response for main verb data
             llm_response = await self.openai_client.handle_request(
-                verb_prompt, operation="verb_analysis"
+                verb_prompt, model=settings.standard_model, operation="verb_analysis"
             )
             logger.debug("✅ LLM Response: %s", llm_response)
 
@@ -353,8 +385,21 @@ class VerbService:
                     message=f"Failed to parse verb data from AI for '{requested_verb}'",
                 ) from e
 
+            # CRITICAL HARDCODED FIXES: être and avoir both use "avoir" as auxiliary
+            # The LLM often gets these wrong, so we override regardless of its response
+            if verb_payload.infinitive.lower() in ["être", "avoir"]:
+                from src.schemas.verbs import AuxiliaryType
+
+                if verb_payload.auxiliary != AuxiliaryType.AVOIR:
+                    logger.warning(
+                        f"LLM returned incorrect auxiliary '{verb_payload.auxiliary}' for '{verb_payload.infinitive}', "
+                        f"forcing to 'avoir' (correct: j'ai été / j'ai eu)"
+                    )
+                    verb_payload.auxiliary = AuxiliaryType.AVOIR
+
             # Check if this specific verb variant already exists using the correct unique tuple
             # NOTE: Verb uniqueness is determined by (infinitive, auxiliary, reflexive, target_language_code)
+            # If it exists, we'll overwrite it with fresh LLM data (upsert behavior)
             existing_verb = await repo.get_verb_by_infinitive(
                 infinitive=verb_payload.infinitive,
                 auxiliary=verb_payload.auxiliary.value,
@@ -362,9 +407,8 @@ class VerbService:
                 target_language_code=target_language_code,  # Include in uniqueness check
             )
             if existing_verb:
-                raise ContentGenerationError(
-                    content_type="verb",
-                    message=f"Verb '{verb_payload.infinitive}' with auxiliary '{verb_payload.auxiliary.value}', reflexive={verb_payload.reflexive}, and target_language='{target_language_code}' already exists.",
+                logger.info(
+                    f"Verb '{verb_payload.infinitive}' already exists - will update with fresh data"
                 )
 
             # Phase 2: Use the auxiliary from Phase 1 to determine COD/COI
@@ -373,7 +417,9 @@ class VerbService:
                 auxiliary=verb_payload.auxiliary.value,
             )
             objects_response = await self.openai_client.handle_request(
-                objects_prompt, operation="verb_object_detection"
+                objects_prompt,
+                model=settings.reasoning_model,
+                operation="verb_object_detection",
             )
             logger.debug(
                 "✅ Objects Response (%s, %s): %s",
@@ -403,9 +449,127 @@ class VerbService:
 
             # Upsert the verb and its conjugations
             verb = await self._upsert_verb(verb_to_create, repo)
-            await self._process_conjugations(verb, verb_payload.tenses, repo)
+
+            # Only download conjugations if requested AND if we have tense data
+            if with_conjugations and verb_payload.tenses:
+                await self._process_conjugations(verb, verb_payload.tenses, repo)
+
+            # Refresh cache with updated verb data
+            await verb_cache.refresh_verb(verb)
 
             return verb
+
+    async def download_conjugations(
+        self, infinitive: str, target_language_code: str = "eng"
+    ) -> VerbWithConjugations:
+        """
+        Download conjugations for an existing verb using AI.
+
+        This method assumes the verb already exists in the database.
+        It only downloads and stores conjugations, not verb properties.
+
+        Args:
+            infinitive: The verb infinitive
+            target_language_code: Target language for translations (default: "eng")
+
+        Returns:
+            VerbWithConjugations: The verb with all its conjugations
+
+        Raises:
+            NotFoundError: If the verb doesn't exist in the database
+            ContentGenerationError: If LLM fails to generate conjugations
+        """
+        from src.core.exceptions import NotFoundError
+
+        with tracer.start_as_current_span(
+            "verb_service.download_conjugations",
+            attributes={
+                "verb": infinitive,
+                "target_language": target_language_code,
+            },
+        ):
+            logger.info(f"Downloading conjugations for {infinitive}")
+
+            # Get the existing verb from database
+            repo = await self._get_verb_repository()
+            verbs = await repo.get_verbs_by_infinitive(infinitive)
+
+            if not verbs:
+                raise NotFoundError(
+                    f"Verb '{infinitive}' not found in database. "
+                    "Verbs must be added via database migrations before downloading conjugations."
+                )
+
+            # Use the first variant (in practice, most verbs have only one variant)
+            verb = verbs[0]
+
+            # CRITICAL SAFEGUARD: Validate être/avoir have correct auxiliary
+            # These should already be correct from migration, but verify
+            if verb.infinitive.lower() in ["être", "avoir"]:
+                from src.schemas.verbs import AuxiliaryType
+
+                if verb.auxiliary != AuxiliaryType.AVOIR:
+                    logger.error(
+                        f"CRITICAL: Verb '{verb.infinitive}' has incorrect auxiliary '{verb.auxiliary}' in database! "
+                        f"Should be 'avoir'. Please fix the migration."
+                    )
+                    # Don't raise - log the error but continue with conjugations
+                    # The LLM will use the auxiliary from the prompt anyway
+
+            # Generate conjugation-only prompt using verb's existing properties
+            conjugation_prompt = self.verb_prompt_generator.generate_conjugation_prompt(
+                verb_infinitive=infinitive,
+                auxiliary=verb.auxiliary.value,
+                reflexive=verb.reflexive,
+            )
+
+            # Get AI response for conjugations
+            llm_response = await self.openai_client.handle_request(
+                conjugation_prompt,
+                model=settings.standard_model,
+                operation="conjugation_generation",
+            )
+            logger.debug(f"✅ LLM Response for {infinitive} conjugations")
+
+            try:
+                # Parse as array of conjugations (new prompt returns array, not full verb object)
+                response_json = json.loads(llm_response)
+
+                # Validate it's a list
+                if not isinstance(response_json, list):
+                    raise ValueError("Expected JSON array of conjugations")
+
+                # Convert to ConjugationBase objects for validation
+                from src.schemas.verbs import ConjugationBase
+
+                conjugations_data = [
+                    ConjugationBase.model_validate(conj) for conj in response_json
+                ]
+
+            except (json.JSONDecodeError, ValidationError, ValueError) as e:
+                logger.error(f"Failed to decode or validate LLM response: {e}")
+                raise ContentGenerationError(
+                    content_type="conjugations",
+                    message=f"Failed to parse conjugation data from AI for '{infinitive}'",
+                ) from e
+
+            # Process and store conjugations
+            if conjugations_data:
+                await self._process_conjugations(verb, conjugations_data, repo)
+            else:
+                logger.warning(f"No tenses returned by LLM for {infinitive}")
+
+            # Refresh verb cache to ensure updated last_used_at and any other metadata
+            await verb_cache.refresh_verb(verb)
+
+            # Fetch and return the verb with all conjugations
+            conjugations = await self.get_conjugations(
+                infinitive=verb.infinitive,
+                auxiliary=verb.auxiliary.value,
+                reflexive=verb.reflexive,
+            )
+
+            return VerbWithConjugations(**verb.model_dump(), conjugations=conjugations)
 
     async def _upsert_verb(self, verb_data: VerbCreate, repo: VerbRepository) -> Verb:
         """Helper to upsert a verb."""
@@ -429,4 +593,7 @@ class VerbService:
                 reflexive=verb.reflexive,
                 **dumped_data,
             )
-            await repo.upsert_conjugation(conj_create)
+            conj = await repo.upsert_conjugation(conj_create)
+
+            # Refresh cache with new/updated conjugation
+            await conjugation_cache.refresh_conjugation(conj)

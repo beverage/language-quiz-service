@@ -482,3 +482,161 @@ async def test_download_verb_validation_error(verb_service):
 
     with pytest.raises(ContentGenerationError, match="Failed to parse verb data"):
         await verb_service.download_verb("parler", "eng")
+
+
+# ============================================================================
+# Tests for download_conjugations (new conjugation-only download method)
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_download_conjugations_verb_not_found(verb_service):
+    """Test that download_conjugations raises NotFoundError for non-existent verb."""
+    from src.core.exceptions import NotFoundError
+
+    with pytest.raises(NotFoundError) as exc_info:
+        await verb_service.download_conjugations("nonexistent_verb_xyz", "eng")
+
+    assert "not found" in str(exc_info.value).lower()
+    assert "migration" in str(exc_info.value).lower()
+
+
+@pytest.mark.asyncio
+async def test_download_conjugations_empty_response_logs_warning(verb_service, caplog):
+    """Test that empty conjugations response logs warning."""
+    import json
+    import logging
+
+    caplog.set_level(logging.WARNING)
+
+    # Create a test verb
+    verb_data = VerbCreate(**generate_random_verb_data())
+    created_verb = await verb_service.create_verb(verb_data)
+
+    # Mock LLM to return empty array
+    mock_client = AsyncMock()
+    mock_prompt_gen = AsyncMock()
+
+    mock_prompt_gen.generate_conjugation_prompt.return_value = "conjugation prompt"
+    mock_client.handle_request.return_value = json.dumps([])  # Empty!
+
+    verb_service.openai_client = mock_client
+    verb_service.verb_prompt_generator = mock_prompt_gen
+
+    result = await verb_service.download_conjugations(created_verb.infinitive, "eng")
+
+    # Verify warning was logged
+    assert "No tenses returned" in caplog.text
+    assert result.infinitive == created_verb.infinitive
+    assert len(result.conjugations) == 0
+
+
+@pytest.mark.asyncio
+async def test_download_conjugations_success(verb_service):
+    """Test successful conjugation download."""
+    import json
+
+    from src.schemas.verbs import Tense
+
+    # Create a test verb
+    verb_data = VerbCreate(**generate_random_verb_data())
+    created_verb = await verb_service.create_verb(verb_data)
+
+    # Mock LLM to return conjugations
+    mock_client = AsyncMock()
+    mock_prompt_gen = AsyncMock()
+
+    mock_prompt_gen.generate_conjugation_prompt.return_value = "conjugation prompt"
+    mock_client.handle_request.return_value = json.dumps(
+        [
+            {
+                "tense": "present",
+                "infinitive": created_verb.infinitive,
+                "auxiliary": created_verb.auxiliary.value,
+                "reflexive": created_verb.reflexive,
+                "first_person_singular": "parle",
+                "second_person_singular": "parles",
+                "third_person_singular": "parle",
+                "first_person_plural": "parlons",
+                "second_person_plural": "parlez",
+                "third_person_plural": "parlent",
+            },
+            {
+                "tense": "imparfait",
+                "infinitive": created_verb.infinitive,
+                "auxiliary": created_verb.auxiliary.value,
+                "reflexive": created_verb.reflexive,
+                "first_person_singular": "parlais",
+                "second_person_singular": "parlais",
+                "third_person_singular": "parlait",
+                "first_person_plural": "parlions",
+                "second_person_plural": "parliez",
+                "third_person_plural": "parlaient",
+            },
+        ]
+    )
+
+    verb_service.openai_client = mock_client
+    verb_service.verb_prompt_generator = mock_prompt_gen
+
+    result = await verb_service.download_conjugations(created_verb.infinitive, "eng")
+
+    # Verify result
+    assert result.infinitive == created_verb.infinitive
+    assert len(result.conjugations) == 2
+    assert result.conjugations[0].tense == Tense.PRESENT
+    assert result.conjugations[1].tense == Tense.IMPARFAIT
+
+
+@pytest.mark.asyncio
+async def test_download_conjugations_invalid_json(verb_service):
+    """Test download_conjugations with invalid JSON response."""
+    from src.core.exceptions import ContentGenerationError
+
+    # Create a test verb
+    verb_data = VerbCreate(**generate_random_verb_data())
+    created_verb = await verb_service.create_verb(verb_data)
+
+    # Mock LLM to return invalid JSON
+    mock_client = AsyncMock()
+    mock_prompt_gen = AsyncMock()
+
+    mock_prompt_gen.generate_conjugation_prompt.return_value = "conjugation prompt"
+    mock_client.handle_request.return_value = "not valid json"
+
+    verb_service.openai_client = mock_client
+    verb_service.verb_prompt_generator = mock_prompt_gen
+
+    with pytest.raises(
+        ContentGenerationError, match="Failed to parse conjugation data"
+    ):
+        await verb_service.download_conjugations(created_verb.infinitive, "eng")
+
+
+@pytest.mark.asyncio
+async def test_download_conjugations_returns_object_not_array(verb_service):
+    """Test download_conjugations when LLM returns object instead of array."""
+    import json
+
+    from src.core.exceptions import ContentGenerationError
+
+    # Create a test verb
+    verb_data = VerbCreate(**generate_random_verb_data())
+    created_verb = await verb_service.create_verb(verb_data)
+
+    # Mock LLM to return object instead of array
+    mock_client = AsyncMock()
+    mock_prompt_gen = AsyncMock()
+
+    mock_prompt_gen.generate_conjugation_prompt.return_value = "conjugation prompt"
+    mock_client.handle_request.return_value = json.dumps(
+        {"tense": "present"}
+    )  # Object not array!
+
+    verb_service.openai_client = mock_client
+    verb_service.verb_prompt_generator = mock_prompt_gen
+
+    with pytest.raises(
+        ContentGenerationError, match="Failed to parse conjugation data"
+    ):
+        await verb_service.download_conjugations(created_verb.infinitive, "eng")

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from src.clients.openai_client import OpenAIClient
+from src.core.config import settings
 from src.core.exceptions import ContentGenerationError, NotFoundError
 from src.prompts.compositional_prompts import (
     CompositionalPromptBuilder,
@@ -24,6 +25,7 @@ from src.schemas.sentences import (
     SentenceUpdate,
     Tense,
 )
+from src.schemas.verbs import Verb
 from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
@@ -63,7 +65,7 @@ class SentenceService:
 
             # Get AI response
             response = await self.openai_client.handle_request(
-                prompt, operation="sentence_validation"
+                prompt, model=settings.reasoning_model, operation="sentence_validation"
             )
 
             # Parse validation response
@@ -116,23 +118,32 @@ class SentenceService:
         target_language_code: str = "eng",
         validate: bool = False,
         error_type: ErrorType | None = None,
+        verb: Verb | None = None,
+        conjugations: list | None = None,
     ) -> Sentence:
-        """Generate a sentence using AI integration with validation."""
+        """Generate a sentence using AI integration with validation.
+
+        Args:
+            verb: Optional pre-fetched verb to avoid duplicate DB calls
+            conjugations: Optional pre-fetched conjugations to avoid duplicate DB calls
+        """
         logger.debug(f"Generating sentence for verb_id {verb_id}")
 
-        # Get the verb details with conjugations
-        verb = await self.verb_service.get_verb(verb_id)
-        if not verb:
-            raise NotFoundError(f"Verb with ID {verb_id} not found")
+        # Get the verb details (use provided or fetch)
+        if verb is None:
+            verb = await self.verb_service.get_verb(verb_id)
+            if not verb:
+                raise NotFoundError(f"Verb with ID {verb_id} not found")
 
         # Fetch conjugations to get the correct form for this pronoun+tense
         correct_conjugation_form = None
         try:
-            conjugations = await self.verb_service.get_conjugations(
-                infinitive=verb.infinitive,
-                auxiliary=verb.auxiliary.value,
-                reflexive=verb.reflexive,
-            )
+            if conjugations is None:
+                conjugations = await self.verb_service.get_conjugations(
+                    infinitive=verb.infinitive,
+                    auxiliary=verb.auxiliary.value,
+                    reflexive=verb.reflexive,
+                )
             # Find the conjugation for this tense
             tense_conjugation = next(
                 (c for c in conjugations if c.tense == tense), None
@@ -207,7 +218,7 @@ class SentenceService:
             logger.debug("📝 Using legacy prompt generator")
 
         response = await self.openai_client.handle_request(
-            prompt, operation="sentence_generation"
+            prompt, model=settings.reasoning_model, operation="sentence_generation"
         )
         response_json = json.loads(response)
 

@@ -93,23 +93,20 @@ class TestVerbsAPIIntegration:
         assert "permission required" in response.json()["message"].lower()
 
     @pytest.mark.parametrize(
-        "infinitive, expected_status, expected_detail_part",
+        "infinitive, setup_verb, expected_status, expected_detail_part",
         [
             (
-                "chanter_test_RANDOM",
-                201,
-                "chanter",
-            ),  # Unique verb that should not exist - RANDOM will be replaced at runtime
-            (
+                "parler",  # Verb that exists in test data
+                False,  # Don't need to create it
+                200,  # Now returns 200 for successful conjugation download
                 "parler",
-                409,
-                "already exists",
-            ),  # Verb that already exists in test data
+            ),
             (
-                "invalidverb123",
-                503,
-                "is not a valid french verb",
-            ),  # Invalid verb format
+                "nonexistent_verb",  # Verb that doesn't exist
+                False,
+                404,  # Should return 404 since verb doesn't exist
+                "not found",
+            ),
         ],
     )
     def test_download_verb_scenarios(
@@ -117,62 +114,37 @@ class TestVerbsAPIIntegration:
         client: TestClient,
         write_headers,
         infinitive,
+        setup_verb,
         expected_status,
         expected_detail_part,
     ):
-        """Test various scenarios for the download verb endpoint."""
-        # Replace RANDOM placeholder with actual UUID at runtime
-        if "RANDOM" in infinitive:
-            infinitive = infinitive.replace("RANDOM", uuid4().hex[:8])
+        """Test various scenarios for the conjugation download endpoint.
 
+        Note: This endpoint now ONLY downloads conjugations for existing verbs.
+        Verbs must be added via database migrations first.
+        """
         # Only mock the LLM client to avoid actual API calls
         with patch("src.services.verb_service.OpenAIClient") as mock_openai_client:
             mock_llm_instance = mock_openai_client.return_value
             mock_llm_instance.handle_request = AsyncMock()
 
-            # Simulate a successful LLM response for valid verbs
-            if "invalid" not in infinitive:
-                # Mock main verb response
-                mock_llm_instance.handle_request.side_effect = [
-                    json.dumps(
+            # Mock conjugation response (returns JSON array)
+            if expected_status == 200:
+                mock_llm_instance.handle_request.return_value = json.dumps(
+                    [
                         {
+                            "tense": "present",
                             "infinitive": infinitive,
                             "auxiliary": "avoir",
                             "reflexive": False,
-                            "translation": f"to {infinitive}",
-                            "past_participle": f"{infinitive}e",
-                            "present_participle": f"{infinitive}ant",
-                            "classification": "first_group",
-                            "is_irregular": False,
-                            "target_language_code": "eng",
-                            "tenses": [
-                                {
-                                    "tense": "present",
-                                    "infinitive": infinitive,
-                                    "auxiliary": "avoir",
-                                    "first_person_singular": "chante",
-                                    "second_person_singular": "chantes",
-                                    "third_person_singular": "chante",
-                                    "first_person_plural": "chantons",
-                                    "second_person_plural": "chantez",
-                                    "third_person_plural": "chantent",
-                                }
-                            ],
+                            "first_person_singular": "parle",
+                            "second_person_singular": "parles",
+                            "third_person_singular": "parle",
+                            "first_person_plural": "parlons",
+                            "second_person_plural": "parlez",
+                            "third_person_plural": "parlent",
                         }
-                    ),
-                    # Mock objects response (COD/COI)
-                    json.dumps(
-                        {
-                            "can_have_cod": True,
-                            "can_have_coi": False,
-                        }
-                    ),
-                ]
-            else:
-                # Simulate the LLM raising an error for invalid verbs
-                mock_llm_instance.handle_request.side_effect = ContentGenerationError(
-                    content_type="verb",
-                    message=f"'{infinitive}' is not a valid french verb",
+                    ]
                 )
 
             request_body = {
