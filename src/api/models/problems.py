@@ -26,6 +26,10 @@ class ProblemRandomRequest(BaseModel):
         max_length=3,
         description="Target language code for translations (ISO 639-3)",
     )
+    topic_tags: list[str] = Field(
+        default_factory=list,
+        description="Additional topic tags to add to the generated problem",
+    )
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [

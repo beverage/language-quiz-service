@@ -67,7 +67,7 @@ class TestProblemService:
                     "explanation": "Wrong conjugation",
                 },
             ],
-            topic_tags=["grammar", "basic_grammar"],
+            topic_tags=["test_data", "grammar", "basic_grammar"],
             source_statement_ids=[uuid4(), uuid4()],
             metadata={"grammatical_focus": ["basic_conjugation"]},
         )
@@ -138,7 +138,7 @@ class TestProblemService:
             **{
                 **sample_problem_create.model_dump(),
                 "title": f"Problem 1 {unique_tag}",
-                "topic_tags": [unique_tag, "grammar"],
+                "topic_tags": ["test_data", unique_tag, "grammar"],
             }
         )
         problem1 = await service.create_problem(problem1_data)
@@ -147,7 +147,7 @@ class TestProblemService:
             **{
                 **sample_problem_create.model_dump(),
                 "title": f"Problem 2 {unique_tag}",
-                "topic_tags": [unique_tag, "grammar"],
+                "topic_tags": ["test_data", unique_tag, "grammar"],
             }
         )
         problem2 = await service.create_problem(problem2_data)
@@ -178,7 +178,7 @@ class TestProblemService:
             **{
                 **sample_problem_create.model_dump(),
                 "title": f"Summary Test {unique_tag}",
-                "topic_tags": [unique_tag],
+                "topic_tags": ["test_data", unique_tag],
             }
         )
         created_problem = await service.create_problem(problem_data)
@@ -302,6 +302,7 @@ class TestProblemServiceAnalytics:
             title=f"Random problem filter test: {unique_focus}",
             instructions="Test instruction",
             correct_answer_index=0,
+            target_language_code="eng",
             statements=[
                 {
                     "content": "Statement 1",
@@ -309,6 +310,8 @@ class TestProblemServiceAnalytics:
                     "translation": "Translation 1",
                 }
             ],
+            topic_tags=["test_data", "test"],
+            source_statement_ids=[],
             metadata={"grammatical_focus": [unique_focus]},
         )
         await problem_service.create_problem(problem_data)

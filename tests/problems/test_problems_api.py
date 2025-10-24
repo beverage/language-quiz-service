@@ -31,20 +31,19 @@ class TestProblemsAPIValidation:
 
     def test_invalid_http_methods(self, client: TestClient, read_headers):
         """Test that invalid HTTP methods are rejected."""
-        # Test GET to problems endpoint - endpoint is POST only
-        # Note: FastAPI/TestClient may return 422 instead of 405 due to body validation
-        response = client.get(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+        # Test POST to /random endpoint - endpoint is GET only
+        response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
         assert response.status_code in [
             405,
             422,
         ]  # Method not allowed or validation error
 
-        # Test PUT to problems endpoint with valid auth (should be 405, not 401)
-        response = client.put(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+        # Test PUT to generate endpoint with valid auth (should be 405, not 401)
+        response = client.put(f"{PROBLEMS_PREFIX}/generate", headers=read_headers)
         assert response.status_code == 405  # Method not allowed
 
-        # Test DELETE to problems endpoint with valid auth (should be 405, not 401)
-        response = client.delete(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+        # Test DELETE to generate endpoint with valid auth (should be 405, not 401)
+        response = client.delete(f"{PROBLEMS_PREFIX}/generate", headers=read_headers)
         assert response.status_code == 405  # Method not allowed
 
 
@@ -54,7 +53,7 @@ class TestProblemsAPIAuthentication:
 
     def test_missing_auth_header(self, client: TestClient):
         """Test that requests without auth headers are rejected."""
-        response = client.post(f"{PROBLEMS_PREFIX}/random")
+        response = client.post(f"{PROBLEMS_PREFIX}/generate")
         assert response.status_code == 401
         data = response.json()
         assert "api key required" in data["message"].lower()
@@ -62,7 +61,7 @@ class TestProblemsAPIAuthentication:
     def test_invalid_auth_header(self, client: TestClient):
         """Test that requests with invalid auth headers are rejected."""
         headers = {"X-API-Key": "invalid_key"}
-        response = client.post(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        response = client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
         data = response.json()
         assert "invalid api key" in data["message"].lower()
@@ -70,19 +69,19 @@ class TestProblemsAPIAuthentication:
     def test_malformed_auth_header(self, client: TestClient):
         """Test that requests with malformed auth headers are rejected."""
         headers = {"Authorization": "NotBearer test_key_fake_malformed"}
-        response = client.post(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        response = client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
 
     def test_empty_auth_header(self, client: TestClient):
         """Test that requests with empty auth headers are rejected."""
         headers = {"X-API-Key": ""}
-        response = client.post(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        response = client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
 
     def test_missing_bearer_prefix(self, client: TestClient):
         """Test that requests without proper API key format are rejected."""
         headers = {"X-API-Key": "not_a_valid_key_format"}
-        response = client.post(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        response = client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
 
     def test_inactive_api_key(self, client: TestClient):
@@ -91,7 +90,7 @@ class TestProblemsAPIAuthentication:
         headers = {
             "X-API-Key": "test_key_inactive_1234567890abcdef1234567890abcdef1234567890abcdef12345"
         }
-        response = client.post(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        response = client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
         data = response.json()
         assert (
@@ -102,7 +101,7 @@ class TestProblemsAPIAuthentication:
     def test_unsupported_auth_scheme(self, client: TestClient):
         """Test that unsupported auth schemes are rejected."""
         headers = {"Authorization": "Basic dXNlcjpwYXNz"}  # Base64 encoded user:pass
-        response = client.post(f"{PROBLEMS_PREFIX}/random", headers=headers)
+        response = client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
 
     def test_wrong_scope_permissions(
@@ -118,7 +117,11 @@ class TestProblemsAPIAuthentication:
             mock_client.handle_request.side_effect = mock_llm_responses
 
             # Read operations should work with read key
-            response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            response = client.post(
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
+            )
             # The response should be either 200 (success) or 503 (service error due to missing data)
             # but NOT 401/403 (auth error)
             assert response.status_code in [200, 503]
@@ -128,16 +131,20 @@ class TestProblemsAPIAuthentication:
 class TestProblemsAPIIntegration:
     """Test full API integration with real authentication and services."""
 
-    def test_random_problem_endpoint(
+    def test_generate_problem_endpoint(
         self, client: TestClient, read_headers, mock_llm_responses
     ):
-        """Test random problem endpoint with read permissions."""
+        """Test generate problem endpoint with read permissions."""
         with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             mock_client.handle_request.side_effect = mock_llm_responses
 
-            response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            response = client.post(
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
+            )
             assert response.status_code == 200
             data = response.json()
             assert data.get("error", False) is False
@@ -145,7 +152,7 @@ class TestProblemsAPIIntegration:
 
 @pytest.mark.integration
 class TestRandomProblemParameterized:
-    """Comprehensive parameterized tests for random problem endpoint."""
+    """Comprehensive parameterized tests for generate problem endpoint."""
 
     @pytest.fixture
     async def test_verb(self, test_supabase_client, sample_verb_data):
@@ -161,13 +168,17 @@ class TestRandomProblemParameterized:
     async def test_default_behavior_generates_problem(
         self, client: TestClient, read_headers, test_verb, mock_llm_responses
     ):
-        """Test that GET request with no parameters generates a problem using defaults."""
+        """Test that POST request with no parameters generates a problem using defaults."""
         with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             mock_client.handle_request.side_effect = mock_llm_responses
 
-            response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            response = client.post(
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -192,7 +203,11 @@ class TestRandomProblemParameterized:
             mock_client_class.return_value = mock_client
             mock_client.handle_request.side_effect = mock_llm_responses
 
-            response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            response = client.post(
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -212,7 +227,9 @@ class TestRandomProblemParameterized:
             mock_client.handle_request.side_effect = mock_llm_responses
 
             random_response = client.post(
-                f"{PROBLEMS_PREFIX}/random", headers=read_headers
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
             )
 
             assert random_response.status_code == 200
@@ -232,7 +249,11 @@ class TestRandomProblemParameterized:
             mock_client_class.return_value = mock_client
             mock_client.handle_request.side_effect = mock_llm_responses
 
-            response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            response = client.post(
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -286,7 +307,11 @@ class TestRandomProblemParameterized:
             mock_client_class.return_value = mock_client
             mock_client.handle_request.side_effect = mock_llm_responses
 
-            response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            response = client.post(
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -323,7 +348,11 @@ class TestRandomProblemParameterized:
                 "LLM service unavailable"
             )
 
-            response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            response = client.post(
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
+            )
 
             assert response.status_code == 503
             data = response.json()
@@ -338,7 +367,11 @@ class TestRandomProblemParameterized:
             mock_client_class.return_value = mock_client
             mock_client.handle_request.side_effect = mock_llm_responses
 
-            response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            response = client.post(
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -357,7 +390,11 @@ class TestRandomProblemParameterized:
             mock_client_class.return_value = mock_client
             mock_client.handle_request.side_effect = mock_llm_responses
 
-            response = client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+            response = client.post(
+                f"{PROBLEMS_PREFIX}/generate",
+                headers=read_headers,
+                json={"topic_tags": ["test_data"]},
+            )
 
             assert response.status_code == 200
             data = response.json()
@@ -398,7 +435,9 @@ class TestRandomProblemParameterized:
             responses = []
             for _ in range(3):
                 response = client.post(
-                    f"{PROBLEMS_PREFIX}/random", headers=read_headers
+                    f"{PROBLEMS_PREFIX}/generate",
+                    headers=read_headers,
+                    json={"topic_tags": ["test_data"]},
                 )
                 responses.append(response)
 
@@ -420,7 +459,11 @@ class TestRandomProblemParameterized:
             mock_client.handle_request.side_effect = mock_llm_responses
 
             async def make_request():
-                return client.post(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+                return client.post(
+                    f"{PROBLEMS_PREFIX}/generate",
+                    headers=read_headers,
+                    json={"topic_tags": ["test_data"]},
+                )
 
             # Make 3 concurrent requests
             responses = await asyncio.gather(*[make_request() for _ in range(3)])

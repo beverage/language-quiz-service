@@ -22,6 +22,8 @@ services:
       - SUPABASE_URL=http://supabase_kong_language-quiz-service:8000
       # Authentication - bypass in local development
       - REQUIRE_AUTH=false
+      # Logging configuration - defaults to INFO, can be overridden
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # OpenTelemetry configuration - send to local OTEL Collector
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       - OTEL_SERVICE_NAME=language-quiz-service

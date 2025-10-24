@@ -29,8 +29,110 @@ async def get_problem_service() -> ProblemService:
     return ProblemService()
 
 
-@router.post(
+@router.get(
     "/random",
+    response_model=ProblemResponse,
+    summary="Get random problem from database",
+    description="""
+    Retrieve a random problem from the database.
+
+    This endpoint fetches an existing problem from the database, providing:
+    - **Fast Response**: No AI generation delay
+    - **Consistent Problems**: Previously generated and stored problems
+    - **Multiple Choice**: Complete problem with all statements and correct answer
+
+    Future enhancements will include filtering by topic, difficulty, and other criteria.
+
+    **Query Parameters**:
+    - `include_metadata`: Include source_statement_ids and metadata in response (default: false)
+
+    **Required Permission**: `read`, `write`, or `admin`
+    """,
+    responses={
+        200: {
+            "description": "Random problem retrieved successfully",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "id": "123e4567-e89b-12d3-a456-426614174000",
+                        "problem_type": "grammar",
+                        "title": "Grammar: Parler",
+                        "instructions": "Choose the correctly formed French sentence.",
+                        "statements": [
+                            {
+                                "content": "Je parle français.",
+                                "is_correct": True,
+                                "translation": "I speak French.",
+                            },
+                            {
+                                "content": "Je parles français.",
+                                "is_correct": False,
+                                "explanation": "Wrong conjugation - first person singular uses 'parle', not 'parles'",
+                            },
+                        ],
+                        "correct_answer_index": 0,
+                        "target_language_code": "eng",
+                        "topic_tags": ["grammar", "basic_conjugation"],
+                        "created_at": "2025-01-15T10:30:00Z",
+                        "updated_at": "2025-01-15T10:30:00Z",
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "No problems available in database",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "No problems available",
+                        "status_code": 404,
+                        "path": "/api/v1/problems/random",
+                    }
+                }
+            },
+        },
+    },
+)
+@limiter.limit("100/minute")
+async def get_random_problem(
+    request: Request,
+    include_metadata: bool = False,
+    current_key: dict = Depends(get_current_api_key),
+    service: ProblemService = Depends(get_problem_service),
+) -> ProblemResponse:
+    """
+    Get a random problem from the database.
+
+    Fetches a random existing problem without generating new content.
+    """
+    try:
+        problem = await service.get_random_problem()
+
+        if problem is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No problems available",
+            )
+
+        logger.info(
+            f"Retrieved random problem {problem.id} for API key {current_key.get('name', 'unknown')}"
+        )
+
+        return ProblemResponse.from_problem(problem, include_metadata=include_metadata)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error getting random problem: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve random problem",
+        )
+
+
+@router.post(
+    "/generate",
     response_model=ProblemResponse,
     summary="Generate random grammar problem",
     description="""
@@ -104,7 +206,7 @@ async def get_problem_service() -> ProblemService:
                         "error": True,
                         "message": "No verbs available for problem generation",
                         "status_code": 422,
-                        "path": "/api/v1/problems/random",
+                        "path": "/api/v1/problems/generate",
                     }
                 }
             },
@@ -117,7 +219,7 @@ async def get_problem_service() -> ProblemService:
                         "error": True,
                         "message": "Content generation failed",
                         "status_code": 503,
-                        "path": "/api/v1/problems/random",
+                        "path": "/api/v1/problems/generate",
                     }
                 }
             },
@@ -150,6 +252,7 @@ async def generate_random_problem(
         problem = await service.create_random_grammar_problem(
             constraints=constraints,
             statement_count=statement_count,
+            additional_tags=problem_request.topic_tags,
         )
 
         logger.info(

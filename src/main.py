@@ -19,10 +19,14 @@ from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # Configure logging BEFORE other imports
+# Read log level from environment (defaults to INFO)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+logger.info(f"📝 Log level set to: {LOG_LEVEL}")
 
 # ============================================================================
 # OpenTelemetry Setup (Conditional - only if OTEL_EXPORTER_OTLP_ENDPOINT set)

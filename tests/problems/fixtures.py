@@ -61,6 +61,10 @@ def generate_random_problem_data(
     if topic_tags is None:
         topic_tags = _generate_topic_tags_for_type(problem_type)
 
+    # Ensure test_data tag is always present
+    if "test_data" not in topic_tags:
+        topic_tags = ["test_data"] + topic_tags
+
     return {
         "problem_type": problem_type,
         "title": title or fake.sentence(nb_words=4),

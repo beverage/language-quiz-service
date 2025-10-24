@@ -118,6 +118,7 @@ class ProblemService:
         constraints: GrammarProblemConstraints | None = None,
         statement_count: int = 4,
         target_language_code: str = "eng",
+        additional_tags: list[str] | None = None,
     ) -> Problem:
         """
         Create a random grammar problem by orchestrating sentence generation.
@@ -241,6 +242,7 @@ class ProblemService:
             verb=verb,
             constraints=constraints,
             target_language_code=target_language_code,
+            additional_tags=additional_tags,
         )
 
         # Step 5: Create problem in background (fire and forget)
@@ -421,6 +423,7 @@ class ProblemService:
         verb,
         constraints: GrammarProblemConstraints,
         target_language_code: str,
+        additional_tags: list[str] | None = None,
     ) -> ProblemCreate:
         """Package sentences into atomic problem format."""
 
@@ -444,6 +447,10 @@ class ProblemService:
 
         # Generate topic tags
         topic_tags = self._derive_topic_tags(verb, constraints, metadata)
+
+        # Merge in any additional tags passed from the API
+        if additional_tags:
+            topic_tags.extend(additional_tags)
 
         # Create the problem
         return ProblemCreate(
