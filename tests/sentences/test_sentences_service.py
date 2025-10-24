@@ -242,133 +242,36 @@ async def test_get_all_sentences(sentence_service, sample_verb):
 @pytest.mark.asyncio
 async def test_generate_sentence_success(sentence_service, sample_verb):
     """Test successful sentence generation with mocked AI."""
-    # Mock the AI client and prompt generator
+    # Mock the AI client
     mock_client = AsyncMock()
-    mock_prompt_gen = AsyncMock()
 
-    # Setup mocks
-    mock_prompt_gen.generate_sentence_prompt.return_value = "sentence prompt"
+    # Mock conjugations (sentence_service needs them now)
+    mock_conjugation = AsyncMock()
+    mock_conjugation.tense = Tense.PRESENT
+    mock_conjugation.first_person_singular = "parle"
+
+    # Mock verb_service to return conjugations
+    mock_verb_service = AsyncMock()
+    mock_verb_service.get_conjugations.return_value = [mock_conjugation]
+    sentence_service.verb_service = mock_verb_service
+
+    # Setup AI mock
     mock_client.handle_request.return_value = '{"sentence": "Je parle français", "translation": "I speak French", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "negation": "none"}'
 
     # Inject mocks
     sentence_service.openai_client = mock_client
-    sentence_service.prompt_generator = mock_prompt_gen
 
     # Generate sentence
     result = await sentence_service.generate_sentence(
         verb_id=sample_verb.id,
         pronoun=Pronoun.FIRST_PERSON,
         tense=Tense.PRESENT,
-        validate=False,  # Skip validation for simplicity
     )
 
     assert result.content == "Je parle français"
     assert result.translation == "I speak French"
     assert result.verb_id == sample_verb.id
     assert result.is_correct is True
-
-
-@pytest.mark.asyncio
-async def test_generate_sentence_with_validation(sentence_service, verb_service):
-    """Test sentence generation with validation enabled."""
-    # Mock the AI client and prompt generator
-    mock_client = AsyncMock()
-    mock_prompt_gen = AsyncMock()
-
-    verb_create = VerbCreate(**generate_random_verb_data())
-    verb = await verb_service.create_verb(verb_create)
-
-    # Setup mocks for both generation and validation
-    mock_prompt_gen.generate_sentence_prompt.return_value = "sentence prompt"
-    create_sentence_return = SentenceCreate(
-        **generate_random_sentence_data(verb_id=verb.id, is_correct=True)
-    )
-
-    mock_prompt_gen.generate_correctness_prompt.return_value = "validation prompt"
-
-    # Mock the LLM response for sentence generation (first call)
-    sentence_generation_response = {
-        "sentence": create_sentence_return.content,  # LLM uses "sentence" not "content"
-        "translation": create_sentence_return.translation,
-        "is_correct": True,  # Force this to be True for consistent test
-        "explanation": create_sentence_return.explanation,
-        "has_compliment_object_direct": create_sentence_return.direct_object != "none",
-        "has_compliment_object_indirect": create_sentence_return.indirect_object
-        != "none",
-        "direct_object": create_sentence_return.direct_object,
-        "indirect_object": create_sentence_return.indirect_object,
-        "negation": create_sentence_return.negation,
-    }
-
-    sentence_validation_return = CorrectnessValidationResponse(
-        is_valid=True,
-        explanation="Sentence is correct",
-        actual_direct_object=create_sentence_return.direct_object,
-        actual_indirect_object=create_sentence_return.indirect_object,
-        actual_negation=create_sentence_return.negation,
-    )
-
-    mock_client.handle_request.side_effect = [
-        json.dumps(sentence_generation_response),  # First call: sentence generation
-        sentence_validation_return.model_dump_json(),  # Second call: validation
-    ]
-
-    # Inject mocks
-    sentence_service.openai_client = mock_client
-    sentence_service.prompt_generator = mock_prompt_gen
-
-    # Generate sentence with validation
-    result = await sentence_service.generate_sentence(
-        verb_id=verb.id,
-        pronoun=Pronoun.FIRST_PERSON,
-        tense=Tense.PRESENT,
-        validate=True,
-    )
-
-    assert result.content == create_sentence_return.content
-    assert result.verb_id == create_sentence_return.verb_id
-    assert result.direct_object == create_sentence_return.direct_object
-    assert result.indirect_object == create_sentence_return.indirect_object
-    assert result.negation == create_sentence_return.negation
-    assert result.is_correct is True
-
-    # Verify both generation and validation prompts were called
-    assert mock_client.handle_request.call_count == 2
-
-
-@pytest.mark.asyncio
-async def test_generate_sentence_validation_failure(sentence_service, sample_verb):
-    """Test sentence generation when validation fails."""
-    # Mock the AI client and prompt generator
-    mock_client = AsyncMock()
-    mock_prompt_gen = AsyncMock()
-
-    # Setup mocks
-    mock_prompt_gen.generate_sentence_prompt.return_value = "sentence prompt"
-    mock_prompt_gen.generate_correctness_prompt.return_value = "validation prompt"
-
-    mock_client.handle_request.side_effect = [
-        # First call: sentence generation
-        '{"sentence": "Je parle français", "translation": "I speak French", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "negation": "none"}',
-        # Second call: validation failure
-        '{"is_valid": false, "explanation": "Grammar error detected", "actual_direct_object": "none", "actual_indirect_object": "none", "actual_negation": "none"}',
-    ]
-
-    # Inject mocks
-    sentence_service.openai_client = mock_client
-    sentence_service.prompt_generator = mock_prompt_gen
-
-    # Generate sentence with validation - should raise error
-    with pytest.raises(
-        ContentGenerationError,
-        match="Sentence validation failed: Grammar error detected",
-    ):
-        await sentence_service.generate_sentence(
-            verb_id=sample_verb.id,
-            pronoun=Pronoun.FIRST_PERSON,
-            tense=Tense.PRESENT,
-            validate=True,
-        )
 
 
 @pytest.mark.asyncio

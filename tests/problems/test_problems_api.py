@@ -155,15 +155,32 @@ class TestRandomProblemParameterized:
     """Comprehensive parameterized tests for generate problem endpoint."""
 
     @pytest.fixture
-    async def test_verb(self, test_supabase_client, sample_verb_data):
-        """Create a test verb for problem generation."""
+    async def test_verb(self, request):
+        """Get a known good verb with conjugations for problem generation."""
         from src.services.verb_service import VerbService
 
         verb_service = VerbService()
-        verb_service.db_client = test_supabase_client
 
-        verb_data = VerbCreate(**sample_verb_data)
-        return await verb_service.create_verb(verb_data)
+        # Use known good verbs that have conjugations in migrations
+        # Use hash of test name to deterministically select verb (avoid random race conditions)
+        known_verbs = ["être", "avoir", "pouvoir", "aller", "faire", "savoir", "parler"]
+        test_name = request.node.name
+        verb_index = hash(test_name) % len(known_verbs)
+        infinitive = known_verbs[verb_index]
+
+        verb = await verb_service.get_verb_by_infinitive(infinitive)
+        if not verb:
+            raise ValueError(f"Known verb {infinitive} not found in database")
+        return verb
+
+    @pytest.fixture(autouse=True)
+    def mock_random_verb(self, test_verb):
+        """Automatically mock get_random_verb for all tests in this class."""
+        with patch(
+            "src.services.problem_service.VerbService.get_random_verb",
+            return_value=test_verb,
+        ):
+            yield
 
     async def test_default_behavior_generates_problem(
         self, client: TestClient, read_headers, test_verb, mock_llm_responses

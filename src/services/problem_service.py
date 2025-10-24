@@ -12,7 +12,7 @@ from src.core.exceptions import (
     NotFoundError,
     ServiceError,
 )
-from src.prompts.compositional_prompts import CompositionalPromptBuilder
+from src.prompts.sentences import SentencePromptBuilder
 from src.repositories.problem_repository import ProblemRepository
 from src.schemas.problems import (
     GrammarProblemConstraints,
@@ -45,15 +45,13 @@ class ProblemService:
         problem_repository: ProblemRepository | None = None,
         sentence_service: SentenceService | None = None,
         verb_service: VerbService | None = None,
-        compositional_builder: CompositionalPromptBuilder | None = None,
+        sentence_builder: SentencePromptBuilder | None = None,
     ):
         """Initialize the problems service with injectable dependencies."""
         self.problem_repository = problem_repository
         self.sentence_service = sentence_service or SentenceService()
         self.verb_service = verb_service or VerbService()
-        self.compositional_builder = (
-            compositional_builder or CompositionalPromptBuilder()
-        )
+        self.sentence_builder = sentence_builder or SentencePromptBuilder()
 
     async def _get_problem_repository(self) -> ProblemRepository:
         """Asynchronously get the problems repository, creating it if it doesn't exist."""
@@ -166,7 +164,7 @@ class ProblemService:
         )
 
         # Select 3 error types (one per incorrect sentence)
-        selected_error_types = self.compositional_builder.select_error_types(
+        selected_error_types = self.sentence_builder.select_error_types(
             temp_sentence, verb, count=statement_count - 1
         )
         logger.debug(

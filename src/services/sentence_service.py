@@ -8,14 +8,14 @@ from uuid import UUID, uuid4
 
 from src.clients.openai_client import OpenAIClient
 from src.core.config import settings
-from src.core.exceptions import ContentGenerationError, NotFoundError
-from src.prompts.compositional_prompts import (
-    CompositionalPromptBuilder,
-    ErrorType,
+from src.core.exceptions import NotFoundError
+from src.prompts.response_schemas import (
+    get_correct_sentence_response_schema,
+    get_incorrect_sentence_response_schema,
 )
+from src.prompts.sentences import ErrorType, SentencePromptBuilder
 from src.repositories.sentence_repository import SentenceRepository
 from src.schemas.sentences import (
-    CorrectnessValidationResponse,
     DirectObject,
     IndirectObject,
     Negation,
@@ -37,16 +37,14 @@ class SentenceService:
         openai_client: OpenAIClient = None,
         sentence_repository: SentenceRepository | None = None,
         verb_service: VerbService | None = None,
-        compositional_builder: CompositionalPromptBuilder | None = None,
+        sentence_builder: SentencePromptBuilder | None = None,
         use_compositional: bool = True,
     ):
         """Initialize the sentence service with injectable dependencies."""
         self.openai_client = openai_client or OpenAIClient()
         self.sentence_repository = sentence_repository
         self.verb_service = verb_service or VerbService()
-        self.compositional_builder = (
-            compositional_builder or CompositionalPromptBuilder()
-        )
+        self.sentence_builder = sentence_builder or SentencePromptBuilder()
         self.use_compositional = use_compositional
 
     async def _get_sentence_repository(self) -> SentenceRepository:
@@ -54,34 +52,6 @@ class SentenceService:
         if self.sentence_repository is None:
             self.sentence_repository = await SentenceRepository.create()
         return self.sentence_repository
-
-    async def _validate_sentence(
-        self, sentence: SentenceCreate, verb
-    ) -> CorrectnessValidationResponse:
-        """Validate sentence correctness using AI."""
-        try:
-            # Generate validation prompt directly with SentenceCreate
-            prompt = self.prompt_generator.generate_correctness_prompt(sentence, verb)
-
-            # Get AI response
-            response = await self.openai_client.handle_request(
-                prompt, model=settings.reasoning_model, operation="sentence_validation"
-            )
-
-            # Parse validation response
-            response_json = json.loads(response)
-            return CorrectnessValidationResponse.model_validate(response_json)
-
-        except (json.JSONDecodeError, Exception) as e:
-            logger.warning(f"Validation failed due to error: {e}")
-            # Return a default "valid" response if validation fails
-            return CorrectnessValidationResponse(
-                is_valid=True,
-                explanation="Validation service error - proceeding without validation",
-                actual_direct_object=sentence.direct_object,
-                actual_indirect_object=sentence.indirect_object,
-                actual_negation=sentence.negation,
-            )
 
     async def count_sentences(
         self,
@@ -116,12 +86,11 @@ class SentenceService:
         negation: Negation = Negation.NONE,
         is_correct: bool = True,
         target_language_code: str = "eng",
-        validate: bool = False,
         error_type: ErrorType | None = None,
         verb: Verb | None = None,
         conjugations: list | None = None,
     ) -> Sentence:
-        """Generate a sentence using AI integration with validation.
+        """Generate a sentence using AI integration.
 
         Args:
             verb: Optional pre-fetched verb to avoid duplicate DB calls
@@ -195,30 +164,37 @@ class SentenceService:
                 raise ValueError(
                     "error_type must be provided for incorrect sentences when using compositional prompts"
                 )
-            prompt = self.compositional_builder.build_prompt(
+            prompt = self.sentence_builder.build_prompt(
                 sentence_request,
                 verb,
+                conjugations,  # Pass conjugations to the builder
                 error_type=error_type,
-                correct_conjugation=correct_conjugation_form,
             )
+
+            # Get appropriate response schema based on correctness
+            response_schema = (
+                get_correct_sentence_response_schema()
+                if is_correct
+                else get_incorrect_sentence_response_schema()
+            )
+
             logger.debug(
                 "🎨 Using compositional prompt builder"
                 + (f" with error type: {error_type.value}" if error_type else "")
-                + (
-                    f" (known correct: '{correct_conjugation_form}')"
-                    if correct_conjugation_form
-                    else ""
-                )
             )
         else:
             # Use legacy prompt generator
             prompt = self.prompt_generator.generate_sentence_prompt(
                 sentence_request, verb
             )
+            response_schema = None  # Legacy prompts don't use structured output
             logger.debug("📝 Using legacy prompt generator")
 
         response = await self.openai_client.handle_request(
-            prompt, model=settings.reasoning_model, operation="sentence_generation"
+            prompt,
+            model=settings.reasoning_model,
+            operation="sentence_generation",
+            response_format=response_schema,
         )
         response_json = json.loads(response)
 
@@ -262,27 +238,6 @@ class SentenceService:
             f"⬅️ Generated: COD: {sentence_request.direct_object.value}, "
             f"COI: {sentence_request.indirect_object.value}, NEG: {sentence_request.negation.value}"
         )
-
-        # Conditional validation based on validate parameter
-        if validate:
-            logger.debug("🔍 Validation enabled - performing additional LLM validation")
-            validation = await self._validate_sentence(sentence_request, verb)
-
-            if validation.is_valid:
-                # Update sentence with detected values from validation
-                sentence_request.direct_object = validation.actual_direct_object
-                sentence_request.indirect_object = validation.actual_indirect_object
-                sentence_request.negation = validation.actual_negation
-
-                logger.debug("✅ Validation passed")
-            else:
-                logger.error(f"❌ Validation failed: {validation.explanation}")
-                raise ContentGenerationError(
-                    content_type="sentence",
-                    message=f"Sentence validation failed: {validation.explanation}",
-                )
-        else:
-            logger.debug("⚡ Validation disabled - skipping additional LLM validation")
 
         # Generate UUID and timestamp for both response and database
         sentence_id = uuid4()
