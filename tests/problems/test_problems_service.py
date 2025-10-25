@@ -256,11 +256,20 @@ class TestProblemServiceAnalytics:
         )
         created_problem = await problem_service.create_problem(problem_data)
 
+        # Verify the problem was created with correct metadata
+        assert created_problem.metadata is not None
+        assert "verb_infinitive" in created_problem.metadata
+        assert created_problem.metadata["verb_infinitive"] == created_verb.infinitive
+
         # Test: Retrieve problems by verb infinitive
         problems, total = await problem_service.get_problems(
             ProblemFilters(verb=created_verb.infinitive)
         )
-        assert total > 0
+        assert total > 0, (
+            f"Expected to find at least 1 problem for verb '{created_verb.infinitive}', "
+            f"but found {total}. Created problem ID: {created_problem.id}, "
+            f"metadata: {created_problem.metadata}"
+        )
         assert any(p.id == created_problem.id for p in problems)
 
     @pytest.mark.asyncio

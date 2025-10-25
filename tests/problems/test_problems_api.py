@@ -51,6 +51,24 @@ class TestProblemsAPIValidation:
 class TestProblemsAPIAuthentication:
     """Test authentication requirements for problems endpoints."""
 
+    @pytest.fixture
+    async def test_verb(self, request):
+        """Get a known good verb with conjugations for problem generation."""
+        from src.services.verb_service import VerbService
+
+        verb_service = VerbService()
+
+        # Use known good verbs that have conjugations in migrations
+        known_verbs = ["être", "avoir", "pouvoir", "aller", "faire", "savoir", "parler"]
+        test_name = request.node.name
+        verb_index = hash(test_name) % len(known_verbs)
+        infinitive = known_verbs[verb_index]
+
+        verb = await verb_service.get_verb_by_infinitive(infinitive)
+        if not verb:
+            raise ValueError(f"Known verb {infinitive} not found in database")
+        return verb
+
     def test_missing_auth_header(self, client: TestClient):
         """Test that requests without auth headers are rejected."""
         response = client.post(f"{PROBLEMS_PREFIX}/generate")
@@ -104,50 +122,82 @@ class TestProblemsAPIAuthentication:
         response = client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
 
-    def test_wrong_scope_permissions(
-        self, client: TestClient, read_headers, mock_llm_responses
+    async def test_wrong_scope_permissions(
+        self, client: TestClient, read_headers, test_verb, mock_llm_responses
     ):
         """Test that keys without required scope are rejected."""
         # This test demonstrates scope validation, but our current implementation
         # allows read access for all active keys, so this test validates the current behavior
 
-        with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value = mock_client
-            mock_client.handle_request.side_effect = mock_llm_responses
+        with patch(
+            "src.services.problem_service.VerbService.get_random_verb"
+        ) as mock_random:
+            mock_random.return_value = test_verb
 
-            # Read operations should work with read key
-            response = client.post(
-                f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
-                json={"topic_tags": ["test_data"]},
-            )
-            # The response should be either 200 (success) or 503 (service error due to missing data)
-            # but NOT 401/403 (auth error)
-            assert response.status_code in [200, 503]
+            with patch(
+                "src.services.sentence_service.OpenAIClient"
+            ) as mock_client_class:
+                mock_client = AsyncMock()
+                mock_client_class.return_value = mock_client
+                mock_client.handle_request.side_effect = mock_llm_responses
+
+                # Read operations should work with read key
+                response = client.post(
+                    f"{PROBLEMS_PREFIX}/generate",
+                    headers=read_headers,
+                    json={"topic_tags": ["test_data"]},
+                )
+                # The response should be either 200 (success) or 503 (service error due to missing data)
+                # but NOT 401/403 (auth error)
+                assert response.status_code in [200, 503]
 
 
 @pytest.mark.integration
 class TestProblemsAPIIntegration:
     """Test full API integration with real authentication and services."""
 
-    def test_generate_problem_endpoint(
-        self, client: TestClient, read_headers, mock_llm_responses
+    @pytest.fixture
+    async def test_verb(self, request):
+        """Get a known good verb with conjugations for problem generation."""
+        from src.services.verb_service import VerbService
+
+        verb_service = VerbService()
+
+        # Use known good verbs that have conjugations in migrations
+        known_verbs = ["être", "avoir", "pouvoir", "aller", "faire", "savoir", "parler"]
+        test_name = request.node.name
+        verb_index = hash(test_name) % len(known_verbs)
+        infinitive = known_verbs[verb_index]
+
+        verb = await verb_service.get_verb_by_infinitive(infinitive)
+        if not verb:
+            raise ValueError(f"Known verb {infinitive} not found in database")
+        return verb
+
+    async def test_generate_problem_endpoint(
+        self, client: TestClient, read_headers, test_verb, mock_llm_responses
     ):
         """Test generate problem endpoint with read permissions."""
-        with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value = mock_client
-            mock_client.handle_request.side_effect = mock_llm_responses
+        with patch(
+            "src.services.problem_service.VerbService.get_random_verb"
+        ) as mock_random:
+            mock_random.return_value = test_verb
 
-            response = client.post(
-                f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
-                json={"topic_tags": ["test_data"]},
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data.get("error", False) is False
+            with patch(
+                "src.services.sentence_service.OpenAIClient"
+            ) as mock_client_class:
+                mock_client = AsyncMock()
+                mock_client_class.return_value = mock_client
+                mock_client.handle_request.side_effect = mock_llm_responses
+
+                response = client.post(
+                    f"{PROBLEMS_PREFIX}/generate",
+                    headers=read_headers,
+                    json={"topic_tags": ["test_data"]},
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert data.get("error", False) is False
 
 
 @pytest.mark.integration

@@ -116,17 +116,12 @@ async def test_get_random_verb_updates_timestamp(verb_service):
 @pytest.mark.asyncio
 async def test_get_verbs_by_infinitive(verb_service):
     """Test getting verbs by infinitive."""
-    # Create a verb with specific infinitive (unique per test run)
-    from uuid import uuid4
-
+    # Create a verb (fixture generates unique infinitive with underscore pattern)
     verb_data = VerbCreate(**generate_random_verb_data())
-    verb_infinitive = uuid4().hex[:8]
-
-    verb_data.infinitive = verb_infinitive
     created_verb = await verb_service.create_verb(verb_data)
 
     # Search by infinitive
-    results = await verb_service.get_verbs_by_infinitive(verb_infinitive)
+    results = await verb_service.get_verbs_by_infinitive(created_verb.infinitive)
     assert len(results) >= 1
     assert any(v.id == created_verb.id for v in results)
 
@@ -134,13 +129,9 @@ async def test_get_verbs_by_infinitive(verb_service):
 @pytest.mark.asyncio
 async def test_get_all_verbs_with_limit(verb_service):
     """Test getting all verbs with limit parameter."""
-    # Create a couple of verbs with unique names per test run
-    from uuid import uuid4
-
-    uuid4().hex[:8]
+    # Create a couple of verbs (fixture generates unique infinitives with underscore pattern)
     for i in range(2):
         verb_data = VerbCreate(**generate_random_verb_data())
-        verb_data.infinitive = uuid4().hex[:8]
         await verb_service.create_verb(verb_data)
 
     # Get verbs with limit
@@ -233,11 +224,8 @@ async def test_get_conjugations_by_verb_id_with_conjugations(verb_service):
 @pytest.mark.asyncio
 async def test_get_conjugations_with_filters(verb_service):
     """Test getting conjugations with various filters."""
-    # Create a verb with unique name per test run
-    from uuid import uuid4
-
+    # Create a verb (fixture generates unique infinitive with underscore pattern)
     verb_data = VerbCreate(**generate_random_verb_data())
-    verb_data.infinitive = uuid4().hex[:8]
     created_verb = await verb_service.create_verb(verb_data)
 
     # Add conjugations with different tenses

@@ -33,10 +33,13 @@ class TestDatabaseCleanupWithTopicTags:
             .execute()
         )
 
-        assert len(result.data) >= 3
+        # Check that our 3 specific problems are present (not just >= 3 total)
         found_ids = [p["id"] for p in result.data]
         for problem in test_problems:
-            assert str(problem.id) in found_ids
+            assert str(problem.id) in found_ids, (
+                f"Problem {problem.id} not found in query results. "
+                f"Created {len(test_problems)} problems but query returned {len(result.data)} total."
+            )
 
         # Cleanup
         for problem in test_problems:

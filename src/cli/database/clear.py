@@ -1,8 +1,8 @@
 """
 CLI database cleanup - Remove test data from the database.
 
-This command removes all verbs, sentences, and problems created during testing.
-Test verbs are identified by having an underscore '_' in their infinitive name.
+This command removes all verbs, sentences, conjugations, and problems created during testing.
+Test verbs/conjugations are identified by having an underscore '_' in their infinitive name.
 """
 
 import asyncclick as click
@@ -19,6 +19,7 @@ async def clear_database(ctx):
     This command removes:
     - All test verbs (those with '_' in infinitive)
     - Their associated sentences (cascade-deleted via foreign keys)
+    - All orphaned test conjugations (those with '_' in infinitive)
     - All problems tagged with 'test_data' in topic_tags
 
     Respects --local/--remote flags:
@@ -83,6 +84,46 @@ async def clear_database(ctx):
             click.echo(f"✅ Cleaned up {deleted_count} test verbs")
             click.echo("✅ Associated sentences automatically removed (CASCADE)")
 
+        # Clean up orphaned test conjugations (those without matching verbs)
+        # This catches conjugations created directly in tests without verbs
+        click.echo("🔍 Checking for orphaned test conjugations...")
+
+        orphaned_count_result = (
+            await client.table("conjugations")
+            .select("id", count="exact")
+            .like("infinitive", "%\\_%")
+            .execute()
+        )
+        orphaned_conjugation_count = (
+            orphaned_count_result.count
+            if hasattr(orphaned_count_result, "count")
+            else len(orphaned_count_result.data)
+        )
+
+        if orphaned_conjugation_count == 0:
+            click.echo("✅ No orphaned test conjugations found.")
+        else:
+            click.echo(
+                f"🎯 Found {orphaned_conjugation_count} orphaned test conjugations to remove..."
+            )
+
+            # Delete all test conjugations by infinitive pattern
+            conjugation_delete_result = (
+                await client.table("conjugations")
+                .delete()
+                .like("infinitive", "%\\_%")
+                .execute()
+            )
+
+            conjugation_deleted_count = (
+                len(conjugation_delete_result.data)
+                if conjugation_delete_result.data
+                else 0
+            )
+            click.echo(
+                f"✅ Cleaned up {conjugation_deleted_count} orphaned test conjugations"
+            )
+
         # Now delete test problems (identified by "test_data" in topic_tags)
         click.echo("🔍 Checking for test problems...")
 
@@ -119,7 +160,11 @@ async def clear_database(ctx):
 
             click.echo(f"✅ Cleaned up {total_deleted} test problems")
 
-        if test_verb_count == 0 and test_problem_count == 0:
+        if (
+            test_verb_count == 0
+            and orphaned_conjugation_count == 0
+            and test_problem_count == 0
+        ):
             click.echo("✨ Database is already clean!")
 
     except Exception as e:
