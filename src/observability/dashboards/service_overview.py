@@ -555,6 +555,189 @@ def create_http_error_rate_gauge() -> stat.Panel:
     )
 
 
+# ==================== Worker Health Panels ====================
+
+
+def create_worker_messages_processed_stat() -> stat.Panel:
+    """Messages processed per second by worker."""
+    return (
+        stat.Panel()
+        .title("Messages Processed/sec")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.OpsPerSecond)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum(rate(worker_messages_processed_total{environment="$environment"}[5m]))'
+            )
+            .legend_format("Rate")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="red"),  # No processing = problem
+                    Threshold(value=0.1, color="yellow"),
+                    Threshold(value=1.0, color="green"),  # Healthy processing
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=0, y=68, w=6, h=6))
+    )
+
+
+def create_worker_active_tasks_stat() -> stat.Panel:
+    """Currently active worker tasks."""
+    return (
+        stat.Panel()
+        .title("Active Worker Tasks")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('worker_tasks_active_ratio{environment="$environment"}')
+            .legend_format("Active")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="blue"),
+                    Threshold(value=1.0, color="green"),
+                    Threshold(value=5.0, color="yellow"),
+                    Threshold(value=10.0, color="red"),  # Too many concurrent tasks
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=6, y=68, w=6, h=6))
+    )
+
+
+def create_worker_queue_length_stat() -> stat.Panel:
+    """Current queue length (backlog)."""
+    return (
+        stat.Panel()
+        .title("Queue Length")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr('worker_queue_length_ratio{environment="$environment"}')
+            .legend_format("Backlog")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="green"),
+                    Threshold(value=10.0, color="yellow"),
+                    Threshold(value=50.0, color="orange"),
+                    Threshold(value=100.0, color="red"),  # Large backlog
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=12, y=68, w=6, h=6))
+    )
+
+
+def create_worker_error_rate_stat() -> stat.Panel:
+    """Worker message processing error rate."""
+    return (
+        stat.Panel()
+        .title("Worker Error Rate")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Percent)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                '(sum(rate(worker_messages_failed_total{environment="$environment"}[5m])) / sum(rate(worker_messages_processed_total{environment="$environment"}[5m]) + rate(worker_messages_failed_total{environment="$environment"}[5m]))) * 100'
+            )
+            .legend_format("Error %")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="green"),
+                    Threshold(value=1.0, color="yellow"),
+                    Threshold(value=5.0, color="orange"),
+                    Threshold(value=10.0, color="red"),  # High error rate
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=18, y=68, w=6, h=6))
+    )
+
+
+def create_worker_processing_duration_panel() -> timeseries.Panel:
+    """Worker message processing duration over time."""
+    return (
+        timeseries.Panel()
+        .title("Worker Processing Duration")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Seconds)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'histogram_quantile(0.50, sum(rate(worker_message_processing_duration_seconds_bucket{environment="$environment"}[5m])) by (le))'
+            )
+            .legend_format("p50")
+            .ref_id("A")
+        )
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'histogram_quantile(0.95, sum(rate(worker_message_processing_duration_seconds_bucket{environment="$environment"}[5m])) by (le))'
+            )
+            .legend_format("p95")
+            .ref_id("B")
+        )
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'histogram_quantile(0.99, sum(rate(worker_message_processing_duration_seconds_bucket{environment="$environment"}[5m])) by (le))'
+            )
+            .legend_format("p99")
+            .ref_id("C")
+        )
+        .grid_pos(GridPos(x=0, y=74, w=12, h=8))
+    )
+
+
+def create_worker_throughput_panel() -> timeseries.Panel:
+    """Worker message processing throughput over time."""
+    return (
+        timeseries.Panel()
+        .title("Worker Throughput")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.OpsPerSecond)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum(rate(worker_messages_processed_total{environment="$environment"}[5m])) by (topic)'
+            )
+            .legend_format("{{topic}}")
+            .ref_id("A")
+        )
+        .grid_pos(GridPos(x=12, y=74, w=12, h=8))
+    )
+
+
 def generate() -> dashboard.Dashboard:
     """
     Generate the Service Overview dashboard.
@@ -565,6 +748,7 @@ def generate() -> dashboard.Dashboard:
     - Errors: Error rate and count
     - Saturation: Active requests and database performance
     - Production Safety: Rate limiting, quiz metrics, error tracking
+    - Worker Health: Async job processing metrics
 
     Returns:
         Complete dashboard builder ready to build()
@@ -572,9 +756,9 @@ def generate() -> dashboard.Dashboard:
     return (
         create_base_dashboard(
             title="Service Overview",
-            description="Service health overview with Golden Signals (latency, traffic, errors, saturation)",
+            description="Service health overview with Golden Signals (latency, traffic, errors, saturation) and worker metrics",
             uid="lqs-service-overview",
-            tags=["language-quiz-service", "overview", "golden-signals"],
+            tags=["language-quiz-service", "overview", "golden-signals", "worker"],
             use_environment_filter=True,
         )
         # All panels use absolute grid positioning (no rows)
@@ -595,7 +779,7 @@ def generate() -> dashboard.Dashboard:
         .with_panel(create_request_by_endpoint_panel())  # (12, 38, 12, 8) - right
         .with_panel(create_db_query_duration_panel())  # (0, 46, 12, 8)
         .with_panel(create_db_operations_panel())  # (12, 46, 12, 8)
-        # NEW: Production safety panels
+        # Production safety panels
         .with_panel(create_quiz_requests_per_minute())  # (0, 54, 12, 8)
         .with_panel(create_rate_limit_violations())  # (12, 54, 6, 8)
         .with_panel(create_quiz_response_time_p95())  # (18, 54, 6, 8)
@@ -603,4 +787,11 @@ def generate() -> dashboard.Dashboard:
         .with_panel(create_input_tokens_today())  # (8, 62, 4, 6)
         .with_panel(create_output_tokens_today())  # (12, 62, 4, 6)
         .with_panel(create_http_error_rate_gauge())  # (16, 62, 8, 6)
+        # Worker health panels
+        .with_panel(create_worker_messages_processed_stat())  # (0, 68, 6, 6)
+        .with_panel(create_worker_active_tasks_stat())  # (6, 68, 6, 6)
+        .with_panel(create_worker_queue_length_stat())  # (12, 68, 6, 6)
+        .with_panel(create_worker_error_rate_stat())  # (18, 68, 6, 6)
+        .with_panel(create_worker_processing_duration_panel())  # (0, 74, 12, 8)
+        .with_panel(create_worker_throughput_panel())  # (12, 74, 12, 8)
     )

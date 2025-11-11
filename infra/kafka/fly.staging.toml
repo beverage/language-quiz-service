@@ -1,0 +1,60 @@
+# fly.toml app configuration file generated for language-quiz-kafka-staging on 2025-11-10T14:19:12+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'language-quiz-kafka-staging'
+primary_region = 'ams'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  CLUSTER_ID = 'MkU3OEVBNTcwNTJENDM2Qk'
+  KAFKA_ADVERTISED_LISTENERS = 'PLAINTEXT://language-quiz-kafka-staging.internal:9092'
+  KAFKA_CONTROLLER_LISTENER_NAMES = 'CONTROLLER'
+  KAFKA_CONTROLLER_QUORUM_VOTERS = '1@language-quiz-kafka-staging.internal:9093'
+  KAFKA_LISTENERS = 'PLAINTEXT://[::]:9092,CONTROLLER://[::]:9093'
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP = 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
+  KAFKA_LOG_DIRS = '/var/lib/kafka/data'
+  KAFKA_NODE_ID = '1'
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR = '1'
+  KAFKA_PROCESS_ROLES = 'broker,controller'
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR = '1'
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR = '1'
+
+[[mounts]]
+  source = 'kafka_data'
+  destination = '/var/lib/kafka/data'
+
+[http_service]
+  internal_port = 9092
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 9092
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 9092
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 9093
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+
+  [[services.ports]]
+    port = 9093
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
