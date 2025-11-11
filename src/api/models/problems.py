@@ -30,6 +30,12 @@ class ProblemRandomRequest(BaseModel):
         default_factory=list,
         description="Additional topic tags to add to the generated problem",
     )
+    count: int = Field(
+        1,
+        ge=1,
+        le=100,
+        description="Number of problems to generate (async generation)",
+    )
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
@@ -124,3 +130,13 @@ class ProblemResponse(BaseModel):
         }
 
         return cls(**response_data)
+
+
+class ProblemGenerationEnqueuedResponse(BaseModel):
+    """Response model for async problem generation (202 Accepted)."""
+
+    message: str = Field(..., description="Confirmation message")
+    count: int = Field(..., description="Number of generation requests enqueued")
+    request_ids: list[str] = Field(
+        ..., description="UUIDs of enqueued generation requests"
+    )

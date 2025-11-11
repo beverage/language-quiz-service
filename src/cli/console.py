@@ -232,6 +232,7 @@ async def problem_generate(
                 detailed=detailed,
                 service_url=service_url,
                 output_json=output_json,
+                count=count,
             )
         else:
             # Batch generation

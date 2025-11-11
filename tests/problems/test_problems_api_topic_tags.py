@@ -43,6 +43,21 @@ class TestProblemGenerationWithTopicTags:
             raise ValueError(f"Known verb {infinitive} not found in database")
         return verb
 
+    @pytest.fixture
+    def mock_queue_service(self):
+        """Mock queue service to avoid Kafka connection in tests."""
+        with patch("src.api.problems.QueueService") as mock_class:
+            mock_instance = AsyncMock()
+
+            async def mock_publish(**kwargs):
+                count = kwargs.get("count", 1)
+                request_ids = [f"req-id-{i}" for i in range(count)]
+                return count, request_ids
+
+            mock_instance.publish_problem_generation_request = mock_publish
+            mock_class.return_value = mock_instance
+            yield mock_instance
+
     @pytest.fixture(autouse=True)
     def mock_random_verb(self, test_verb):
         """Automatically mock get_random_verb for all tests in this class."""
@@ -53,99 +68,74 @@ class TestProblemGenerationWithTopicTags:
             yield
 
     async def test_topic_tags_in_response(
-        self, client: TestClient, read_headers, test_verb, mock_llm_responses
+        self, client: TestClient, read_headers, mock_queue_service
     ):
-        """Test that topic_tags passed in request appear in response."""
-        with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value = mock_client
-            mock_client.handle_request.side_effect = mock_llm_responses
+        """Test that topic_tags are accepted in async generation request."""
+        response = client.post(
+            f"{PROBLEMS_PREFIX}/generate",
+            headers=read_headers,
+            json={"topic_tags": ["test_data", "custom_tag", "advanced"]},
+        )
 
-            response = client.post(
-                f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
-                json={"topic_tags": ["test_data", "custom_tag", "advanced"]},
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-
-            # Note: API response may not include topic_tags unless include_metadata=true
-            # But problem should be created successfully
-            assert "id" in data
-            assert "title" in data
+        assert response.status_code == 202
+        data = response.json()
+        assert data["count"] == 1
 
     async def test_empty_topic_tags(
-        self, client: TestClient, read_headers, test_verb, mock_llm_responses
+        self, client: TestClient, read_headers, mock_queue_service
     ):
         """Test API with empty topic_tags list."""
-        with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value = mock_client
-            mock_client.handle_request.side_effect = mock_llm_responses
+        response = client.post(
+            f"{PROBLEMS_PREFIX}/generate",
+            headers=read_headers,
+            json={"topic_tags": ["test_data"]},
+        )
 
-            response = client.post(
-                f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
-                json={"topic_tags": ["test_data"]},  # Still need test_data for cleanup
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "id" in data
+        assert response.status_code == 202
+        data = response.json()
+        assert data["count"] == 1
 
     async def test_topic_tags_with_constraints(
-        self, client: TestClient, read_headers, test_verb, mock_llm_responses
+        self, client: TestClient, read_headers, mock_queue_service
     ):
         """Test topic_tags alongside problem generation constraints."""
-        with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value = mock_client
-            mock_client.handle_request.side_effect = mock_llm_responses
-
-            response = client.post(
-                f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
-                json={
-                    "constraints": {
-                        "grammatical_focus": ["negation"],
-                        "includes_negation": True,
-                    },
-                    "statement_count": 6,
-                    "topic_tags": ["test_data", "negation_test"],
+        response = client.post(
+            f"{PROBLEMS_PREFIX}/generate",
+            headers=read_headers,
+            json={
+                "constraints": {
+                    "grammatical_focus": ["negation"],
+                    "includes_negation": True,
                 },
-            )
+                "statement_count": 6,
+                "topic_tags": ["test_data", "negation_test"],
+            },
+        )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "id" in data
-            assert len(data["statements"]) == 6
+        assert response.status_code == 202
+        data = response.json()
+        assert data["count"] == 1
 
     async def test_topic_tags_with_special_characters(
-        self, client: TestClient, read_headers, test_verb, mock_llm_responses
+        self, client: TestClient, read_headers, mock_queue_service
     ):
         """Test that topic_tags with special characters are accepted."""
-        with patch("src.services.sentence_service.OpenAIClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client_class.return_value = mock_client
-            mock_client.handle_request.side_effect = mock_llm_responses
+        response = client.post(
+            f"{PROBLEMS_PREFIX}/generate",
+            headers=read_headers,
+            json={
+                "topic_tags": [
+                    "test_data",
+                    "special-chars",
+                    "tag_with_underscore",
+                    "tag.with.dots",
+                ]
+            },
+        )
 
-            response = client.post(
-                f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
-                json={
-                    "topic_tags": [
-                        "test_data",
-                        "special-chars",
-                        "tag_with_underscore",
-                        "tag.with.dots",
-                    ]
-                },
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "id" in data
+        assert response.status_code == 202
+        data = response.json()
+        assert data["count"] == 1
 
     async def test_invalid_topic_tags_type(
         self, client: TestClient, read_headers, test_verb, mock_llm_responses

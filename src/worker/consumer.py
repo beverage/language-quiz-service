@@ -11,7 +11,7 @@ from aiokafka.errors import KafkaError
 
 from src.worker import metrics
 from src.worker.config import worker_config
-from src.worker.handlers.test_handler import TestMessageHandler
+from src.worker.handlers.problem_handler import ProblemGenerationHandler
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ class KafkaConsumer:
         """Initialize the Kafka consumer."""
         self.consumer: AIOKafkaConsumer | None = None
         self.running = False
-        self.handler = TestMessageHandler()
+        self.handler = ProblemGenerationHandler()
 
     async def run(self) -> None:
         """
@@ -103,8 +103,8 @@ class KafkaConsumer:
                 f"offset {message.offset}"
             )
 
-            # Delegate to handler
-            await self.handler.handle(message.value)
+            # Delegate to handler with message headers for trace context
+            await self.handler.handle(message.value, headers=message.headers)
 
             # Commit offset after successful processing
             if self.consumer:

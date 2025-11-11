@@ -117,6 +117,7 @@ class ProblemService:
         statement_count: int = 4,
         target_language_code: str = "eng",
         additional_tags: list[str] | None = None,
+        request_id: UUID | None = None,
     ) -> Problem:
         """
         Create a random grammar problem by orchestrating sentence generation.
@@ -241,6 +242,7 @@ class ProblemService:
             constraints=constraints,
             target_language_code=target_language_code,
             additional_tags=additional_tags,
+            request_id=request_id,
         )
 
         # Step 5: Create problem in background (fire and forget)
@@ -422,6 +424,7 @@ class ProblemService:
         constraints: GrammarProblemConstraints,
         target_language_code: str,
         additional_tags: list[str] | None = None,
+        request_id: UUID | None = None,
     ) -> ProblemCreate:
         """Package sentences into atomic problem format."""
 
@@ -461,6 +464,7 @@ class ProblemService:
             topic_tags=topic_tags,
             source_statement_ids=[s.id for s in sentences],
             metadata=metadata,
+            request_id=request_id,
         )
 
     def _derive_grammar_metadata(
@@ -569,6 +573,24 @@ class ProblemService:
         )
         problems, _ = await repo.get_problems(filters)
         return problems
+
+    async def get_least_recently_served_problem(self) -> Problem | None:
+        """
+        Get the least recently used problem and update its last_served_at.
+
+        Returns:
+            Problem object if found, None if no problems exist
+        """
+        repo = await self._get_problem_repository()
+
+        # Get least recently served problem
+        problem = await repo.get_least_recently_served_problem()
+
+        if problem:
+            # Update last_served_at timestamp
+            await repo.update_problem_last_served(problem.id)
+
+        return problem
 
     async def get_random_problem(
         self,

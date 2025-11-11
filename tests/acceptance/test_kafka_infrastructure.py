@@ -48,7 +48,7 @@ class TestKafkaInfrastructure:
 
         # Custom handler that captures messages
         class CaptureHandler:
-            async def handle(self, message):
+            async def handle(self, message, headers=None):
                 messages_received.append(message)
 
         # Create consumer
@@ -157,7 +157,7 @@ class TestKafkaInfrastructure:
         # Track errors
 
         class ErrorCaptureHandler:
-            async def handle(self, message):
+            async def handle(self, message, headers=None):
                 # This shouldn't be called for invalid JSON
                 pass
 

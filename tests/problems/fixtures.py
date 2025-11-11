@@ -99,6 +99,8 @@ def sample_problem():
             "id": uuid4(),
             "created_at": datetime.now(),
             "updated_at": datetime.now(),
+            "last_served_at": None,
+            "request_id": uuid4(),
         }
     )
     return Problem(**problem_data)
