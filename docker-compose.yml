@@ -12,7 +12,7 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
-      - /app/.venv  # Exclude .venv from volume mount (use container's version)
+      - app-venv:/app/.venv  # Use named volume for .venv to preserve container's dependencies
     env_file:
       - .env.compose.local
     environment:
@@ -22,11 +22,16 @@ services:
       - SUPABASE_URL=http://supabase_kong_language-quiz-service:8000
       # Authentication - bypass in local development
       - REQUIRE_AUTH=false
+      # Logging configuration - defaults to INFO, can be overridden
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # OpenTelemetry configuration - send to local OTEL Collector
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
       - OTEL_SERVICE_NAME=language-quiz-service
       - OTEL_SERVICE_NAMESPACE=lqs
       - OTEL_DEPLOYMENT_ENVIRONMENT=local
+      # Kafka configuration
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ENABLE_WORKER=true
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
@@ -34,7 +39,10 @@ services:
       retries: 3
       start_period: 10s
     depends_on:
-      - otel-collector
+      kafka:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
 
   # OpenTelemetry Collector - receives OTLP and writes to Prometheus
   otel-collector:
@@ -91,6 +99,38 @@ services:
     depends_on:
       - prometheus
 
+  # Kafka - message queue for async problem generation
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: kafka-local
+    networks:
+      - observability
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      # KRaft single-node configuration
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:9092,CONTROLLER://kafka:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server kafka:9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
 networks:
   supabase_network:
     external: true
@@ -101,3 +141,5 @@ networks:
 volumes:
   prometheus-data:
   grafana-data:
+  kafka-data:
+  app-venv:

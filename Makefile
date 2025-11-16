@@ -1,4 +1,4 @@
-.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev dev-monitored build deploy logs up down start-supabase setup dashboards-deploy dashboards-validate dashboards-export
+.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev dev-monitored build deploy logs up down start-supabase setup dashboards-deploy dashboards-validate dashboards-export kafka-deploy kafka-logs kafka-status kafka-ssh
 
 # Default target
 help:
@@ -40,6 +40,12 @@ help:
 	@echo "  up              - Start all machines (ENV=staging|production, default: staging)"
 	@echo "  down            - Stop all machines (ENV=staging|production, default: staging)"
 	@echo ""
+	@echo "Kafka (Infrastructure):"
+	@echo "  kafka-deploy    - Deploy Kafka (ENV=staging|production, default: staging)"
+	@echo "  kafka-logs      - Show Kafka logs (ENV=staging|production, default: staging)"
+	@echo "  kafka-status    - Show Kafka status (ENV=staging|production, default: staging)"
+	@echo "  kafka-ssh       - SSH into Kafka instance (ENV=staging|production, default: staging)"
+	@echo ""
 	@echo "Examples:"
 	@echo "  make setup                 # First-time setup"
 	@echo "  make compose-up            # Start with docker-compose (recommended)"
@@ -48,6 +54,7 @@ help:
 	@echo "  make dashboards-deploy     # Deploy dashboards"
 	@echo "  make deploy ENV=staging    # Deploy to staging"
 	@echo "  make deploy ENV=production # Deploy to production"
+	@echo "  make kafka-deploy ENV=staging  # Deploy Kafka to staging"
 
 # Setup targets
 setup:
@@ -250,3 +257,30 @@ dashboards-validate:
 dashboards-export:
 	@echo "Exporting dashboards as JSON..."
 	poetry run python -m src.observability.deploy --export --output-dir ./dashboards 
+
+# Kafka deployment targets (manual, intentional)
+kafka-deploy:
+	@echo "Deploying Kafka to $(ENV) environment..."
+	@if [ "$(ENV)" = "production" ]; then \
+		echo "⚠️  WARNING: Deploying Kafka to PRODUCTION"; \
+		echo "This will affect all production services."; \
+		read -p "Are you sure? (yes/no): " confirm; \
+		if [ "$$confirm" != "yes" ]; then \
+			echo "Deployment cancelled."; \
+			exit 1; \
+		fi; \
+	fi
+	flyctl deploy --config infra/kafka/fly.$(ENV).toml \
+		--app language-quiz-kafka-$(ENV) --ha=false
+
+kafka-logs:
+	@echo "Showing Kafka $(ENV) logs..."
+	flyctl logs --app language-quiz-kafka-$(ENV)
+
+kafka-status:
+	@echo "Checking Kafka $(ENV) status..."
+	flyctl status --app language-quiz-kafka-$(ENV)
+
+kafka-ssh:
+	@echo "SSH into Kafka $(ENV) instance..."
+	flyctl ssh console --app language-quiz-kafka-$(ENV)

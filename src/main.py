@@ -19,10 +19,14 @@ from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 # Configure logging BEFORE other imports
+# Read log level from environment (defaults to INFO)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+logger.info(f"📝 Log level set to: {LOG_LEVEL}")
 
 # ============================================================================
 # OpenTelemetry Setup (Conditional - only if OTEL_EXPORTER_OTLP_ENDPOINT set)
@@ -200,10 +204,36 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Failed to initialize caches: {e}", exc_info=True)
         raise
 
+    # Start background worker if enabled
+    from src.worker import start_worker
+    from src.worker.config import worker_config
+
+    if worker_config.ENABLE_WORKER:
+        try:
+            logger.info("🔧 Background worker enabled, starting...")
+            await start_worker()
+            logger.info("✅ Background worker started")
+        except Exception as e:
+            logger.error(f"❌ Failed to start background worker: {e}", exc_info=True)
+            # Don't raise - allow service to start even if worker fails
+    else:
+        logger.info("⏸️  Background worker disabled (ENABLE_WORKER=false)")
+
     yield
 
     # Cleanup
     logger.info("🔄 Shutting down Language Quiz Service...")
+
+    # Stop background worker if running
+    if worker_config.ENABLE_WORKER:
+        from src.worker import stop_worker
+
+        try:
+            logger.info("🔧 Stopping background worker...")
+            await stop_worker()
+            logger.info("✅ Background worker stopped")
+        except Exception as e:
+            logger.error(f"⚠️  Error stopping background worker: {e}", exc_info=True)
 
 
 app = FastAPI(

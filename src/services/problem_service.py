@@ -12,7 +12,7 @@ from src.core.exceptions import (
     NotFoundError,
     ServiceError,
 )
-from src.prompts.compositional_prompts import CompositionalPromptBuilder
+from src.prompts.sentences import SentencePromptBuilder
 from src.repositories.problem_repository import ProblemRepository
 from src.schemas.problems import (
     GrammarProblemConstraints,
@@ -45,15 +45,13 @@ class ProblemService:
         problem_repository: ProblemRepository | None = None,
         sentence_service: SentenceService | None = None,
         verb_service: VerbService | None = None,
-        compositional_builder: CompositionalPromptBuilder | None = None,
+        sentence_builder: SentencePromptBuilder | None = None,
     ):
         """Initialize the problems service with injectable dependencies."""
         self.problem_repository = problem_repository
         self.sentence_service = sentence_service or SentenceService()
         self.verb_service = verb_service or VerbService()
-        self.compositional_builder = (
-            compositional_builder or CompositionalPromptBuilder()
-        )
+        self.sentence_builder = sentence_builder or SentencePromptBuilder()
 
     async def _get_problem_repository(self) -> ProblemRepository:
         """Asynchronously get the problems repository, creating it if it doesn't exist."""
@@ -118,6 +116,8 @@ class ProblemService:
         constraints: GrammarProblemConstraints | None = None,
         statement_count: int = 4,
         target_language_code: str = "eng",
+        additional_tags: list[str] | None = None,
+        request_id: UUID | None = None,
     ) -> Problem:
         """
         Create a random grammar problem by orchestrating sentence generation.
@@ -165,7 +165,7 @@ class ProblemService:
         )
 
         # Select 3 error types (one per incorrect sentence)
-        selected_error_types = self.compositional_builder.select_error_types(
+        selected_error_types = self.sentence_builder.select_error_types(
             temp_sentence, verb, count=statement_count - 1
         )
         logger.debug(
@@ -241,6 +241,8 @@ class ProblemService:
             verb=verb,
             constraints=constraints,
             target_language_code=target_language_code,
+            additional_tags=additional_tags,
+            request_id=request_id,
         )
 
         # Step 5: Create problem in background (fire and forget)
@@ -421,6 +423,8 @@ class ProblemService:
         verb,
         constraints: GrammarProblemConstraints,
         target_language_code: str,
+        additional_tags: list[str] | None = None,
+        request_id: UUID | None = None,
     ) -> ProblemCreate:
         """Package sentences into atomic problem format."""
 
@@ -445,6 +449,10 @@ class ProblemService:
         # Generate topic tags
         topic_tags = self._derive_topic_tags(verb, constraints, metadata)
 
+        # Merge in any additional tags passed from the API
+        if additional_tags:
+            topic_tags.extend(additional_tags)
+
         # Create the problem
         return ProblemCreate(
             problem_type=ProblemType.GRAMMAR,
@@ -456,6 +464,7 @@ class ProblemService:
             topic_tags=topic_tags,
             source_statement_ids=[s.id for s in sentences],
             metadata=metadata,
+            request_id=request_id,
         )
 
     def _derive_grammar_metadata(
@@ -564,6 +573,24 @@ class ProblemService:
         )
         problems, _ = await repo.get_problems(filters)
         return problems
+
+    async def get_least_recently_served_problem(self) -> Problem | None:
+        """
+        Get the least recently used problem and update its last_served_at.
+
+        Returns:
+            Problem object if found, None if no problems exist
+        """
+        repo = await self._get_problem_repository()
+
+        # Get least recently served problem
+        problem = await repo.get_least_recently_served_problem()
+
+        if problem:
+            # Update last_served_at timestamp
+            await repo.update_problem_last_served(problem.id)
+
+        return problem
 
     async def get_random_problem(
         self,

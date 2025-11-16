@@ -1,6 +1,6 @@
 -- Migration: Initial Verb List
 -- Created: 2025-10-23
--- Description: Adds curated list of 107 essential French verbs with grammatical properties
+-- Description: Adds curated list of 93 essential French verbs with grammatical properties
 --
 -- This migration establishes the foundational verb vocabulary for the language quiz service.
 -- Each verb includes:
@@ -19,7 +19,7 @@
 --   3. Update translations, classifications, or COD/COI flags
 --
 -- IMPORTANT NOTES:
---   - Rerunning will NOT delete extra verbs - only upserts the 107 defined here
+--   - Rerunning will NOT delete extra verbs - only upserts the 93 defined here
 --   - Conjugations must be downloaded separately via `lqs database init` or the API
 --   - Unique constraint: (infinitive, auxiliary, reflexive, target_language_code, translation)
 --
@@ -46,19 +46,6 @@ DO UPDATE SET
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('aller', 'être'::auxiliary, false, 'eng', 'to go', 'allé', 'allant', 'third_group'::verb_classification, true, false, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('appartenir', 'avoir'::auxiliary, false, 'eng', 'to belong', 'appartenus', 'appartenant', 'third_group'::verb_classification, false, false, true)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
   translation = EXCLUDED.translation,
@@ -123,19 +110,6 @@ DO UPDATE SET
   updated_at = now();
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('bâiller', 'avoir'::auxiliary, false, 'eng', 'to yawn', 'bâillé', 'bâillant', 'first_group'::verb_classification, false, false, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('boire', 'avoir'::auxiliary, false, 'eng', 'to drink', 'bu', 'buvant', 'third_group'::verb_classification, true, true, false)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
@@ -163,19 +137,6 @@ DO UPDATE SET
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('choisir', 'avoir'::auxiliary, false, 'eng', 'to choose', 'choisi', 'choisissant', 'second_group'::verb_classification, false, true, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('chuchoter', 'avoir'::auxiliary, false, 'eng', 'to whisper', 'chuchoté', 'chuchotant', 'first_group'::verb_classification, false, true, false)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
   translation = EXCLUDED.translation,
@@ -409,19 +370,6 @@ DO UPDATE SET
   updated_at = now();
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('épeler', 'avoir'::auxiliary, false, 'eng', 'to spell', 'épelé', 'épelenant', 'first_group'::verb_classification, false, true, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('être', 'avoir'::auxiliary, false, 'eng', 'to be', 'été', 'étant', 'third_group'::verb_classification, true, false, false)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
@@ -487,32 +435,6 @@ DO UPDATE SET
   updated_at = now();
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('flairer', 'avoir'::auxiliary, false, 'eng', 'to smell', 'flairé', 'flairant', 'first_group'::verb_classification, false, true, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('grincer', 'avoir'::auxiliary, false, 'eng', 'to creak', 'grincé', 'grinçant', 'first_group'::verb_classification, false, true, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('jouer', 'avoir'::auxiliary, false, 'eng', 'to play', 'joué', 'jouant', 'first_group'::verb_classification, false, true, false)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
@@ -540,19 +462,6 @@ DO UPDATE SET
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('manger', 'avoir'::auxiliary, false, 'eng', 'to eat', 'mangé', 'mangeant', 'first_group'::verb_classification, false, true, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('méditer', 'avoir'::auxiliary, false, 'eng', 'to meditate', 'médité', 'méditant', 'first_group'::verb_classification, false, true, false)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
   translation = EXCLUDED.translation,
@@ -617,33 +526,7 @@ DO UPDATE SET
   updated_at = now();
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('murmurer', 'avoir'::auxiliary, false, 'eng', 'to murmur', 'murmuré', 'murmurant', 'first_group'::verb_classification, false, true, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('naître', 'être'::auxiliary, false, 'eng', 'to be born', 'né', 'naissant', 'third_group'::verb_classification, true, false, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('obéir', 'avoir'::auxiliary, false, 'eng', 'to obey', 'obéi', 'obéissant', 'second_group'::verb_classification, false, false, true)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
   translation = EXCLUDED.translation,
@@ -748,19 +631,6 @@ DO UPDATE SET
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('permettre', 'avoir'::auxiliary, false, 'eng', 'to allow', 'permis', 'permettant', 'third_group'::verb_classification, true, true, true)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('plaire', 'avoir'::auxiliary, false, 'eng', 'to please', 'plu', 'plaisant', 'third_group'::verb_classification, true, false, true)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
   translation = EXCLUDED.translation,
@@ -930,19 +800,6 @@ DO UPDATE SET
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('revenir', 'être'::auxiliary, false, 'eng', 'to come back', 'revenu', 'revenant', 'third_group'::verb_classification, true, false, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('ricaner', 'avoir'::auxiliary, false, 'eng', 'to sneer', 'ricané', 'ricanant', 'first_group'::verb_classification, false, true, false)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
   translation = EXCLUDED.translation,
@@ -1150,46 +1007,7 @@ DO UPDATE SET
   updated_at = now();
 
 INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('soupirer', 'avoir'::auxiliary, false, 'eng', 'to sigh', 'soupiré', 'soupirant', 'first_group'::verb_classification, false, false, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('sourire', 'avoir'::auxiliary, false, 'eng', 'to smile', 'souri', 'souriant', 'third_group'::verb_classification, true, false, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
 VALUES ('suivre', 'avoir'::auxiliary, false, 'eng', 'to follow', 'suivi', 'suivant', 'third_group'::verb_classification, true, true, false)
-ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
-DO UPDATE SET
-  translation = EXCLUDED.translation,
-  past_participle = EXCLUDED.past_participle,
-  present_participle = EXCLUDED.present_participle,
-  classification = EXCLUDED.classification,
-  is_irregular = EXCLUDED.is_irregular,
-  can_have_cod = EXCLUDED.can_have_cod,
-  can_have_coi = EXCLUDED.can_have_coi,
-  updated_at = now();
-
-INSERT INTO verbs (infinitive, auxiliary, reflexive, target_language_code, translation, past_participle, present_participle, classification, is_irregular, can_have_cod, can_have_coi)
-VALUES ('téléphoner', 'avoir'::auxiliary, false, 'eng', 'to phone', 'téléphoné', 'téléphonant', 'first_group'::verb_classification, false, false, true)
 ON CONFLICT (infinitive, auxiliary, reflexive, target_language_code, translation)
 DO UPDATE SET
   translation = EXCLUDED.translation,

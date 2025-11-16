@@ -24,17 +24,15 @@ from src.cli.database.clear import clear_database
 from src.cli.database.init import init_verbs
 from src.cli.database.wipe import wipe_database
 from src.cli.problems.create import (
-    create_random_problem,
-    create_random_problem_with_delay,
-    create_random_problems_batch,
+    generate_random_problem,
+    generate_random_problems_batch,
     get_problem_statistics,
+    get_random_problem,
     list_problems,
     search_problems_by_focus,
     search_problems_by_topic,
 )
 from src.cli.sentences.create import create_random_sentence_batch, create_sentence
-from src.cli.utils.console import Style
-from src.cli.utils.queues import batch_operation
 from src.cli.verbs.commands import download, get, random
 from src.schemas.problems import GrammarProblemConstraints
 
@@ -155,6 +153,33 @@ async def problem():
 
 
 @problem.command("random")
+@click.option(
+    "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
+)
+@click.pass_context
+async def problem_random(
+    ctx,
+    output_json: bool,
+):
+    """Get a random problem from the database."""
+    try:
+        # Get flags from root context
+        root_ctx = ctx.find_root()
+        detailed = root_ctx.params.get("detailed", False)
+        service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
+
+        await get_random_problem(
+            display=not output_json,
+            detailed=detailed,
+            service_url=service_url,
+            output_json=output_json,
+        )
+
+    except Exception as ex:
+        click.echo(f"❌ Error fetching random problem: {ex}")
+
+
+@problem.command("generate")
 @click.option("--count", "-c", default=1, help="Number of problems to generate")
 @click.option("--statements", "-s", default=4, help="Number of statements per problem")
 @click.option("--include-cod", is_flag=True, help="Force inclusion of direct objects")
@@ -167,7 +192,7 @@ async def problem():
     "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
 )
 @click.pass_context
-async def problem_random(
+async def problem_generate(
     ctx,
     count: int,
     statements: int,
@@ -177,7 +202,7 @@ async def problem_random(
     tense: tuple,
     output_json: bool,
 ):
-    """Generate random grammar problems."""
+    """Generate random grammar problems using AI."""
     try:
         # Get flags from root context
         root_ctx = ctx.find_root()
@@ -200,17 +225,18 @@ async def problem_random(
 
         if count == 1:
             # Single problem generation
-            await create_random_problem(
+            await generate_random_problem(
                 statement_count=statements,
                 constraints=constraints,
                 display=not output_json,
                 detailed=detailed,
                 service_url=service_url,
                 output_json=output_json,
+                count=count,
             )
         else:
             # Batch generation
-            await create_random_problems_batch(
+            await generate_random_problems_batch(
                 quantity=count,
                 statement_count=statements,
                 constraints=constraints,
@@ -297,18 +323,21 @@ async def batch(ctx, quantity: int, workers: int, statements: int):
     """Generate multiple problems in parallel."""
 
     try:
-        # Get service_url from root context
+        # Get service_url and detailed from root context
         root_ctx = ctx.find_root()
         service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
+        detailed = root_ctx.params.get("detailed", False)
 
-        results = await batch_operation(
-            workers=workers,
+        await generate_random_problems_batch(
             quantity=quantity,
-            method=create_random_problem_with_delay,
+            statement_count=statements,
+            constraints=None,
+            workers=workers,
             display=True,
+            detailed=detailed,
             service_url=service_url,
+            output_json=False,
         )
-        print(f"{Style.BOLD}Generated {len(results)}{Style.RESET}")
     except Exception as ex:
         print(f"str({ex}): {traceback.format_exc()}")
 

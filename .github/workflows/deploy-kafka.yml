@@ -1,0 +1,78 @@
+name: Deploy Kafka
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: 'staging'
+      confirm_production:
+        description: 'Type "yes" to confirm production deployment'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  deploy-kafka:
+    name: Deploy Kafka to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    
+    # Use GitHub Environments for additional protection
+    environment:
+      name: ${{ inputs.environment }}-kafka
+      url: https://fly.io/apps/language-quiz-kafka-${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Validate production deployment
+        if: inputs.environment == 'production'
+        run: |
+          if [ "${{ inputs.confirm_production }}" != "yes" ]; then
+            echo "❌ Production deployment requires confirmation"
+            echo "Please enter 'yes' in the confirm_production field"
+            exit 1
+          fi
+          echo "✅ Production deployment confirmed"
+      
+      - name: Setup Flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+      
+      - name: Deploy Kafka to ${{ inputs.environment }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          echo "🚀 Deploying Kafka to ${{ inputs.environment }}..."
+          flyctl deploy \
+            --config infra/kafka/fly.${{ inputs.environment }}.toml \
+            --app language-quiz-kafka-${{ inputs.environment }} \
+            --ha=false
+      
+      - name: Verify deployment
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          echo "✅ Checking Kafka status..."
+          flyctl status --app language-quiz-kafka-${{ inputs.environment }}
+      
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "✅ Kafka successfully deployed to ${{ inputs.environment }}"
+          echo ""
+          echo "📊 View status: https://fly.io/apps/language-quiz-kafka-${{ inputs.environment }}"
+          echo "📝 View logs: flyctl logs --app language-quiz-kafka-${{ inputs.environment }}"
+          echo "🔧 SSH access: flyctl ssh console --app language-quiz-kafka-${{ inputs.environment }}"
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Kafka deployment to ${{ inputs.environment }} failed"
+          echo "Check the logs above for details"
+

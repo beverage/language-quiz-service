@@ -8,6 +8,7 @@ packages = [{include = "src"}]
 [tool.poetry.dependencies]
 python = "^3.11"
 aiohttp = "^3.9.3"
+aiokafka = "^0.11.0"
 asyncclick = "^8.1.7.2"
 asyncpg = "^0.30.0"
 backoff = "^2.2.1"
@@ -47,6 +48,7 @@ ruff = "^0.4.8"
 pip-audit = "^2.9.0"
 faker = "^37.4.0"
 pytest-xdist = "^3.8.0"
+testcontainers = {extras = ["kafka"], version = "^4.9.0"}
 
 [tool.poetry.scripts]
 lqs = "src.cli.console:main"

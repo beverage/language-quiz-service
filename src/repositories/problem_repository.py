@@ -1,6 +1,7 @@
 """Problems repository for data access."""
 
 import logging
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -258,6 +259,61 @@ class ProblemRepository:
             if result.data
             else []
         )
+
+    async def get_least_recently_served_problem(self) -> Problem | None:
+        """
+        Get the least recently served problem from the database.
+
+        Returns problems that have never been served first (last_served_at IS NULL),
+        then problems ordered by oldest last_served_at.
+
+        Returns:
+            Problem object if found, None if no problems exist
+        """
+        try:
+            response = (
+                await self.client.table("problems")
+                .select("*")
+                .order("last_served_at", desc=False, nullsfirst=True)
+                .order("created_at", desc=False)  # Tiebreaker: oldest created first
+                .limit(1)
+                .execute()
+            )
+
+            if not response.data or len(response.data) == 0:
+                return None
+
+            problem_data = response.data[0]
+            return Problem.model_validate(self._prepare_problem_data(problem_data))
+
+        except Exception as e:
+            logger.error(f"Error fetching least recently served problem: {e}")
+            raise
+
+    async def update_problem_last_served(self, problem_id: UUID) -> bool:
+        """
+        Update the last_served_at timestamp for a problem.
+
+        Args:
+            problem_id: ID of the problem to update
+
+        Returns:
+            True if update successful, False otherwise
+        """
+        try:
+            await (
+                self.client.table("problems")
+                .update({"last_served_at": datetime.now(UTC).isoformat()})
+                .eq("id", str(problem_id))
+                .execute()
+            )
+
+            logger.debug(f"Updated last_served_at for problem {problem_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error updating last_served_at for problem {problem_id}: {e}")
+            return False
 
     async def get_random_problem(
         self,

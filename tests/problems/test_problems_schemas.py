@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from src.api.models.problems import ProblemRandomRequest
 from src.schemas.problems import (
     DifficultyLevel,
     GrammarProblemConstraints,

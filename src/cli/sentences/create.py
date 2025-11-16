@@ -37,7 +37,6 @@ logger = logging.getLogger(__name__)
 )
 @asyncclick.option("--negation", type=Negation, default=Negation.NONE)
 @asyncclick.option("--is_correct", type=bool, default=True)
-@asyncclick.option("--validate", type=bool, default=False)
 async def create_sentence(
     verb_infinitive: str,
     pronoun: Pronoun = Pronoun.FIRST_PERSON,
@@ -46,7 +45,6 @@ async def create_sentence(
     indirect_object: IndirectObject = IndirectObject.NONE,
     negation: Negation = Negation.NONE,
     is_correct: bool = True,
-    validate: bool = False,
     output_json: bool = False,
     output_format: str = "pretty",
 ):
@@ -103,7 +101,6 @@ async def create_sentence(
         indirect_object=IndirectObject(indirect_object),
         negation=Negation(negation),
         is_correct=is_correct,
-        validate=validate,
     )
 
     formatted_output = format_output(sentence, output_json, output_format)

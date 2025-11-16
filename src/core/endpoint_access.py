@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 # Endpoints that are publicly accessible in production/staging
 PUBLIC_ENDPOINTS = [
-    "/api/v1/problems/random",  # POST - Quiz generation for website
+    "/api/v1/problems/random",  # GET - Retrieve random problem from database
+    "/api/v1/problems/generate",  # POST - Generate new problem with AI
     "/health",  # GET - Health check (for monitoring)
     "/",  # GET - Root endpoint
     "/docs",  # GET - API docs (optional, can remove in production)

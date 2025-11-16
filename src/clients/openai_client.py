@@ -1,5 +1,6 @@
 import logging
 import time
+from typing import Any
 
 from openai import APIError, APITimeoutError, AsyncOpenAI, RateLimitError
 from opentelemetry import metrics, trace
@@ -67,7 +68,11 @@ class OpenAIClient:
         )
 
     async def handle_request(
-        self, prompt: str, model: str, operation: str | None = None
+        self,
+        prompt: str,
+        model: str,
+        operation: str | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> str:
         """
         Send a chat completion request to OpenAI and return the content string.
@@ -76,6 +81,7 @@ class OpenAIClient:
             prompt: The prompt to send to OpenAI
             model: The model to use (e.g., "gpt-4o-mini", "gpt-5-nano-2025-08-07")
             operation: Optional operation name for metrics (e.g., "problem_generation", "sentence_validation")
+            response_format: Optional JSON schema for structured output
 
         Returns:
             Cleaned response content
@@ -99,7 +105,11 @@ class OpenAIClient:
 
             # Only add reasoning_effort for reasoning models
             if is_reasoning_model:
-                request_params["reasoning_effort"] = "low"
+                request_params["reasoning_effort"] = "minimal"
+
+            # Add response format if provided
+            if response_format:
+                request_params["response_format"] = response_format
 
             response = await self.client.chat.completions.create(**request_params)
 
