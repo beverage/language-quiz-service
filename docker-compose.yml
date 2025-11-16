@@ -31,7 +31,8 @@ services:
       - OTEL_DEPLOYMENT_ENVIRONMENT=local
       # Kafka configuration
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - ENABLE_WORKER=true
+      # Worker configuration - Number of concurrent Kafka consumers (max 10 due to topic partition count)
+      - WORKER_COUNT=2
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
@@ -117,7 +118,8 @@ services:
       KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
-      KAFKA_LOG_DIRS: '/var/lib/kafka/data'
+      # Use subdirectory to match Fly.io configuration (avoids lost+found issues)
+      KAFKA_LOG_DIRS: '/var/lib/kafka/data/kafka-logs'
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -130,6 +132,21 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # Kafka Topic Initialization - applies topic migrations
+  kafka-init:
+    image: apache/kafka:3.8.0
+    container_name: kafka-init-local
+    networks:
+      - observability
+    volumes:
+      - ./infra/kafka/topics:/topics:ro
+      - ./infra/kafka/scripts:/scripts:ro
+    command: /scripts/init-topics.sh kafka:9092 /topics
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"  # Only run once per docker compose up
 
 networks:
   supabase_network:

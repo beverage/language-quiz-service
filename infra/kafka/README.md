@@ -72,7 +72,7 @@ Update your main service's `fly.toml`:
 ```toml
 [env]
   KAFKA_BOOTSTRAP_SERVERS = "language-quiz-kafka-staging.internal:9092"
-  ENABLE_WORKER = "true"
+  WORKER_COUNT = "2"  # Number of concurrent Kafka consumers (max 10)
 ```
 
 Fly.io's internal DNS will resolve `language-quiz-kafka-staging.internal` to the Kafka instance.
@@ -118,18 +118,159 @@ Kafka exposes JMX metrics on port 9999 (not exposed externally). For production 
 - Kafka Manager / AKHQ
 - Grafana dashboards
 
-## Topics
+## Topic Management
 
-The worker automatically creates topics on first use with default settings:
-- `problem-generation-requests`: Job queue for problem generation
+Topics are managed using a **database migration pattern** with declarative YAML definitions.
+
+### Current Topics
+
+- `problem-generation-requests`: Job queue for problem generation (10 partitions, 1 replication factor)
+
+### Topic Migration Pattern
+
+Topic configurations are stored as YAML files in `infra/kafka/topics/` and applied automatically during deployment.
+
+**Example topic definition** (`topics/problem-generation-requests.yaml`):
+```yaml
+name: problem-generation-requests
+partitions: 10
+replication_factor: 1
+config:
+  retention.ms: "604800000"  # 7 days
+  compression.type: "lz4"
+```
+
+### Applying Topic Migrations
+
+**Local (docker-compose):**
+Topic migrations run automatically via the `kafka-init` service when you start the stack:
+```bash
+docker compose up
+```
+
+The `kafka-init` service runs once per `docker compose up` and:
+- Creates topics if they don't exist
+- Increases partition count if needed (safe operation)
+- Validates configuration
+
+**Production (Fly.io):**
+Run migrations manually after deploying Kafka:
+```bash
+flyctl ssh console -a language-quiz-kafka-staging -C \
+  "/opt/kafka/migration-scripts/init-topics.sh localhost:9092 /opt/kafka/topics"
+```
+
+### Adding New Topics
+
+1. Create YAML file in `infra/kafka/topics/`:
+   ```yaml
+   name: my-new-topic
+   partitions: 5
+   replication_factor: 1
+   config:
+     retention.ms: "86400000"  # 1 day
+   ```
+
+2. Migrations run automatically on next deployment
+
+### Partition Management
+
+**Important**: Partitions determine max parallel consumers. For `problem-generation-requests`:
+- 10 partitions = max 10 concurrent workers
+- Adding partitions is safe and automatic
+- Reducing partitions requires topic recreation (data loss)
+
+### Verification
+
+List all topics:
+```bash
+# Local
+docker exec kafka-local /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+
+# Fly.io
+flyctl ssh console -a language-quiz-kafka-staging -C \
+  "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"
+```
+
+Describe a topic:
+```bash
+# Local
+docker exec kafka-local /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server kafka:9092 \
+  --describe --topic problem-generation-requests
+
+# Fly.io
+flyctl ssh console -a language-quiz-kafka-staging -C \
+  "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 \
+  --describe --topic problem-generation-requests"
+```
+
+## Scaling Workers
+
+The main service supports configurable concurrent Kafka consumers via `WORKER_COUNT`:
+
+**Local (docker-compose.yml):**
+```yaml
+environment:
+  - WORKER_COUNT=2  # Run 2 concurrent workers
+```
+
+**Production (fly.toml):**
+```toml
+[env]
+  WORKER_COUNT = "5"  # Run 5 concurrent workers
+```
+
+### Worker-to-Partition Relationship
+
+All workers join the same consumer group (`problem-generator-workers`). Kafka automatically distributes partitions:
+
+| Partitions | Workers | Partitions per Worker | Notes |
+|------------|---------|----------------------|--------|
+| 10 | 1 | 10 | One worker handles all partitions |
+| 10 | 2 | 5 | Each worker gets 5 partitions |
+| 10 | 5 | 2 | Each worker gets 2 partitions |
+| 10 | 10 | 1 | Each worker gets 1 partition (max efficiency) |
+| 10 | 15 | varies | 5 workers will be **idle** (no partitions) |
+
+**Recommendations:**
+- Set `WORKER_COUNT` ≤ partition count to avoid idle workers
+- For `problem-generation-requests` (10 partitions): Use 1-10 workers
+- Start with 2-3 workers for development, scale up in production as needed
+- Monitor Kafka lag to determine if more workers are needed
 
 ## Troubleshooting
 
-### Kafka won't start
+### Kafka won't start - "lost+found" error
+
+**Error:** `Found directory /var/lib/kafka/data/lost+found, 'lost+found' is not in the form of topic-partition`
+
+**Cause:** Fly.io volumes are ext4 filesystems that automatically create a `lost+found` directory. Kafka scans the log directory and treats it as a malformed topic directory.
+
+**Solution:** We use a subdirectory for Kafka logs (`KAFKA_LOG_DIRS = '/var/lib/kafka/data/kafka-logs'`) so `lost+found` is not scanned.
+
+If you have an existing volume with data in `/var/lib/kafka/data` directly, you need to move it:
+
+```bash
+# SSH into Kafka instance
+flyctl ssh console -a language-quiz-kafka-staging
+
+# Move existing data to subdirectory (if any exists)
+mkdir -p /var/lib/kafka/data/kafka-logs
+mv /var/lib/kafka/data/__* /var/lib/kafka/data/kafka-logs/ 2>/dev/null || true
+# Don't move lost+found!
+
+# Restart the instance
+exit
+flyctl apps restart language-quiz-kafka-staging
+```
+
+### Kafka won't start - general
 
 1. Check logs: `flyctl logs --app language-quiz-kafka-staging`
 2. Verify volume is mounted: `flyctl ssh console -C "ls -la /var/lib/kafka/data"`
 3. Check environment variables in Fly.io dashboard
+4. Verify `KAFKA_LOG_DIRS` points to `/var/lib/kafka/data/kafka-logs` (not `/var/lib/kafka/data`)
 
 ### Can't connect from main service
 

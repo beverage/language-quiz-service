@@ -27,8 +27,19 @@ class WorkerConfig:
         self.SESSION_TIMEOUT_MS: int = 30000  # 30 seconds - max time without heartbeat
 
         # Worker behavior
-        self.ENABLE_WORKER: bool = os.getenv("ENABLE_WORKER", "false").lower() == "true"
+        self.WORKER_COUNT: int = int(os.getenv("WORKER_COUNT", "0"))
         self.WORKER_POLL_TIMEOUT_SECONDS: float = 1.0  # How long to wait for messages
+
+        # Validate worker count
+        if self.WORKER_COUNT < 0:
+            raise ValueError("WORKER_COUNT must be >= 0")
+        if self.WORKER_COUNT > 10:
+            import logging
+
+            logging.warning(
+                f"WORKER_COUNT={self.WORKER_COUNT} exceeds partition count (10). "
+                f"Extra workers will be idle. Consider increasing topic partitions."
+            )
 
         # Retry settings
         self.MAX_RETRY_ATTEMPTS: int = 3

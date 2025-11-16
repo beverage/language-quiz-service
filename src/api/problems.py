@@ -1,6 +1,7 @@
 """Problem management endpoints."""
 
 import logging
+from collections.abc import AsyncGenerator
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
@@ -30,9 +31,19 @@ async def get_problem_service() -> ProblemService:
     return ProblemService()
 
 
-async def get_queue_service() -> QueueService:
-    """Dependency to get QueueService instance."""
-    return QueueService()
+async def get_queue_service() -> AsyncGenerator[QueueService, None]:
+    """
+    Dependency to get QueueService instance with proper cleanup.
+
+    Yields the service and ensures the Kafka producer is closed after the request.
+    This prevents "Unclosed AIOKafkaProducer" warnings.
+    """
+    service = QueueService()
+    try:
+        yield service
+    finally:
+        # Clean up Kafka producer connection
+        await service.close()
 
 
 @router.get(
