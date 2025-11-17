@@ -19,7 +19,7 @@ class TestWorkerConfig:
         assert config.PROBLEM_GENERATION_TOPIC == "problem-generation-requests"
         assert config.CONSUMER_GROUP_ID == "problem-generator-workers"
         assert config.CONSUMER_AUTO_OFFSET_RESET == "earliest"
-        assert config.ENABLE_WORKER is False
+        assert config.WORKER_COUNT == 0
         assert config.MAX_RETRY_ATTEMPTS == 3
 
     def test_config_from_environment_variables(self):
@@ -28,30 +28,42 @@ class TestWorkerConfig:
             os.environ,
             {
                 "KAFKA_BOOTSTRAP_SERVERS": "kafka-prod:9092",
-                "ENABLE_WORKER": "true",
+                "WORKER_COUNT": "5",
             },
             clear=True,
         ):
             config = WorkerConfig()
 
             assert config.KAFKA_BOOTSTRAP_SERVERS == "kafka-prod:9092"
-            assert config.ENABLE_WORKER is True
+            assert config.WORKER_COUNT == 5
 
-    def test_enable_worker_flag_parsing(self):
-        """Test ENABLE_WORKER flag parsing handles various inputs."""
+    def test_worker_count_parsing(self):
+        """Test WORKER_COUNT parsing handles various inputs."""
         test_cases = [
-            ("true", True),
-            ("True", True),
-            ("TRUE", True),
-            ("false", False),
-            ("False", False),
-            ("", False),
-            ("invalid", False),
+            ("0", 0),
+            ("1", 1),
+            ("5", 5),
+            ("10", 10),
         ]
 
         for env_value, expected in test_cases:
-            with patch.dict(os.environ, {"ENABLE_WORKER": env_value}, clear=True):
+            with patch.dict(os.environ, {"WORKER_COUNT": env_value}, clear=True):
                 config = WorkerConfig()
                 assert (
-                    config.ENABLE_WORKER == expected
-                ), f"ENABLE_WORKER='{env_value}' should parse to {expected}"
+                    config.WORKER_COUNT == expected
+                ), f"WORKER_COUNT='{env_value}' should parse to {expected}"
+
+    def test_worker_count_validation(self):
+        """Test WORKER_COUNT validation."""
+        # Test negative value raises error
+        with patch.dict(os.environ, {"WORKER_COUNT": "-1"}, clear=True):
+            with pytest.raises(ValueError, match="WORKER_COUNT must be >= 0"):
+                WorkerConfig()
+
+    def test_worker_count_exceeds_partitions_warning(self, caplog):
+        """Test warning when WORKER_COUNT exceeds partition count."""
+        with patch.dict(os.environ, {"WORKER_COUNT": "15"}, clear=True):
+            config = WorkerConfig()
+            assert config.WORKER_COUNT == 15
+            # Should log a warning about exceeding partition count
+            assert "exceeds partition count" in caplog.text.lower()

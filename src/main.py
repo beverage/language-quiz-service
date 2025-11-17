@@ -204,36 +204,40 @@ async def lifespan(app: FastAPI):
         logger.error(f"❌ Failed to initialize caches: {e}", exc_info=True)
         raise
 
-    # Start background worker if enabled
+    # Start background workers if enabled
     from src.worker import start_worker
     from src.worker.config import worker_config
 
-    if worker_config.ENABLE_WORKER:
+    if worker_config.WORKER_COUNT > 0:
         try:
-            logger.info("🔧 Background worker enabled, starting...")
+            logger.info(
+                f"🔧 Starting {worker_config.WORKER_COUNT} background worker(s)..."
+            )
             await start_worker()
-            logger.info("✅ Background worker started")
+            logger.info(
+                f"✅ {worker_config.WORKER_COUNT} background worker(s) started successfully"
+            )
         except Exception as e:
-            logger.error(f"❌ Failed to start background worker: {e}", exc_info=True)
-            # Don't raise - allow service to start even if worker fails
+            logger.error(f"❌ Failed to start background workers: {e}", exc_info=True)
+            # Don't raise - allow service to start even if workers fail
     else:
-        logger.info("⏸️  Background worker disabled (ENABLE_WORKER=false)")
+        logger.info("⏸️  Background workers disabled (WORKER_COUNT=0)")
 
     yield
 
     # Cleanup
     logger.info("🔄 Shutting down Language Quiz Service...")
 
-    # Stop background worker if running
-    if worker_config.ENABLE_WORKER:
+    # Stop background workers if running
+    if worker_config.WORKER_COUNT > 0:
         from src.worker import stop_worker
 
         try:
-            logger.info("🔧 Stopping background worker...")
+            logger.info("🔧 Stopping background workers...")
             await stop_worker()
-            logger.info("✅ Background worker stopped")
+            logger.info("✅ Background workers stopped")
         except Exception as e:
-            logger.error(f"⚠️  Error stopping background worker: {e}", exc_info=True)
+            logger.error(f"⚠️  Error stopping background workers: {e}", exc_info=True)
 
 
 app = FastAPI(

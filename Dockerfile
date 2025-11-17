@@ -12,9 +12,12 @@ RUN poetry install --only=main --no-root
 FROM python:3.12-slim
 WORKDIR /app
 
-# Install curl for health checks
+# Install curl for health checks and network debugging tools
 RUN apt-get update && apt-get install -y \
     curl \
+    dnsutils \
+    iputils-ping \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/.venv .venv/
