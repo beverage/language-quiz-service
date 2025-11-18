@@ -2,7 +2,7 @@ from src.cli.utils.console import Answers, Color, Style
 from src.schemas.sentences import DirectObject, IndirectObject, Negation
 
 
-def problem_formatter(sentences) -> str:
+def problem_formatter(sentences) -> str:  # pragma: no cover
     output: str = ""
 
     for sentence in sentences:

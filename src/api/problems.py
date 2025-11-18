@@ -240,7 +240,7 @@ async def generate_random_problem(
         # Enqueue generation requests
         (
             enqueued_count,
-            request_ids,
+            request_id,
         ) = await queue_service.publish_problem_generation_request(
             constraints=constraints,
             statement_count=statement_count,
@@ -249,13 +249,15 @@ async def generate_random_problem(
         )
 
         logger.info(
-            f"Enqueued {enqueued_count} problem generation requests for API key {current_key.get('name', 'unknown')}"
+            f"Enqueued {enqueued_count} problem generation message(s) "
+            f"for request {request_id} "
+            f"(API key: {current_key.get('name', 'unknown')})"
         )
 
         return ProblemGenerationEnqueuedResponse(
-            message=f"Enqueued {enqueued_count} problem generation request{'s' if enqueued_count != 1 else ''}",
-            count=enqueued_count,
-            request_ids=request_ids,
+            message=f"Enqueued {count} problem generation request{'s' if count != 1 else ''}",
+            count=count,
+            request_id=request_id,
         )
 
     except Exception as e:

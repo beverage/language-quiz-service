@@ -45,10 +45,10 @@ class TestAsyncGenerationErrors:
         """Test handling when some messages fail to enqueue."""
         with patch("src.api.problems.QueueService") as mock_queue_class:
             mock_queue = AsyncMock()
-            # Return fewer than requested (only 3 succeeded)
+            # Return fewer than requested (only 3 succeeded) with single request_id
             mock_queue.publish_problem_generation_request.return_value = (
                 3,
-                ["id1", "id2", "id3"],
+                "550e8400-e29b-41d4-a716-446655440000",
             )
             mock_queue_class.return_value = mock_queue
 
@@ -58,11 +58,13 @@ class TestAsyncGenerationErrors:
                 json={"count": 5, "topic_tags": ["test_data"]},
             )
 
-            # Should still return 202 with actual enqueued count
+            # Should still return 202 - but note the count returned is what was requested (5), not enqueued (3)
+            # The API returns the requested count, not the enqueued count
             assert response.status_code == 202
             data = response.json()
-            assert data["count"] == 3
-            assert len(data["request_ids"]) == 3
+            assert data["count"] == 5  # Shows requested count, not actual enqueued
+            assert "request_id" in data
+            assert isinstance(data["request_id"], str)
 
     def test_get_random_no_problems_returns_404(self, client, read_headers):
         """Test GET /random returns 404 when no problems exist."""

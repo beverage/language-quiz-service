@@ -21,6 +21,7 @@ async def clear_database(ctx):
     - Their associated sentences (cascade-deleted via foreign keys)
     - All orphaned test conjugations (those with '_' in infinitive)
     - All problems tagged with 'test_data' in topic_tags
+    - All generation requests with 'test_data' in metadata topic_tags
 
     Respects --local/--remote flags:
     - Default: cleans local Supabase instance
@@ -160,10 +161,50 @@ async def clear_database(ctx):
 
             click.echo(f"✅ Cleaned up {total_deleted} test problems")
 
+        # Finally, clean up test generation_requests (identified by "test_data" in metadata->'topic_tags')
+        # NOTE: Must be done AFTER problems cleanup since problems.generation_request_id references generation_requests(id)
+        click.echo("🔍 Checking for test generation requests...")
+
+        # Get all generation_requests and filter in Python
+        # PostgREST doesn't have a simple way to query nested JSONB arrays
+        all_gen_requests_result = (
+            await client.table("generation_requests").select("id, metadata").execute()
+        )
+
+        # Filter for requests with "test_data" in metadata topic_tags
+        test_gen_request_ids = []
+        if all_gen_requests_result.data:
+            for req in all_gen_requests_result.data:
+                metadata = req.get("metadata", {}) or {}
+                topic_tags = metadata.get("topic_tags", []) or []
+                if "test_data" in topic_tags:
+                    test_gen_request_ids.append(req["id"])
+
+        test_gen_request_count = len(test_gen_request_ids)
+
+        if test_gen_request_count == 0:
+            click.echo("✅ No test generation requests found to clean.")
+        else:
+            click.echo(
+                f"🎯 Found {test_gen_request_count} test generation requests to remove..."
+            )
+
+            # Delete test generation requests
+            delete_result = (
+                await client.table("generation_requests")
+                .delete()
+                .in_("id", test_gen_request_ids)
+                .execute()
+            )
+
+            deleted_count = len(delete_result.data) if delete_result.data else 0
+            click.echo(f"✅ Cleaned up {deleted_count} test generation requests")
+
         if (
             test_verb_count == 0
             and orphaned_conjugation_count == 0
             and test_problem_count == 0
+            and test_gen_request_count == 0
         ):
             click.echo("✨ Database is already clean!")
 

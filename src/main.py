@@ -141,7 +141,15 @@ else:
 
 # Import application modules AFTER OpenTelemetry is configured
 # This ensures that tracer instances in services/repositories are properly initialized
-from .api import api_keys, cache_stats, health, problems, sentences, verbs  # noqa: E402
+from .api import (  # noqa: E402
+    api_keys,
+    cache_stats,
+    generation_requests,
+    health,
+    problems,
+    sentences,
+    verbs,
+)
 from .core.auth import ApiKeyAuthMiddleware  # noqa: E402
 from .core.config import get_settings  # noqa: E402
 from .core.endpoint_access import EndpointAccessMiddleware  # noqa: E402
@@ -340,6 +348,10 @@ app = FastAPI(
             "description": "Quiz problem generation and management endpoints",
         },
         {
+            "name": "generation-requests",
+            "description": "Async generation request tracking and status endpoints",
+        },
+        {
             "name": "sentences",
             "description": "Sentence generation endpoints (coming soon)",
         },
@@ -393,6 +405,7 @@ v1_router.include_router(api_keys.router)
 v1_router.include_router(verbs.router)
 v1_router.include_router(sentences.router)
 v1_router.include_router(problems.router)
+v1_router.include_router(generation_requests.router)
 v1_router.include_router(cache_stats.router)
 
 # TODO: Uncomment these when endpoints are implemented

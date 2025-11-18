@@ -3,10 +3,17 @@
 import json
 import logging
 from datetime import UTC, datetime
-from uuid import uuid4
 
 from aiokafka import AIOKafkaProducer
 
+from src.repositories.generation_requests_repository import (
+    GenerationRequestRepository,
+)
+from src.schemas.generation_requests import (
+    EntityType,
+    GenerationRequestCreate,
+    GenerationStatus,
+)
 from src.schemas.problems import GrammarProblemConstraints
 from src.worker.config import worker_config
 from src.worker.tracing import inject_trace_context
@@ -42,9 +49,12 @@ class QueueService:
         topic_tags: list[str] | None = None,
         count: int = 1,
         trace_context: dict | None = None,
-    ) -> tuple[int, list[str]]:
+    ) -> tuple[int, str]:
         """
         Publish problem generation requests to Kafka.
+
+        Creates a single generation_request record and publishes N messages,
+        all sharing the same generation_request_id for batch tracking.
 
         Args:
             constraints: Optional constraints for problem generation
@@ -54,17 +64,36 @@ class QueueService:
             trace_context: OpenTelemetry trace context for distributed tracing
 
         Returns:
-            Tuple of (enqueued_count, request_ids)
+            Tuple of (enqueued_count, generation_request_id)
         """
+        # Create generation request record in database
+        gen_request_repo = await GenerationRequestRepository.create()
+        generation_request_create = GenerationRequestCreate(
+            entity_type=EntityType.PROBLEM,
+            requested_count=count,
+            status=GenerationStatus.PENDING,
+            constraints=constraints.model_dump() if constraints else None,
+            metadata={
+                "statement_count": statement_count,
+                "topic_tags": topic_tags or [],
+            },
+        )
+        generation_request = await gen_request_repo.create_generation_request(
+            generation_request_create
+        )
+        generation_request_id = str(generation_request.id)
+
+        logger.info(
+            f"Created generation request {generation_request_id} for {count} problem(s)"
+        )
+
         producer = await self._get_producer()
-
         enqueued_count = 0
-        request_ids = []
 
+        # Publish N messages, all with the same generation_request_id
         for i in range(count):
-            request_id = str(uuid4())
             message = {
-                "request_id": request_id,
+                "generation_request_id": generation_request_id,
                 "constraints": constraints.model_dump() if constraints else None,
                 "statement_count": statement_count,
                 "topic_tags": topic_tags or [],
@@ -84,16 +113,15 @@ class QueueService:
                     headers=headers if headers else None,
                 )
                 enqueued_count += 1
-                request_ids.append(request_id)
 
                 logger.debug(
-                    f"Enqueued problem generation request {request_id} "
-                    f"({i+1}/{count})"
+                    f"Enqueued problem generation message {i+1}/{count} "
+                    f"for request {generation_request_id}"
                 )
 
             except Exception as e:
                 logger.error(
-                    f"Failed to enqueue problem generation request: {e}", exc_info=True
+                    f"Failed to enqueue problem generation message: {e}", exc_info=True
                 )
                 # Continue trying to enqueue remaining messages
 
@@ -101,10 +129,11 @@ class QueueService:
         await producer.flush()
 
         logger.info(
-            f"Successfully enqueued {enqueued_count}/{count} problem generation requests"
+            f"Successfully enqueued {enqueued_count}/{count} messages "
+            f"for generation request {generation_request_id}"
         )
 
-        return enqueued_count, request_ids
+        return enqueued_count, generation_request_id
 
     async def close(self):
         """Close the Kafka producer."""

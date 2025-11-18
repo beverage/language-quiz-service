@@ -51,8 +51,9 @@ class TestProblemGenerationWithTopicTags:
 
             async def mock_publish(**kwargs):
                 count = kwargs.get("count", 1)
-                request_ids = [f"req-id-{i}" for i in range(count)]
-                return count, request_ids
+                # Return single request_id (new signature)
+                request_id = f"550e8400-e29b-41d4-a716-{count:012d}"
+                return count, request_id
 
             mock_instance.publish_problem_generation_request = mock_publish
             mock_class.return_value = mock_instance

@@ -22,15 +22,15 @@ class TestQueueService:
         service.producer = mock_producer
 
         constraints = GrammarProblemConstraints()
-        enqueued_count, request_ids = await service.publish_problem_generation_request(
+        enqueued_count, request_id = await service.publish_problem_generation_request(
             constraints=constraints,
             statement_count=4,
-            topic_tags=["test"],
+            topic_tags=["test_data"],
             count=1,
         )
 
         assert enqueued_count == 1
-        assert len(request_ids) == 1
+        assert isinstance(request_id, str)
         assert mock_producer.send.call_count == 1
         assert mock_producer.flush.call_count == 1
 
@@ -42,17 +42,17 @@ class TestQueueService:
         mock_producer = AsyncMock()
         service.producer = mock_producer
 
-        enqueued_count, request_ids = await service.publish_problem_generation_request(
+        enqueued_count, request_id = await service.publish_problem_generation_request(
             constraints=None,
             statement_count=4,
-            topic_tags=[],
+            topic_tags=["test_data"],
             count=10,
         )
 
         assert enqueued_count == 10
-        assert len(request_ids) == 10
-        # Each request_id should be unique
-        assert len(set(request_ids)) == 10
+        # New behavior: single request_id for all messages in a batch
+        assert isinstance(request_id, str)
+        # 10 messages should be sent, all with the same generation_request_id
         assert mock_producer.send.call_count == 10
         assert mock_producer.flush.call_count == 1
 
@@ -70,6 +70,7 @@ class TestQueueService:
 
             await service.publish_problem_generation_request(
                 count=1,
+                topic_tags=["test_data"],
             )
 
             # Verify trace context was injected
@@ -95,13 +96,15 @@ class TestQueueService:
         ]
         service.producer = mock_producer
 
-        enqueued_count, request_ids = await service.publish_problem_generation_request(
-            count=3
+        enqueued_count, request_id = await service.publish_problem_generation_request(
+            count=3,
+            topic_tags=["test_data"],
         )
 
         # Should return 2 (2 successful out of 3)
         assert enqueued_count == 2
-        assert len(request_ids) == 2  # Only successful ones
+        # New behavior: single request_id regardless of partial failure
+        assert isinstance(request_id, str)
         assert mock_producer.send.call_count == 3
 
     async def test_close_producer(self):
