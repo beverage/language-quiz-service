@@ -132,7 +132,9 @@ class ProblemBase(BaseModel):
 class ProblemCreate(ProblemBase):
     """Model for creating new problems."""
 
-    request_id: UUID | None = None  # Optional correlation to generation request
+    generation_request_id: UUID | None = (
+        None  # Optional correlation to generation request
+    )
 
 
 # Update model (for API updates)
@@ -173,7 +175,7 @@ class Problem(ProblemBase):
     created_at: datetime
     updated_at: datetime
     last_served_at: datetime | None = None
-    request_id: UUID | None = None
+    generation_request_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

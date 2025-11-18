@@ -32,6 +32,7 @@ from src.cli.problems.create import (
     search_problems_by_focus,
     search_problems_by_topic,
 )
+from src.cli.problems.get import get_problem
 from src.cli.sentences.create import create_random_sentence_batch, create_sentence
 from src.cli.verbs.commands import download, get, random
 from src.schemas.problems import GrammarProblemConstraints
@@ -311,6 +312,10 @@ async def problem_stats():
         await get_problem_statistics()
     except Exception as ex:
         click.echo(f"❌ Error getting statistics: {ex}")
+
+
+# Add get command to problem group
+problem.add_command(get_problem)
 
 
 # Keep the existing batch command but update it to use new system

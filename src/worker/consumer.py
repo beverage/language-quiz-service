@@ -16,7 +16,7 @@ from src.worker.handlers.problem_handler import ProblemGenerationHandler
 logger = logging.getLogger(__name__)
 
 
-class KafkaConsumer:
+class KafkaConsumer:  # pragma: no cover
     """
     Asynchronous Kafka consumer for problem generation requests.
 

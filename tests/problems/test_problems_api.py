@@ -128,7 +128,7 @@ class TestProblemsAPIAuthentication:
             mock_queue = AsyncMock()
             mock_queue.publish_problem_generation_request.return_value = (
                 1,
-                [str(uuid4())],
+                str(uuid4()),
             )
             mock_queue_class.return_value = mock_queue
 
@@ -169,7 +169,7 @@ class TestProblemsAPIIntegration:
             mock_queue = AsyncMock()
             mock_queue.publish_problem_generation_request.return_value = (
                 5,
-                ["id1", "id2", "id3", "id4", "id5"],
+                "550e8400-e29b-41d4-a716-446655440000",
             )
             mock_queue_class.return_value = mock_queue
 
@@ -182,7 +182,8 @@ class TestProblemsAPIIntegration:
             data = response.json()
             assert "message" in data
             assert data["count"] == 5
-            assert len(data["request_ids"]) == 5
+            assert "request_id" in data
+            assert isinstance(data["request_id"], str)
             assert "Enqueued" in data["message"]
 
 
@@ -217,8 +218,9 @@ class TestRandomProblemParameterized:
 
             async def mock_publish(**kwargs):
                 count = kwargs.get("count", 1)
-                request_ids = [f"req-id-{i}" for i in range(count)]
-                return count, request_ids
+                # Return single request_id (new signature)
+                request_id = f"550e8400-e29b-41d4-a716-{count:012d}"
+                return count, request_id
 
             mock_instance.publish_problem_generation_request = mock_publish
             mock_class.return_value = mock_instance

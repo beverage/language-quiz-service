@@ -136,7 +136,7 @@ class ProblemGenerationEnqueuedResponse(BaseModel):
     """Response model for async problem generation (202 Accepted)."""
 
     message: str = Field(..., description="Confirmation message")
-    count: int = Field(..., description="Number of generation requests enqueued")
-    request_ids: list[str] = Field(
-        ..., description="UUIDs of enqueued generation requests"
+    count: int = Field(..., description="Number of problems to be generated")
+    request_id: str = Field(
+        ..., description="UUID of the generation request for tracking"
     )

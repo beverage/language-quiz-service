@@ -35,7 +35,7 @@ class ProblemGenerationHandler:
             message: Message payload with generation parameters
             headers: Kafka message headers (for trace context)
         """
-        request_id = message.get("request_id", "unknown")
+        generation_request_id = message.get("generation_request_id", "unknown")
 
         # Extract trace context from message headers
         parent_context = extract_trace_context(headers)
@@ -45,7 +45,7 @@ class ProblemGenerationHandler:
             "worker.generate_problem",
             parent_context=parent_context,
             attributes={
-                "worker.request_id": request_id,
+                "worker.generation_request_id": generation_request_id,
                 "worker.statement_count": message.get("statement_count", 4),
             },
         )
@@ -62,22 +62,24 @@ class ProblemGenerationHandler:
             topic_tags = message.get("topic_tags", [])
 
             logger.info(
-                f"Processing problem generation request {request_id} "
+                f"Processing problem generation request {generation_request_id} "
                 f"(statement_count={statement_count})"
             )
 
             # Generate problem using existing service
-            # Parse request_id from message for correlation
+            # Parse generation_request_id from message for correlation
             from uuid import UUID
 
-            request_id_str = message.get("request_id")
-            request_id = UUID(request_id_str) if request_id_str else None
+            generation_request_id_str = message.get("generation_request_id")
+            generation_request_id_uuid = (
+                UUID(generation_request_id_str) if generation_request_id_str else None
+            )
 
             problem = await self.problem_service.create_random_grammar_problem(
                 constraints=constraints,
                 statement_count=statement_count,
                 additional_tags=topic_tags,
-                request_id=request_id,
+                generation_request_id=generation_request_id_uuid,
             )
 
             # Add success attributes to span
@@ -86,7 +88,7 @@ class ProblemGenerationHandler:
                 span.set_attribute("worker.success", True)
 
             logger.info(
-                f"Successfully generated problem {problem.id} for request {request_id}"
+                f"Successfully generated problem {problem.id} for request {generation_request_id}"
             )
 
         except Exception as e:
@@ -97,7 +99,7 @@ class ProblemGenerationHandler:
                 span.set_attribute("worker.error_message", str(e))
 
             logger.error(
-                f"Failed to generate problem for request {request_id}: {e}",
+                f"Failed to generate problem for request {generation_request_id}: {e}",
                 exc_info=True,
             )
             raise  # Re-raise to trigger offset non-commit (message will retry)
