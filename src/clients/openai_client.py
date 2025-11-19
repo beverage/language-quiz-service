@@ -63,8 +63,8 @@ class OpenAIClient:
         # For more control, use httpx.Timeout which OpenAI accepts
         self.client = AsyncOpenAI(
             api_key=api_key or settings.openai_api_key,
-            timeout=30.0,  # Total timeout for entire request (seconds)
-            max_retries=1,  # Limit retries to avoid cost accumulation
+            timeout=120.0,  # Total timeout for entire request (seconds)
+            max_retries=5,  # Background workers can tolerate higher latency for reliability
         )
 
     async def handle_request(

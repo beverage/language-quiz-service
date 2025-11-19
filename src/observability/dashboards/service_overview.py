@@ -684,6 +684,40 @@ def create_worker_error_rate_stat() -> stat.Panel:
     )
 
 
+def create_worker_malformed_messages_stat() -> stat.Panel:
+    """Worker malformed messages per minute."""
+    return (
+        stat.Panel()
+        .title("Malformed Messages/min")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.OpsPerMin)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum(rate(worker_messages_malformed_total{environment="$environment"}[5m])) * 60'
+            )
+            .legend_format("Malformed")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .thresholds(
+            dashboard.ThresholdsConfig()
+            .mode(ThresholdsMode.ABSOLUTE)
+            .steps(
+                [
+                    Threshold(value=0.0, color="green"),  # No malformed = good
+                    Threshold(value=0.1, color="yellow"),
+                    Threshold(value=1.0, color="orange"),
+                    Threshold(
+                        value=5.0, color="red"
+                    ),  # Malformed messages indicate bugs
+                ]
+            )
+        )
+        .grid_pos(GridPos(x=0, y=74, w=6, h=6))
+    )
+
+
 def create_worker_processing_duration_panel() -> timeseries.Panel:
     """Worker message processing duration over time."""
     return (
@@ -715,7 +749,7 @@ def create_worker_processing_duration_panel() -> timeseries.Panel:
             .legend_format("p99")
             .ref_id("C")
         )
-        .grid_pos(GridPos(x=0, y=74, w=12, h=8))
+        .grid_pos(GridPos(x=6, y=74, w=12, h=8))
     )
 
 
@@ -734,7 +768,7 @@ def create_worker_throughput_panel() -> timeseries.Panel:
             .legend_format("{{topic}}")
             .ref_id("A")
         )
-        .grid_pos(GridPos(x=12, y=74, w=12, h=8))
+        .grid_pos(GridPos(x=18, y=74, w=6, h=8))
     )
 
 
@@ -792,6 +826,7 @@ def generate() -> dashboard.Dashboard:
         .with_panel(create_worker_active_tasks_stat())  # (6, 68, 6, 6)
         .with_panel(create_worker_queue_length_stat())  # (12, 68, 6, 6)
         .with_panel(create_worker_error_rate_stat())  # (18, 68, 6, 6)
-        .with_panel(create_worker_processing_duration_panel())  # (0, 74, 12, 8)
-        .with_panel(create_worker_throughput_panel())  # (12, 74, 12, 8)
+        .with_panel(create_worker_malformed_messages_stat())  # (0, 74, 6, 6)
+        .with_panel(create_worker_processing_duration_panel())  # (6, 74, 12, 8)
+        .with_panel(create_worker_throughput_panel())  # (18, 74, 6, 8)
     )

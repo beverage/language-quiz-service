@@ -36,7 +36,7 @@ logger.info(f"📝 Log level set to: {LOG_LEVEL}")
 # ============================================================================
 OTEL_ENABLED = bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
 
-if OTEL_ENABLED:
+if OTEL_ENABLED:  # pragma: no cover
     logger.info("📊 Initializing OpenTelemetry instrumentation...")
 
     from opentelemetry import metrics, trace

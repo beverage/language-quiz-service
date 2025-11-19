@@ -23,7 +23,7 @@ class WorkerConfig:
         )
 
         # Processing settings
-        self.MAX_POLL_INTERVAL_MS: int = 300000  # 5 minutes - max time between polls
+        self.MAX_POLL_INTERVAL_MS: int = 900000  # 15 minutes - max time between polls
         self.SESSION_TIMEOUT_MS: int = 30000  # 30 seconds - max time without heartbeat
 
         # Worker behavior

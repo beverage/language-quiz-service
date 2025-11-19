@@ -39,8 +39,6 @@ def display_problem(problem: Problem, detailed: bool = False):
                 focus_text = Text(f"🎯 Focus: {', '.join(focus)}", style="yellow")
                 content.append(focus_text)
 
-        content.append("")
-
         # Create the main panel
         panel_content = "\n".join(str(item) for item in content)
 
@@ -51,7 +49,7 @@ def display_problem(problem: Problem, detailed: bool = False):
                 panel_content,
                 title="Problem Details",
                 border_style="blue",
-                padding=(1, 2),
+                padding=(1, 1),
             )
         )
 

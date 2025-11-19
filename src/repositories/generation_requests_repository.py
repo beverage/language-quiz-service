@@ -1,6 +1,7 @@
 """Generation requests repository for data access."""
 
 import logging
+from datetime import UTC, datetime
 from uuid import UUID
 
 from postgrest import APIError as PostgrestAPIError
@@ -10,6 +11,7 @@ from src.core.exceptions import RepositoryError
 from src.schemas.generation_requests import (
     GenerationRequest,
     GenerationRequestCreate,
+    GenerationStatus,
 )
 from supabase import AsyncClient
 
@@ -106,3 +108,141 @@ class GenerationRequestRepository:
             raise RepositoryError(
                 f"Failed to get problems by request_id: {e.message}"
             ) from e
+
+    async def update_status_to_processing(
+        self, request_id: UUID, started_at: datetime | None = None
+    ) -> GenerationRequest | None:
+        """
+        Update generation request status to 'processing' and set started_at.
+
+        Only updates if current status is 'pending' to avoid race conditions.
+        """
+        if started_at is None:
+            started_at = datetime.now(UTC)
+
+        try:
+            result = (
+                await self.client.table("generation_requests")
+                .update(
+                    {
+                        "status": GenerationStatus.PROCESSING.value,
+                        "started_at": started_at.isoformat(),
+                    }
+                )
+                .eq("id", str(request_id))
+                .eq("status", GenerationStatus.PENDING.value)  # Only if still pending
+                .execute()
+            )
+
+            if result.data:
+                return GenerationRequest.model_validate(result.data[0])
+            return None
+        except PostgrestAPIError as e:
+            logger.error(f"Database error updating status to processing: {e.message}")
+            raise RepositoryError(
+                f"Failed to update status to processing: {e.message}"
+            ) from e
+
+    async def increment_generated_count(
+        self, request_id: UUID
+    ) -> GenerationRequest | None:
+        """Increment the generated_count for a generation request."""
+        try:
+            # Get current request to increment
+            current = await self.get_generation_request(request_id)
+            if not current:
+                logger.warning(
+                    f"Generation request {request_id} not found for increment"
+                )
+                return None
+
+            new_count = current.generated_count + 1
+
+            result = (
+                await self.client.table("generation_requests")
+                .update({"generated_count": new_count})
+                .eq("id", str(request_id))
+                .execute()
+            )
+
+            if result.data:
+                return GenerationRequest.model_validate(result.data[0])
+            return None
+        except PostgrestAPIError as e:
+            logger.error(f"Database error incrementing generated_count: {e.message}")
+            raise RepositoryError(
+                f"Failed to increment generated_count: {e.message}"
+            ) from e
+
+    async def increment_failed_count(
+        self, request_id: UUID, error_message: str | None = None
+    ) -> GenerationRequest | None:
+        """Increment the failed_count and optionally record error_message."""
+        try:
+            # Get current request to increment
+            current = await self.get_generation_request(request_id)
+            if not current:
+                logger.warning(
+                    f"Generation request {request_id} not found for increment"
+                )
+                return None
+
+            new_count = current.failed_count + 1
+            update_data = {"failed_count": new_count}
+
+            # Append error message if provided
+            if error_message:
+                update_data["error_message"] = error_message
+
+            result = (
+                await self.client.table("generation_requests")
+                .update(update_data)
+                .eq("id", str(request_id))
+                .execute()
+            )
+
+            if result.data:
+                return GenerationRequest.model_validate(result.data[0])
+            return None
+        except PostgrestAPIError as e:
+            logger.error(f"Database error incrementing failed_count: {e.message}")
+            raise RepositoryError(
+                f"Failed to increment failed_count: {e.message}"
+            ) from e
+
+    async def update_final_status(
+        self,
+        request_id: UUID,
+        status: GenerationStatus,
+        completed_at: datetime | None = None,
+    ) -> GenerationRequest | None:
+        """
+        Update generation request final status and set completed_at timestamp.
+
+        Args:
+            request_id: ID of the generation request
+            status: Final status (completed, partial, or failed)
+            completed_at: Completion timestamp (defaults to now)
+        """
+        if completed_at is None:
+            completed_at = datetime.now(UTC)
+
+        try:
+            result = (
+                await self.client.table("generation_requests")
+                .update(
+                    {
+                        "status": status.value,
+                        "completed_at": completed_at.isoformat(),
+                    }
+                )
+                .eq("id", str(request_id))
+                .execute()
+            )
+
+            if result.data:
+                return GenerationRequest.model_validate(result.data[0])
+            return None
+        except PostgrestAPIError as e:
+            logger.error(f"Database error updating final status: {e.message}")
+            raise RepositoryError(f"Failed to update final status: {e.message}") from e
