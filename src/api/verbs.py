@@ -22,7 +22,7 @@ from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/verbs", tags=["verbs"])
+router = APIRouter(prefix="/verbs", tags=["Verbs"])
 
 
 @router.post(

@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 API_PREFIX = "/api-keys"
 ROUTER_PREFIX = f"/api/v1{API_PREFIX}"
 
-router = APIRouter(prefix=API_PREFIX, tags=["api-keys"])
+router = APIRouter(prefix=API_PREFIX, tags=["API Keys"])
 security = HTTPBearer()
 
 
@@ -57,7 +57,7 @@ security = HTTPBearer()
             "content": {
                 "application/json": {
                     "example": {
-                        "api_key": "sk_live_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567",
+                        "api_key": "sk_live_***",
                         "key_info": {
                             "id": "123e4567-e89b-12d3-a456-426614174000",
                             "key_prefix": "sk_live_abc1",
@@ -666,39 +666,6 @@ async def revoke_api_key(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (RepositoryError, ServiceError) as e:
         logger.error(f"API error revoking key {api_key_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=e.status_code, detail=str(e))
-    except AppException as e:
-        logger.error(f"Unhandled application error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred.",
-        )
-
-
-@router.post("/{api_key_id}/validate")
-async def validate_api_key_format(
-    api_key_plain: str,
-    current_key: dict = Depends(get_current_api_key),
-) -> dict:
-    """
-    Validate an API key format without authenticating it.
-
-    Requires 'admin' permission to validate keys.
-    """
-    # Check permissions
-    permissions = current_key.get("permissions_scope", [])
-    if "admin" not in permissions:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permission required to validate API keys",
-        )
-
-    try:
-        service = ApiKeyService()
-        is_valid = await service.is_valid_format(api_key_plain)
-        return {"is_valid_format": is_valid}
-    except (RepositoryError, ServiceError) as e:
-        logger.error(f"API error validating key format: {e}", exc_info=True)
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)

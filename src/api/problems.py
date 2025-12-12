@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 API_PREFIX = "/problems"
-router = APIRouter(prefix=API_PREFIX, tags=["problems"])
+router = APIRouter(prefix=API_PREFIX, tags=["Problems"])
 
 
 async def get_problem_service() -> ProblemService:

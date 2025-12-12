@@ -32,7 +32,7 @@ from src.core.exceptions import (
 from src.services.sentence_service import SentenceService
 
 API_PREFIX = "/sentences"
-router = APIRouter(prefix=API_PREFIX, tags=["sentences"])
+router = APIRouter(prefix=API_PREFIX, tags=["Sentences"])
 
 
 async def get_sentence_service() -> SentenceService:

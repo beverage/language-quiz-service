@@ -58,7 +58,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
                     if not api_key:
                         raise HTTPException(
                             status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="API key required. Provide X-API-Key header.",
+                            detail="API key required. Provide Bearer: Authorization header.",
                         )
 
                 # Validate API key and get key info (includes IP checking and usage tracking)

@@ -13,7 +13,7 @@ from src.services.generation_request_service import GenerationRequestService
 logger = logging.getLogger(__name__)
 
 API_PREFIX = "/generation-requests"
-router = APIRouter(prefix=API_PREFIX, tags=["generation-requests"])
+router = APIRouter(prefix=API_PREFIX, tags=["Generation Requests"])
 
 
 async def get_generation_request_service() -> GenerationRequestService:

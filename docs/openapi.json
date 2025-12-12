@@ -1,0 +1,3632 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Language Quiz Service API",
+    "description": "## AI-Powered French Language Learning API\n\nA backend service for generating grammatically-focused French language learning content\nusing AI. Built to power quiz applications that help learners master French verb\nconjugations through contextual sentence practice.\n\nLearn more at [beverage.me](https://beverage.me).\n\n---\n\n### \ud83d\udd10 Authentication\n\nAll API endpoints require Bearer token authentication. Include your API key in the\n`Authorization` header:\n\n```\nAuthorization: Bearer your_api_key_here\n```\n\nAPI keys are scoped with permission levels that control endpoint access.\n\n### \ud83d\udccb Permission Levels\n\n| Level | Access |\n|-------|--------|\n| `read` | Retrieve verbs, sentences, problems, and generation request status |\n| `write` | Create new content: download verbs, generate problems and sentences |\n| `admin` | Full access including API key management |\n\n### \ud83c\udf10 API Structure\n\n- **Health endpoints**: Available at root level (`/`, `/health`)\n- **API endpoints**: Versioned under `/api/v1/`\n\n### \ud83d\udcca Rate Limiting\n\nAll endpoints are rate-limited to ensure service stability:\n- Default: 100 requests per minute per IP\n- Rate limit headers are included in responses\n\n### \ud83d\udee0\ufe0f Error Responses\n\nThe API uses standard HTTP status codes with consistent JSON error bodies:\n\n| Code | Meaning |\n|------|---------|\n| `200` | Success |\n| `400` | Validation error - check request body |\n| `401` | Missing or invalid API key |\n| `403` | Insufficient permissions for this endpoint |\n| `404` | Resource not found |\n| `429` | Rate limit exceeded - slow down |\n| `500` | Internal server error |\n\nError responses include a `message` field with details and the `path` that was requested.\n    ",
+    "contact": {
+      "name": "Alex Beverage",
+      "url": "https://beverage.me/"
+    },
+    "license": {
+      "name": "MIT License",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "API service root endpoint",
+        "description": "Root endpoint providing basic service information.\n\n    **Use Cases**:\n    - Verify API is running and accessible\n    - Check service version and basic configuration\n    - First endpoint to test when setting up API access\n\n    **Rate Limit**: 100 requests per minute\n    **Authentication**: Not required",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Service information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "message": "Language Quiz Service is running",
+                  "service": "Language Quiz Service API",
+                  "version": "1.0.0"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Rate limit exceeded",
+                  "status_code": 429,
+                  "path": "/"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Comprehensive health check",
+        "description": "Comprehensive health check endpoint with detailed system information.\n\n    **Returns**:\n    - Service status and version\n    - Environment information (production/staging/development)\n    - Rate limiting configuration\n    - System health indicators\n\n    **Use Cases**:\n    - Monitor service availability\n    - Check environment configuration\n    - Verify rate limiting settings\n    - Integration with monitoring systems\n\n    **Rate Limit**: 100 requests per minute\n    **Authentication**: Not required",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Health check completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "status": "healthy",
+                  "service": "language-quiz-service",
+                  "version": "1.0.0",
+                  "environment": "production",
+                  "rate_limit": "100/minute"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Rate limit exceeded",
+                  "status_code": 429,
+                  "path": "/health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys/": {
+      "post": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Create a new API key",
+        "description": "Create a new API key with specified permissions and settings.\n\n    **\u26a0\ufe0f Important**: The API key will only be shown once in the response.\n    Save it securely as it cannot be retrieved again.\n\n    **Permission Levels**:\n    - `read`: Access to GET endpoints\n    - `write`: Access to POST/PUT endpoints + read permissions\n    - `admin`: Full access including API key management\n\n    **Required Permission**: `admin`",
+        "operationId": "create_api_key_api_v1_api_keys__post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "API key created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyWithPlainText"
+                },
+                "example": {
+                  "api_key": "sk_live_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567",
+                  "key_info": {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "key_prefix": "sk_live_abc1",
+                    "name": "My Application Key",
+                    "description": "API key for my web application",
+                    "client_name": "Web App v1.0",
+                    "is_active": true,
+                    "permissions_scope": [
+                      "read",
+                      "write"
+                    ],
+                    "created_at": "2024-01-15T10:30:00Z",
+                    "usage_count": 0,
+                    "rate_limit_rpm": 1000,
+                    "allowed_ips": [
+                      "192.168.1.0/24",
+                      "10.0.0.1"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Invalid permission: invalid_permission. Must be one of {'read', 'write', 'admin'}",
+                  "status_code": 400,
+                  "path": "/api-keys/"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Admin permission required to create API keys",
+                  "status_code": 403,
+                  "path": "/api-keys/"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "List all API keys",
+        "description": "Retrieve a list of all API keys in the system.\n\n    **Filtering Options**:\n    - `limit`: Maximum number of keys to return (default: 100)\n    - `include_inactive`: Whether to include deactivated keys (default: false)\n\n    **Required Permission**: `admin`",
+        "operationId": "list_api_keys_api_v1_api_keys__get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "description": "Maximum number of keys to return",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Maximum number of keys to return"
+          },
+          {
+            "name": "include_inactive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include deactivated keys in results",
+              "default": false,
+              "title": "Include Inactive"
+            },
+            "description": "Include deactivated keys in results"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of API keys retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiKeyResponse"
+                  },
+                  "title": "Response List Api Keys Api V1 Api Keys  Get"
+                },
+                "example": [
+                  {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "key_prefix": "sk_live_abc1",
+                    "name": "Production API Key",
+                    "description": "Main production key",
+                    "client_name": "Web App v1.0",
+                    "is_active": true,
+                    "permissions_scope": [
+                      "read",
+                      "write"
+                    ],
+                    "created_at": "2024-01-15T10:30:00Z",
+                    "last_used_at": "2024-01-15T16:45:00Z",
+                    "usage_count": 1523,
+                    "rate_limit_rpm": 1000
+                  },
+                  {
+                    "id": "456e7890-e89b-12d3-a456-426614174111",
+                    "key_prefix": "sk_live_def2",
+                    "name": "Development Key",
+                    "description": "For development and testing",
+                    "client_name": "Dev Environment",
+                    "is_active": true,
+                    "permissions_scope": [
+                      "read"
+                    ],
+                    "created_at": "2024-01-14T09:15:00Z",
+                    "last_used_at": "2024-01-15T12:30:00Z",
+                    "usage_count": 89,
+                    "rate_limit_rpm": 100,
+                    "allowed_ips": [
+                      "127.0.0.1",
+                      "::1"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Admin permission required to list API keys",
+                  "status_code": 403,
+                  "path": "/api-keys/"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys/stats": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Get API key usage statistics",
+        "description": "Retrieve system-wide API key usage statistics and metrics.\n\n    **Returns**:\n    - Total number of API keys (active and inactive)\n    - Usage metrics and request counts\n    - Most active API key information\n\n    **Required Permission**: `admin`",
+        "operationId": "get_api_key_stats_api_v1_api_keys_stats_get",
+        "responses": {
+          "200": {
+            "description": "API key statistics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyStats"
+                },
+                "example": {
+                  "total_keys": 15,
+                  "active_keys": 12,
+                  "inactive_keys": 3,
+                  "total_requests": 45672,
+                  "requests_last_24h": 1234,
+                  "most_active_key": "sk_live_abc1"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Admin permission required to view API key statistics",
+                  "status_code": 403,
+                  "path": "/api-keys/stats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys/search": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Search Api Keys",
+        "description": "Search API keys by name pattern.\n\nRequires 'admin' permission to search keys.",
+        "operationId": "search_api_keys_api_v1_api_keys_search_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApiKeyResponse"
+                  },
+                  "title": "Response Search Api Keys Api V1 Api Keys Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys/current": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Get current API key information",
+        "description": "Retrieve information about the currently authenticated API key.\n\n    **Use Cases**:\n    - Verify API key authentication is working\n    - Check current permissions and rate limits\n    - View usage statistics for your key\n    - Useful for debugging and monitoring\n\n    **Required Permission**: Any (authenticated user can view their own key info)",
+        "operationId": "get_current_key_info_api_v1_api_keys_current_get",
+        "responses": {
+          "200": {
+            "description": "Current API key information retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "key_prefix": "sk_live_abc1",
+                  "name": "My Application Key",
+                  "description": "API key for my web application",
+                  "client_name": "Web App v1.0",
+                  "is_active": true,
+                  "permissions_scope": [
+                    "read",
+                    "write"
+                  ],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "last_used_at": "2024-01-15T16:45:00Z",
+                  "usage_count": 1523,
+                  "rate_limit_rpm": 1000,
+                  "allowed_ips": [
+                    "192.168.1.0/24"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid API key provided",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Invalid or missing API key",
+                  "status_code": 401,
+                  "path": "/api-keys/current"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/api-keys/{api_key_id}": {
+      "get": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Get Api Key",
+        "description": "Get a specific API key by ID.\n\nRequires 'admin' permission to view other keys.",
+        "operationId": "get_api_key_api_v1_api_keys__api_key_id__get",
+        "parameters": [
+          {
+            "name": "api_key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Api Key Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Update API key",
+        "description": "Update an existing API key's properties.\n\n    **Partial Updates Supported**: Only provide the fields you want to update.\n    All fields are optional, and unchanged fields will retain their current values.\n\n    **Updatable Properties:**\n    - **Name & Description**: Update human-readable identification\n    - **Client Information**: Modify associated client application details\n    - **Permissions**: Grant or revoke access levels (read/write/admin)\n    - **Status**: Activate or deactivate the key\n    - **Rate Limiting**: Adjust request limits (1-10,000 RPM)\n    - **IP Restrictions**: Modify allowed IP addresses or CIDR blocks\n\n    **Security Considerations:**\n    - Permission changes take effect immediately\n    - Deactivated keys cannot authenticate until reactivated\n    - IP restrictions apply to all requests using the key\n    - Rate limit changes affect ongoing usage patterns\n\n    **Use Cases:**\n    - Rotate permissions for security compliance\n    - Adjust rate limits based on usage patterns\n    - Update client information for better tracking\n    - Implement IP-based access controls\n    - Temporarily disable compromised keys\n\n    **Required Permission**: `admin` (only administrators can modify API keys)",
+        "operationId": "update_api_key_api_v1_api_keys__api_key_id__put",
+        "parameters": [
+          {
+            "name": "api_key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Api Key Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApiKeyUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "API key updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "key_prefix": "sk_live_prod",
+                  "name": "Updated Production Key",
+                  "description": "Updated API key for production web application",
+                  "client_name": "Language Learning Web App v2",
+                  "is_active": true,
+                  "permissions_scope": [
+                    "read",
+                    "write"
+                  ],
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "last_used_at": "2024-01-15T16:45:00Z",
+                  "usage_count": 1250,
+                  "rate_limit_rpm": 2000,
+                  "allowed_ips": [
+                    "192.168.1.0/24",
+                    "10.0.0.0/8"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalid_permissions": {
+                    "summary": "Invalid permission values",
+                    "value": {
+                      "error": true,
+                      "message": "Invalid permission 'invalid_perm'. Valid permissions: read, write, admin",
+                      "status_code": 400,
+                      "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000"
+                    }
+                  },
+                  "invalid_ip": {
+                    "summary": "Invalid IP address format",
+                    "value": {
+                      "error": true,
+                      "message": "Invalid IP address '999.999.999.999' in allowed_ips",
+                      "status_code": 400,
+                      "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Admin permission required to update API keys",
+                  "status_code": 403,
+                  "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "API key not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "API key not found",
+                  "status_code": 404,
+                  "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Request validation failed",
+                  "status_code": 422,
+                  "path": "/api/v1/api-keys/123e4567-e89b-12d3-a456-426614174000",
+                  "details": [
+                    {
+                      "field": "rate_limit_rpm",
+                      "message": "Input should be greater than or equal to 1",
+                      "type": "greater_than_equal"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "API Keys"
+        ],
+        "summary": "Revoke Api Key",
+        "description": "Revoke (deactivate) an API key.\n\nRequires 'admin' permission.",
+        "operationId": "revoke_api_key_api_v1_api_keys__api_key_id__delete",
+        "parameters": [
+          {
+            "name": "api_key_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Api Key Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Revoke Api Key Api V1 Api Keys  Api Key Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verbs/download": {
+      "post": {
+        "tags": [
+          "Verbs"
+        ],
+        "summary": "Download conjugations for an existing verb",
+        "description": "Download conjugations for an existing verb using AI.\n\n    **Important**: This endpoint requires the verb to already exist in the database.\n    Verbs must be added via database migrations. This endpoint only generates and stores\n    conjugations for existing verbs.\n\n    **What it does:**\n    1. Verifies the verb exists in the database\n    2. Generates conjugations using AI for all tense forms\n    3. Stores conjugations in the database (overwrites existing ones)\n    4. Returns the complete verb with all conjugations\n\n    **Input Requirements:**\n    - `infinitive`: French verb in infinitive form (e.g., \"parler\", \"\u00eatre\", \"se lever\")\n    - `target_language_code`: ISO 639-3 language code (default: \"eng\")\n\n    **Required Permission**: `write` or `admin`",
+        "operationId": "download_verb_api_v1_verbs_download_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerbDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conjugations successfully downloaded and stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerbWithConjugationsResponse"
+                },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "infinitive": "parler",
+                  "auxiliary": "avoir",
+                  "reflexive": false,
+                  "target_language_code": "eng",
+                  "translation": "to speak",
+                  "past_participle": "parl\u00e9",
+                  "present_participle": "parlant",
+                  "classification": "first_group",
+                  "is_irregular": false,
+                  "can_have_cod": true,
+                  "can_have_coi": false,
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "updated_at": "2024-01-15T10:30:00Z",
+                  "conjugations": [
+                    {
+                      "infinitive": "parler",
+                      "auxiliary": "avoir",
+                      "reflexive": false,
+                      "tense": "present",
+                      "first_person_singular": "parle",
+                      "second_person_singular": "parles",
+                      "third_person_singular": "parle",
+                      "first_person_plural": "parlons",
+                      "second_person_plural": "parlez",
+                      "third_person_plural": "parlent"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Verb not found in database",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Verb 'nonexistent' not found in database. Verbs must be added via database migrations before downloading conjugations.",
+                  "status_code": 404,
+                  "path": "/api/v1/verbs/download"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Write or admin permission required to download verbs",
+                  "status_code": 403,
+                  "path": "/api/v1/verbs/download"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Request validation failed",
+                  "status_code": 422,
+                  "path": "/api/v1/verbs/download",
+                  "details": [
+                    {
+                      "field": "infinitive",
+                      "message": "String should have at least 1 character",
+                      "type": "string_too_short"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "AI service error or internal server error",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Failed to download verb - AI service temporarily unavailable",
+                  "status_code": 500,
+                  "path": "/api/v1/verbs/download"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verbs/random": {
+      "get": {
+        "tags": [
+          "Verbs"
+        ],
+        "summary": "Get a random French verb",
+        "description": "Retrieve a random French verb from the database.\n\n    This endpoint is useful for:\n    - Language learning applications\n    - Quiz generation\n    - Vocabulary practice\n    - Random content exploration\n\n    **Required Permission**: `read`, `write`, or `admin`",
+        "operationId": "get_random_verb_api_v1_verbs_random_get",
+        "parameters": [
+          {
+            "name": "target_language_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Target language code for translation",
+              "examples": [
+                "eng"
+              ],
+              "default": "eng",
+              "title": "Target Language Code"
+            },
+            "description": "Target language code for translation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Random verb retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerbResponse"
+                },
+                "example": {
+                  "id": "456e7890-e89b-12d3-a456-426614174111",
+                  "infinitive": "manger",
+                  "auxiliary": "avoir",
+                  "reflexive": false,
+                  "target_language_code": "eng",
+                  "translation": "to eat",
+                  "past_participle": "mang\u00e9",
+                  "present_participle": "mangeant",
+                  "classification": "first_group",
+                  "is_irregular": false,
+                  "can_have_cod": true,
+                  "can_have_coi": false,
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "updated_at": "2024-01-15T10:30:00Z",
+                  "last_used_at": "2024-01-15T14:22:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No verbs found in database",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "No verbs found",
+                  "status_code": 404,
+                  "path": "/verbs/random"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Read permission required to access verbs",
+                  "status_code": 403,
+                  "path": "/verbs/random"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verbs/{infinitive}": {
+      "get": {
+        "tags": [
+          "Verbs"
+        ],
+        "summary": "Get verb by infinitive with optional filters",
+        "description": "Retrieve a specific French verb by its infinitive form.\n\n    **Important: Verb Identification**\n\n    Verbs are uniquely identified by: `(infinitive, auxiliary, reflexive, target_language_code)`\n    - Multiple variants of the same infinitive can exist (e.g., \"sortir\" with avoir vs \u00eatre)\n    - The same French verb can have different representations for different target languages\n    - Use auxiliary, reflexive, and target_language_code parameters to specify the exact variant\n\n    **URL Encoding:**\n    The infinitive supports URL encoding for verbs with spaces (e.g., reflexive verbs like \"se laver\").\n\n    **Optional Filters:**\n    - `auxiliary`: Filter by auxiliary verb type (avoir/\u00eatre)\n    - `reflexive`: Filter by reflexive status (true/false)\n    - `target_language_code`: Filter by target language (part of uniqueness)\n\n    **Examples:**\n    - `/verbs/parler` - Returns any \"parler\" variant (usually avoir, non-reflexive, eng)\n    - `/verbs/sortir?auxiliary=avoir` - Returns \"sortir\" with auxiliary avoir\n    - `/verbs/sortir?auxiliary=\u00eatre` - Returns \"sortir\" with auxiliary \u00eatre\n    - `/verbs/se%20laver?reflexive=true` - Returns the reflexive verb \"se laver\"\n\n    **Use Cases:**\n    - Vocabulary lookup for language learning applications\n    - Grammar rule verification and conjugation reference\n    - Content generation for educational materials\n    - API integration for translation and language tools\n\n    **Required Permission**: `read` or higher",
+        "operationId": "get_verb_by_infinitive_api_v1_verbs__infinitive__get",
+        "parameters": [
+          {
+            "name": "infinitive",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Infinitive"
+            }
+          },
+          {
+            "name": "auxiliary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by auxiliary verb type",
+              "examples": [
+                "avoir"
+              ],
+              "title": "Auxiliary"
+            },
+            "description": "Filter by auxiliary verb type"
+          },
+          {
+            "name": "reflexive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by reflexive status",
+              "examples": [
+                false
+              ],
+              "title": "Reflexive"
+            },
+            "description": "Filter by reflexive status"
+          },
+          {
+            "name": "target_language_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Target language code for translation",
+              "examples": [
+                "eng"
+              ],
+              "default": "eng",
+              "title": "Target Language Code"
+            },
+            "description": "Target language code for translation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verb found and returned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerbResponse"
+                },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "infinitive": "parler",
+                  "auxiliary": "avoir",
+                  "reflexive": false,
+                  "target_language_code": "eng",
+                  "translation": "to speak",
+                  "past_participle": "parl\u00e9",
+                  "present_participle": "parlant",
+                  "classification": "first_group",
+                  "is_irregular": false,
+                  "can_have_cod": true,
+                  "can_have_coi": true,
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "updated_at": "2024-01-15T10:30:00Z",
+                  "last_used_at": "2024-01-15T16:45:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Verb not found with specified criteria",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "verb_not_found": {
+                    "summary": "Infinitive not found",
+                    "value": {
+                      "error": true,
+                      "message": "Verb 'xyz' not found",
+                      "status_code": 404,
+                      "path": "/api/v1/verbs/xyz"
+                    }
+                  },
+                  "variant_not_found": {
+                    "summary": "Specific variant not found",
+                    "value": {
+                      "error": true,
+                      "message": "Verb 'parler' with auxiliary '\u00eatre' not found",
+                      "status_code": 404,
+                      "path": "/api/v1/verbs/parler?auxiliary=\u00eatre"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Read permission required to access verbs",
+                  "status_code": 403,
+                  "path": "/api/v1/verbs/parler"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verbs/{infinitive}/conjugations": {
+      "get": {
+        "tags": [
+          "Verbs"
+        ],
+        "summary": "Get verb conjugations with complete tense information",
+        "description": "Retrieve comprehensive conjugation information for a French verb across all supported tenses.\n\n    **Important: Verb Identification**\n\n    Verbs are uniquely identified by: `(infinitive, auxiliary, reflexive, target_language_code)`\n    - Multiple variants can exist for the same infinitive (e.g., \"sortir\" + avoir vs \"sortir\" + \u00eatre)\n    - The same French verb can have different representations for different target languages\n    - Specify auxiliary, reflexive, and target_language_code parameters to get the exact variant\n\n    **Conjugation Coverage:**\n    Returns conjugations for all available tenses including:\n    - **Indicative**: pr\u00e9sent, pass\u00e9 compos\u00e9, imparfait, futur simple, conditionnel\n    - **Subjunctive**: subjonctif pr\u00e9sent\n    - **Imperative**: imp\u00e9ratif pr\u00e9sent\n\n    **Response Format:**\n    - Complete verb metadata (participles, classification, grammatical properties)\n    - Array of conjugation objects, each containing all six persons for a specific tense\n    - Tense-specific conjugation patterns with person markers (je/tu/il/nous/vous/ils)\n\n    **URL Encoding:**\n    Supports URL encoding for verbs with spaces (e.g., \"se%20laver\" for reflexive verbs).\n\n    **Filtering Options:**\n    - `auxiliary`: Specify auxiliary verb (avoir/\u00eatre) to get exact variant\n    - `reflexive`: Specify reflexive status (true/false) for precise identification\n    - `target_language_code`: Specify target language (part of uniqueness)\n\n    **Examples:**\n    - `/verbs/parler/conjugations` - All conjugations for \"parler\" (avoir, non-reflexive, eng)\n    - `/verbs/sortir/conjugations?auxiliary=avoir` - \"sortir\" with auxiliary avoir\n    - `/verbs/sortir/conjugations?auxiliary=\u00eatre` - \"sortir\" with auxiliary \u00eatre\n    - `/verbs/se%20laver/conjugations?reflexive=true` - Reflexive \"se laver\"\n\n    **Use Cases:**\n    - Language learning applications requiring complete conjugation tables\n    - Grammar checking tools and educational content generation\n    - Translation services needing accurate French verb forms\n    - Linguistic analysis and computational grammar applications\n\n    **Required Permission**: `read` or higher",
+        "operationId": "get_verb_conjugations_api_v1_verbs__infinitive__conjugations_get",
+        "parameters": [
+          {
+            "name": "infinitive",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Infinitive"
+            }
+          },
+          {
+            "name": "auxiliary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by auxiliary verb type",
+              "examples": [
+                "avoir"
+              ],
+              "title": "Auxiliary"
+            },
+            "description": "Filter by auxiliary verb type"
+          },
+          {
+            "name": "reflexive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Filter by reflexive status",
+              "examples": [
+                false
+              ],
+              "default": false,
+              "title": "Reflexive"
+            },
+            "description": "Filter by reflexive status"
+          },
+          {
+            "name": "target_language_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Target language code for translation",
+              "examples": [
+                "eng"
+              ],
+              "default": "eng",
+              "title": "Target Language Code"
+            },
+            "description": "Target language code for translation"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verb conjugations retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerbWithConjugationsResponse"
+                },
+                "example": {
+                  "id": "789e1234-e89b-12d3-a456-426614174222",
+                  "infinitive": "parler",
+                  "auxiliary": "avoir",
+                  "reflexive": false,
+                  "target_language_code": "eng",
+                  "translation": "to speak",
+                  "past_participle": "parl\u00e9",
+                  "present_participle": "parlant",
+                  "classification": "first_group",
+                  "is_irregular": false,
+                  "can_have_cod": true,
+                  "can_have_coi": true,
+                  "created_at": "2024-01-15T10:30:00Z",
+                  "updated_at": "2024-01-15T10:30:00Z",
+                  "last_used_at": "2024-01-15T16:45:00Z",
+                  "conjugations": [
+                    {
+                      "tense": "present",
+                      "first_person_singular": "parle",
+                      "second_person_singular": "parles",
+                      "third_person_singular": "parle",
+                      "first_person_plural": "parlons",
+                      "second_person_plural": "parlez",
+                      "third_person_plural": "parlent"
+                    },
+                    {
+                      "tense": "passe_compose",
+                      "first_person_singular": "ai parl\u00e9",
+                      "second_person_singular": "as parl\u00e9",
+                      "third_person_singular": "a parl\u00e9",
+                      "first_person_plural": "avons parl\u00e9",
+                      "second_person_plural": "avez parl\u00e9",
+                      "third_person_plural": "ont parl\u00e9"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Verb not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Verb 'nonexistent' not found",
+                  "status_code": 404,
+                  "path": "/verbs/nonexistent/conjugations"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Read permission required to access verbs",
+                  "status_code": 403,
+                  "path": "/verbs/parler/conjugations"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sentences/random": {
+      "get": {
+        "tags": [
+          "Sentences"
+        ],
+        "summary": "Get random sentence",
+        "description": "Retrieve a random sentence from the database with optional filtering.\n\n    This endpoint is useful for:\n    - Language learning applications requiring random content\n    - Quiz generation with diverse sentence structures\n    - Vocabulary practice with varied contexts\n    - Content discovery and exploration\n\n    **Filtering Options:**\n    - Filter by correctness to get only valid sentences for learning\n    - Filter by verb to focus on specific vocabulary\n\n    **Required Permission**: `read`, `write`, or `admin`",
+        "operationId": "get_random_sentence_api_v1_sentences_random_get",
+        "parameters": [
+          {
+            "name": "is_correct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by correctness (true for grammatically correct sentences only)",
+              "title": "Is Correct"
+            },
+            "description": "Filter by correctness (true for grammatically correct sentences only)"
+          },
+          {
+            "name": "verb_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by specific verb UUID to get sentences using that verb",
+              "title": "Verb Id"
+            },
+            "description": "Filter by specific verb UUID to get sentences using that verb"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Random sentence retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentenceResponse"
+                },
+                "example": {
+                  "id": "789e1234-e89b-12d3-a456-426614174333",
+                  "target_language_code": "eng",
+                  "content": "Je parle fran\u00e7ais couramment.",
+                  "translation": "I speak French fluently.",
+                  "verb_id": "123e4567-e89b-12d3-a456-426614174000",
+                  "pronoun": "first_person",
+                  "tense": "present",
+                  "direct_object": "masculine",
+                  "indirect_object": "none",
+                  "negation": "none",
+                  "is_correct": true,
+                  "explanation": "Present tense with adverb of manner",
+                  "source": "AI_GENERATED",
+                  "created_at": "2024-01-15T11:30:00Z",
+                  "updated_at": "2024-01-15T11:30:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No sentences found matching criteria",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "No sentences found matching criteria",
+                  "status_code": 404,
+                  "path": "/api/v1/sentences/random"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sentences/{sentence_id}": {
+      "get": {
+        "tags": [
+          "Sentences"
+        ],
+        "summary": "Get sentence by ID",
+        "description": "Retrieve a specific sentence using its unique identifier.\n\n    **Use Cases:**\n    - Display detailed sentence information in learning interfaces\n    - Retrieve sentences for analysis or modification workflows\n    - Access specific content referenced by ID from other systems\n\n    **Required Permission**: `read`, `write`, or `admin`",
+        "operationId": "get_sentence_api_v1_sentences__sentence_id__get",
+        "parameters": [
+          {
+            "name": "sentence_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Sentence Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sentence found and retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SentenceResponse"
+                },
+                "example": {
+                  "id": "789e1234-e89b-12d3-a456-426614174333",
+                  "target_language_code": "eng",
+                  "content": "Nous avons parl\u00e9 de litt\u00e9rature.",
+                  "translation": "We talked about literature.",
+                  "verb_id": "123e4567-e89b-12d3-a456-426614174000",
+                  "pronoun": "first_person_plural",
+                  "tense": "passe_compose",
+                  "direct_object": "none",
+                  "indirect_object": "thing",
+                  "negation": "none",
+                  "is_correct": true,
+                  "explanation": "Pass\u00e9 compos\u00e9 with indirect object 'de quelque chose'",
+                  "source": "AI_GENERATED",
+                  "created_at": "2024-01-15T11:30:00Z",
+                  "updated_at": "2024-01-15T11:30:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sentence not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Sentence not found",
+                  "status_code": 404,
+                  "path": "/api/v1/sentences/789e1234-e89b-12d3-a456-426614174333"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Sentences"
+        ],
+        "summary": "Delete sentence",
+        "description": "Remove a sentence from the database.\n\n    **Use Cases:**\n    - Content moderation and quality control\n    - Removing outdated or incorrect sentences\n    - Database maintenance and cleanup\n\n    **Required Permission**: `write` or `admin`\n\n    **Note**: This operation is irreversible. Deleted sentences cannot be recovered.",
+        "operationId": "delete_sentence_api_v1_sentences__sentence_id__delete",
+        "parameters": [
+          {
+            "name": "sentence_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Sentence Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sentence deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Sentence Api V1 Sentences  Sentence Id  Delete"
+                },
+                "example": {
+                  "message": "Sentence deleted successfully"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sentence not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Sentence not found",
+                  "status_code": 404,
+                  "path": "/api/v1/sentences/789e1234-e89b-12d3-a456-426614174333"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sentences/": {
+      "get": {
+        "tags": [
+          "Sentences"
+        ],
+        "summary": "List sentences with filters",
+        "description": "Retrieve a filtered list of sentences from the database.\n\n    **Advanced Filtering:**\n    Combine multiple filters to create targeted queries:\n    - Verb-specific sentences for focused vocabulary practice\n    - Tense-based filtering for grammar lessons\n    - Correctness filtering for quality control\n    - Language-specific content for multi-language support\n\n    **Pagination:**\n    Use the `limit` parameter to control result size (1-100 sentences).\n\n    **Use Cases:**\n    - Build vocabulary exercises focused on specific verbs\n    - Create grammar lessons targeting particular tenses\n    - Generate quiz content with known difficulty levels\n    - Analyze sentence patterns and structures\n\n    **Required Permission**: `read`, `write`, or `admin`",
+        "operationId": "list_sentences_api_v1_sentences__get",
+        "parameters": [
+          {
+            "name": "verb_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter sentences by specific verb UUID",
+              "title": "Verb Id"
+            },
+            "description": "Filter sentences by specific verb UUID"
+          },
+          {
+            "name": "is_correct",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by grammatical correctness (true/false)",
+              "title": "Is Correct"
+            },
+            "description": "Filter by grammatical correctness (true/false)"
+          },
+          {
+            "name": "tense",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by verb tense (present, passe_compose, imparfait, etc.)",
+              "title": "Tense"
+            },
+            "description": "Filter by verb tense (present, passe_compose, imparfait, etc.)"
+          },
+          {
+            "name": "pronoun",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by subject pronoun (first_person, second_person, etc.)",
+              "title": "Pronoun"
+            },
+            "description": "Filter by subject pronoun (first_person, second_person, etc.)"
+          },
+          {
+            "name": "target_language_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by target language code for translations",
+              "title": "Target Language Code"
+            },
+            "description": "Filter by target language code for translations"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum number of results to return (1-100)",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Maximum number of results to return (1-100)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of sentences matching the filters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SentenceResponse"
+                  },
+                  "title": "Response List Sentences Api V1 Sentences  Get"
+                },
+                "example": [
+                  {
+                    "id": "789e1234-e89b-12d3-a456-426614174333",
+                    "target_language_code": "eng",
+                    "content": "Je parle fran\u00e7ais.",
+                    "translation": "I speak French.",
+                    "verb_id": "123e4567-e89b-12d3-a456-426614174000",
+                    "pronoun": "first_person",
+                    "tense": "present",
+                    "direct_object": "masculine",
+                    "indirect_object": "none",
+                    "negation": "none",
+                    "is_correct": true,
+                    "explanation": "Simple present tense with direct object",
+                    "source": "AI_GENERATED",
+                    "created_at": "2024-01-15T11:30:00Z",
+                    "updated_at": "2024-01-15T11:30:00Z"
+                  },
+                  {
+                    "id": "789e1234-e89b-12d3-a456-426614174334",
+                    "target_language_code": "eng",
+                    "content": "Tu parles tr\u00e8s bien.",
+                    "translation": "You speak very well.",
+                    "verb_id": "123e4567-e89b-12d3-a456-426614174000",
+                    "pronoun": "second_person",
+                    "tense": "present",
+                    "direct_object": "none",
+                    "indirect_object": "none",
+                    "negation": "none",
+                    "is_correct": true,
+                    "explanation": "Present tense with adverb of manner",
+                    "source": "AI_GENERATED",
+                    "created_at": "2024-01-15T11:31:00Z",
+                    "updated_at": "2024-01-15T11:31:00Z"
+                  }
+                ]
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/problems/random": {
+      "get": {
+        "tags": [
+          "Problems"
+        ],
+        "summary": "Get random problem from database",
+        "description": "Retrieve a random problem from the database.\n\n    This endpoint fetches an existing problem from the database, providing:\n    - **Fast Response**: No AI generation delay\n    - **Consistent Problems**: Previously generated and stored problems\n    - **Multiple Choice**: Complete problem with all statements and correct answer\n\n    Future enhancements will include filtering by topic, difficulty, and other criteria.\n\n    **Query Parameters**:\n    - `include_metadata`: Include source_statement_ids and metadata in response (default: false)\n\n    **Required Permission**: `read`, `write`, or `admin`",
+        "operationId": "get_random_problem_api_v1_problems_random_get",
+        "parameters": [
+          {
+            "name": "include_metadata",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Metadata"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Random problem retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                },
+                "example": {
+                  "id": "123e4567-e89b-12d3-a456-426614174000",
+                  "problem_type": "grammar",
+                  "title": "Grammar: Parler",
+                  "instructions": "Choose the correctly formed French sentence.",
+                  "statements": [
+                    {
+                      "content": "Je parle fran\u00e7ais.",
+                      "is_correct": true,
+                      "translation": "I speak French."
+                    },
+                    {
+                      "content": "Je parles fran\u00e7ais.",
+                      "is_correct": false,
+                      "explanation": "Wrong conjugation - first person singular uses 'parle', not 'parles'"
+                    }
+                  ],
+                  "correct_answer_index": 0,
+                  "target_language_code": "eng",
+                  "topic_tags": [
+                    "grammar",
+                    "basic_conjugation"
+                  ],
+                  "created_at": "2025-01-15T10:30:00Z",
+                  "updated_at": "2025-01-15T10:30:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No problems available in database",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "No problems available",
+                  "status_code": 404,
+                  "path": "/api/v1/problems/random"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/problems/generate": {
+      "post": {
+        "tags": [
+          "Problems"
+        ],
+        "summary": "Enqueue problem generation requests",
+        "description": "Enqueue problem generation requests for async processing.\n\n    This endpoint enqueues problem generation requests to a background worker queue.\n    Problems are generated asynchronously and become available via GET /problems/random.\n\n    **Benefits**:\n    - **Fast Response**: Returns immediately (202 Accepted)\n    - **Bulk Generation**: Generate multiple problems with count parameter\n    - **Quality**: Worker can retry and validate problems without blocking API\n    - **Scalability**: Decouples API latency from LLM processing time\n\n    **Request Body** (all optional):\n    ```json\n    {\n      \"count\": 10,\n      \"constraints\": {\n        \"grammatical_focus\": [\"direct_objects\", \"pronoun_placement\"],\n        \"verb_infinitives\": [\"parler\", \"manger\", \"finir\"],\n        \"tenses_used\": [\"present\", \"passe_compose\"],\n        \"includes_negation\": true,\n        \"includes_cod\": true,\n        \"includes_coi\": false,\n        \"difficulty_level\": \"intermediate\"\n      },\n      \"statement_count\": 4,\n      \"target_language_code\": \"eng\"\n    }\n    ```\n\n    **Required Permission**: `read`, `write`, or `admin`",
+        "operationId": "generate_random_problem_api_v1_problems_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ProblemRandomRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Problem Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Generation requests enqueued successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemGenerationEnqueuedResponse"
+                },
+                "example": {
+                  "message": "Enqueued 10 problem generation requests",
+                  "count": 10
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Failed to enqueue requests",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Failed to enqueue problem generation",
+                  "status_code": 500,
+                  "path": "/api/v1/problems/generate"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/problems/{problem_id}": {
+      "get": {
+        "tags": [
+          "Problems"
+        ],
+        "summary": "Get specific problem",
+        "description": "Retrieve a specific problem by its unique identifier.\n\n    Returns complete problem information including:\n    - All statements with correctness indicators\n    - Translations and explanations where available\n    - Metadata and categorization tags\n    - Creation and modification timestamps\n\n    **Query Parameters**:\n    - `include_metadata`: Include source_statement_ids and metadata in response (default: false)\n\n    **Required Permission**: `read`, `write`, or `admin`",
+        "operationId": "get_problem_api_v1_problems__problem_id__get",
+        "parameters": [
+          {
+            "name": "problem_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Problem Id"
+            }
+          },
+          {
+            "name": "include_metadata",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Metadata"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generation-requests/{request_id}": {
+      "get": {
+        "tags": [
+          "Generation Requests"
+        ],
+        "summary": "Get generation request status and results",
+        "description": "Retrieve the status and results of an async generation request.\n\n    This endpoint returns:\n    - **Request metadata**: Status, counts, timestamps\n    - **Generated entities**: Full problem objects created by the request\n\n    Use this to check the status of async generation requests and retrieve\n    the generated problems once complete.\n\n    **Required Permission**: `read`, `write`, or `admin`",
+        "operationId": "get_generation_request_api_v1_generation_requests__request_id__get",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Generation request retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationRequestResponse"
+                },
+                "example": {
+                  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+                  "entity_type": "problem",
+                  "status": "completed",
+                  "requested_at": "2025-11-16T10:30:00Z",
+                  "completed_at": "2025-11-16T10:32:15Z",
+                  "requested_count": 5,
+                  "generated_count": 5,
+                  "failed_count": 0,
+                  "entities": [
+                    {
+                      "id": "...",
+                      "problem_type": "grammar"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Generation request not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": true,
+                  "message": "Generation request with ID ... not found",
+                  "status_code": 404
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cache/stats": {
+      "get": {
+        "tags": [
+          "Cache"
+        ],
+        "summary": "Get cache statistics",
+        "description": "Get current cache statistics including hit rates and data counts.\n\n    Useful for monitoring cache performance and troubleshooting.",
+        "operationId": "get_cache_stats_api_v1_cache_stats_get",
+        "responses": {
+          "200": {
+            "description": "Cache statistics",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "verb_cache": {
+                    "loaded": true,
+                    "total_verbs": 1542,
+                    "languages": 1,
+                    "hits": 15234,
+                    "misses": 45,
+                    "hit_rate": "99.71%"
+                  },
+                  "conjugation_cache": {
+                    "loaded": true,
+                    "total_conjugations": 10794,
+                    "unique_verbs": 1542,
+                    "hits": 8562,
+                    "misses": 12,
+                    "hit_rate": "99.86%"
+                  },
+                  "api_key_cache": {
+                    "loaded": true,
+                    "total_keys": 3,
+                    "active_keys": 3,
+                    "hits": 25678,
+                    "misses": 3,
+                    "hit_rate": "99.99%"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiKeyCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Human-readable name for the API key"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Optional description"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name",
+            "description": "Client application name"
+          },
+          "permissions_scope": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Permissions Scope",
+            "description": "Permissions for this key",
+            "default": [
+              "read"
+            ]
+          },
+          "rate_limit_rpm": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Rate Limit Rpm",
+            "description": "Requests per minute limit",
+            "default": 100
+          },
+          "allowed_ips": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Ips",
+            "description": "Optional IP allowlist (CIDR notation supported)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ApiKeyCreate",
+        "description": "Schema for creating a new API key."
+      },
+      "ApiKeyResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "key_prefix": {
+            "type": "string",
+            "title": "Key Prefix"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Name"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "permissions_scope": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Permissions Scope"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "usage_count": {
+            "type": "integer",
+            "title": "Usage Count"
+          },
+          "rate_limit_rpm": {
+            "type": "integer",
+            "title": "Rate Limit Rpm"
+          },
+          "allowed_ips": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Ips"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "key_prefix",
+          "name",
+          "is_active",
+          "permissions_scope",
+          "created_at",
+          "usage_count",
+          "rate_limit_rpm"
+        ],
+        "title": "ApiKeyResponse",
+        "description": "Safe API key response (no sensitive data exposed)."
+      },
+      "ApiKeyStats": {
+        "properties": {
+          "total_keys": {
+            "type": "integer",
+            "title": "Total Keys"
+          },
+          "active_keys": {
+            "type": "integer",
+            "title": "Active Keys"
+          },
+          "inactive_keys": {
+            "type": "integer",
+            "title": "Inactive Keys"
+          },
+          "total_requests": {
+            "type": "integer",
+            "title": "Total Requests"
+          },
+          "requests_last_24h": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requests Last 24H"
+          },
+          "most_active_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Most Active Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_keys",
+          "active_keys",
+          "inactive_keys",
+          "total_requests"
+        ],
+        "title": "ApiKeyStats",
+        "description": "API key usage statistics."
+      },
+      "ApiKeyUpdateRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "pattern": "^[a-zA-Z0-9\\s\\-_]+$",
+            "title": "Name",
+            "description": "Human-readable name for the API key",
+            "example": "Production Web App Key"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Optional description explaining the key's purpose and usage",
+            "example": "API key for the main production web application. Used for user-facing features including verb lookup and sentence generation."
+          },
+          "client_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "pattern": "^[a-zA-Z0-9\\s\\-_]+$",
+            "title": "Client Name",
+            "description": "Name of the client application using this key",
+            "example": "Language Learning Web App"
+          },
+          "permissions_scope": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permissions Scope",
+            "description": "Available permissions: 'read' (GET endpoints), 'write' (POST/PUT endpoints), 'admin' (management operations)",
+            "example": [
+              "read",
+              "write"
+            ],
+            "enum_values": [
+              "read",
+              "write",
+              "admin"
+            ]
+          },
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active",
+            "description": "Whether the API key is active and can be used for authentication",
+            "example": true
+          },
+          "rate_limit_rpm": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Rate Limit Rpm",
+            "description": "Rate limit in requests per minute (1-10000)",
+            "example": 1000
+          },
+          "allowed_ips": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Ips",
+            "description": "Supports individual IPs (e.g., '192.168.1.1') or CIDR notation (e.g., '192.168.1.0/24')",
+            "example": [
+              "192.168.1.0/24",
+              "10.0.0.1"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ApiKeyUpdateRequest",
+        "description": "Request model for updating an API key.\n\nAll fields are optional for partial updates. Only provided fields\nwill be updated, others remain unchanged.\n\n**Security Note**: Updating permissions requires admin privileges.",
+        "example": {
+          "allowed_ips": [
+            "192.168.1.0/24"
+          ],
+          "client_name": "Language Learning Web App",
+          "description": "API key for the main production web application",
+          "is_active": true,
+          "name": "Production Web App Key",
+          "permissions_scope": [
+            "read",
+            "write"
+          ],
+          "rate_limit_rpm": 1000
+        },
+        "partial_update_example": {
+          "name": "Updated Key Name",
+          "rate_limit_rpm": 2000
+        }
+      },
+      "ApiKeyWithPlainText": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "description": "The actual API key - save this, it won't be shown again!"
+          },
+          "key_info": {
+            "$ref": "#/components/schemas/ApiKeyResponse",
+            "description": "API key metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "api_key",
+          "key_info"
+        ],
+        "title": "ApiKeyWithPlainText",
+        "description": "Response when creating a new API key - includes the plain text key."
+      },
+      "AuxiliaryType": {
+        "type": "string",
+        "enum": [
+          "avoir",
+          "\u00eatre"
+        ],
+        "title": "AuxiliaryType",
+        "description": "Auxiliary verb types for French verbs."
+      },
+      "ConjugationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "Unique conjugation identifier",
+            "example": "123e4567-e89b-12d3-a456-426614174001"
+          },
+          "infinitive": {
+            "type": "string",
+            "title": "Infinitive",
+            "description": "Base verb infinitive form",
+            "example": "parler"
+          },
+          "auxiliary": {
+            "$ref": "#/components/schemas/AuxiliaryType",
+            "description": "Auxiliary verb (avoir or \u00eatre)",
+            "example": "avoir"
+          },
+          "reflexive": {
+            "type": "boolean",
+            "title": "Reflexive",
+            "description": "Whether this conjugation is for a reflexive verb",
+            "example": false
+          },
+          "tense": {
+            "type": "string",
+            "enum": [
+              "present",
+              "passe_compose",
+              "imparfait",
+              "future_simple",
+              "conditionnel",
+              "subjonctif",
+              "imperatif"
+            ],
+            "title": "Tense",
+            "description": "French verb tense for this conjugation",
+            "example": "present"
+          },
+          "first_person_singular": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Person Singular",
+            "description": "First person singular form (je)",
+            "example": "parle"
+          },
+          "second_person_singular": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Second Person Singular",
+            "description": "Second person singular form (tu)",
+            "example": "parles"
+          },
+          "third_person_singular": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Third Person Singular",
+            "description": "Third person singular form (il/elle)",
+            "example": "parle"
+          },
+          "first_person_plural": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Person Plural",
+            "description": "First person plural form (nous)",
+            "example": "parlons"
+          },
+          "second_person_plural": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Second Person Plural",
+            "description": "Second person plural form (vous)",
+            "example": "parlez"
+          },
+          "third_person_plural": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Third Person Plural",
+            "description": "Third person plural form (ils/elles)",
+            "example": "parlent"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Timestamp when the conjugation was created"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "Timestamp when the conjugation was last updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "infinitive",
+          "auxiliary",
+          "reflexive",
+          "tense",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConjugationResponse",
+        "description": "API response model for verb conjugation data.\n\nContains all conjugated forms for a specific tense, including\nall persons (je, tu, il/elle, nous, vous, ils/elles).",
+        "example": {
+          "auxiliary": "avoir",
+          "created_at": "2024-01-15T10:30:00Z",
+          "first_person_plural": "parlons",
+          "first_person_singular": "parle",
+          "id": "123e4567-e89b-12d3-a456-426614174001",
+          "infinitive": "parler",
+          "reflexive": false,
+          "second_person_plural": "parlez",
+          "second_person_singular": "parles",
+          "tense": "present",
+          "third_person_plural": "parlent",
+          "third_person_singular": "parle",
+          "updated_at": "2024-01-15T10:30:00Z"
+        }
+      },
+      "DifficultyLevel": {
+        "type": "string",
+        "enum": [
+          "beginner",
+          "elementary",
+          "intermediate",
+          "upper_intermediate",
+          "advanced",
+          "native"
+        ],
+        "title": "DifficultyLevel",
+        "description": "Difficulty levels for problems."
+      },
+      "DirectObject": {
+        "type": "string",
+        "enum": [
+          "none",
+          "masculine",
+          "feminine",
+          "plural"
+        ],
+        "title": "DirectObject",
+        "description": "Direct object types."
+      },
+      "GenerationRequestResponse": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "title": "Request Id",
+            "description": "UUID of the generation request"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type",
+            "description": "Type of entities being generated"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Current status of the generation request"
+          },
+          "requested_at": {
+            "type": "string",
+            "title": "Requested At",
+            "description": "ISO 8601 timestamp when request was created"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At",
+            "description": "ISO 8601 timestamp when processing started"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At",
+            "description": "ISO 8601 timestamp when request completed"
+          },
+          "requested_count": {
+            "type": "integer",
+            "title": "Requested Count",
+            "description": "Number of entities requested"
+          },
+          "generated_count": {
+            "type": "integer",
+            "title": "Generated Count",
+            "description": "Number of entities successfully generated"
+          },
+          "failed_count": {
+            "type": "integer",
+            "title": "Failed Count",
+            "description": "Number of entities that failed to generate"
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constraints",
+            "description": "Original generation constraints"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message",
+            "description": "Error message if request failed"
+          },
+          "entities": {
+            "items": {},
+            "type": "array",
+            "title": "Entities",
+            "description": "Array of generated entity objects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "entity_type",
+          "status",
+          "requested_at",
+          "requested_count",
+          "generated_count",
+          "failed_count",
+          "entities"
+        ],
+        "title": "GenerationRequestResponse",
+        "description": "Response model for generation request queries."
+      },
+      "GrammarProblemConstraints": {
+        "properties": {
+          "grammatical_focus": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Grammatical Focus",
+            "description": "Grammatical concepts to focus on"
+          },
+          "verb_infinitives": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verb Infinitives",
+            "description": "Specific verbs to use"
+          },
+          "tenses_used": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tenses Used",
+            "description": "Specific tenses to use"
+          },
+          "includes_negation": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Includes Negation"
+          },
+          "includes_cod": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Includes Cod"
+          },
+          "includes_coi": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Includes Coi"
+          },
+          "difficulty_level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DifficultyLevel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "GrammarProblemConstraints",
+        "description": "Constraints for generating grammar problems."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "IndirectObject": {
+        "type": "string",
+        "enum": [
+          "none",
+          "masculine",
+          "feminine",
+          "plural"
+        ],
+        "title": "IndirectObject",
+        "description": "Indirect object types."
+      },
+      "Negation": {
+        "type": "string",
+        "enum": [
+          "none",
+          "pas",
+          "jamais",
+          "rien",
+          "personne",
+          "plus",
+          "aucun",
+          "aucune",
+          "encore"
+        ],
+        "title": "Negation",
+        "description": "Negation types."
+      },
+      "ProblemGenerationEnqueuedResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Confirmation message"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of problems to be generated"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id",
+            "description": "UUID of the generation request for tracking"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "count",
+          "request_id"
+        ],
+        "title": "ProblemGenerationEnqueuedResponse",
+        "description": "Response model for async problem generation (202 Accepted)."
+      },
+      "ProblemRandomRequest": {
+        "properties": {
+          "constraints": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GrammarProblemConstraints"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Constraints for problem generation"
+          },
+          "statement_count": {
+            "type": "integer",
+            "maximum": 6.0,
+            "minimum": 2.0,
+            "title": "Statement Count",
+            "description": "Number of statements to generate",
+            "default": 4
+          },
+          "target_language_code": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Target Language Code",
+            "description": "Target language code for translations (ISO 639-3)",
+            "default": "eng"
+          },
+          "topic_tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Topic Tags",
+            "description": "Additional topic tags to add to the generated problem"
+          },
+          "count": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "description": "Number of problems to generate (async generation)",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "title": "ProblemRandomRequest",
+        "description": "Request model for random problem generation.",
+        "examples": [
+          {
+            "constraints": {
+              "difficulty_level": "intermediate",
+              "grammatical_focus": [
+                "direct_objects",
+                "pronoun_placement"
+              ],
+              "includes_cod": true,
+              "includes_coi": false,
+              "includes_negation": true,
+              "tenses_used": [
+                "present",
+                "passe_compose"
+              ],
+              "verb_infinitives": [
+                "parler",
+                "manger",
+                "finir"
+              ]
+            },
+            "statement_count": 4,
+            "target_language_code": "eng"
+          },
+          {
+            "statement_count": 6,
+            "target_language_code": "fra"
+          },
+          {}
+        ]
+      },
+      "ProblemResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "Unique problem identifier"
+          },
+          "problem_type": {
+            "$ref": "#/components/schemas/ProblemType",
+            "description": "Type of problem"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "Problem title"
+          },
+          "instructions": {
+            "type": "string",
+            "title": "Instructions",
+            "description": "Instructions for solving the problem"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/ProblemStatementResponse"
+            },
+            "type": "array",
+            "title": "Statements",
+            "description": "Problem statements"
+          },
+          "correct_answer_index": {
+            "type": "integer",
+            "title": "Correct Answer Index",
+            "description": "Index of the correct answer"
+          },
+          "target_language_code": {
+            "type": "string",
+            "title": "Target Language Code",
+            "description": "Target language code"
+          },
+          "topic_tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Topic Tags",
+            "description": "Topic tags"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Creation timestamp"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "Last update timestamp"
+          },
+          "source_statement_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Statement Ids",
+            "description": "IDs of source sentences used to generate this problem"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata",
+            "description": "Additional metadata (verb info, grammatical focus, etc.)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "problem_type",
+          "instructions",
+          "statements",
+          "correct_answer_index",
+          "target_language_code",
+          "topic_tags",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProblemResponse",
+        "description": "Response model for problems."
+      },
+      "ProblemStatementResponse": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "Statement content"
+          },
+          "is_correct": {
+            "type": "boolean",
+            "title": "Is Correct",
+            "description": "Whether this statement is correct"
+          },
+          "translation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Translation",
+            "description": "Translation of the statement"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation",
+            "description": "Explanation for incorrect statements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content",
+          "is_correct"
+        ],
+        "title": "ProblemStatementResponse",
+        "description": "Response model for problem statements."
+      },
+      "ProblemType": {
+        "type": "string",
+        "enum": [
+          "grammar",
+          "functional",
+          "vocabulary"
+        ],
+        "title": "ProblemType",
+        "description": "Problem type categories."
+      },
+      "Pronoun": {
+        "type": "string",
+        "enum": [
+          "first_person",
+          "second_person",
+          "third_person",
+          "first_person_plural",
+          "second_person_plural",
+          "third_person_plural"
+        ],
+        "title": "Pronoun",
+        "description": "French pronouns."
+      },
+      "SentenceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "Unique sentence identifier",
+            "example": "789e1234-e89b-12d3-a456-426614174333"
+          },
+          "target_language_code": {
+            "type": "string",
+            "title": "Target Language Code",
+            "description": "ISO 639-3 language code for the translation",
+            "example": "eng"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "description": "The French sentence content",
+            "example": "Je parle fran\u00e7ais tous les jours."
+          },
+          "translation": {
+            "type": "string",
+            "title": "Translation",
+            "description": "Translation of the sentence in the target language",
+            "example": "I speak French every day."
+          },
+          "verb_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Verb Id",
+            "description": "UUID of the verb used in this sentence",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "pronoun": {
+            "$ref": "#/components/schemas/Pronoun",
+            "description": "Subject pronoun used in the sentence",
+            "example": "first_person"
+          },
+          "tense": {
+            "$ref": "#/components/schemas/Tense",
+            "description": "Verb tense used in the sentence",
+            "example": "present"
+          },
+          "direct_object": {
+            "$ref": "#/components/schemas/DirectObject",
+            "description": "Type of direct object present in the sentence",
+            "example": "masculine"
+          },
+          "indirect_object": {
+            "$ref": "#/components/schemas/IndirectObject",
+            "description": "Type of indirect object present in the sentence",
+            "example": "none"
+          },
+          "negation": {
+            "$ref": "#/components/schemas/Negation",
+            "description": "Type of negation used in the sentence",
+            "example": "none"
+          },
+          "is_correct": {
+            "type": "boolean",
+            "title": "Is Correct",
+            "description": "Whether the sentence is grammatically correct",
+            "example": true
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation",
+            "description": "Optional explanation of grammatical features or corrections",
+            "example": "This sentence uses the present tense with a direct object complement."
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source",
+            "description": "Source of the sentence (e.g., 'AI_GENERATED', 'MANUAL_ENTRY')",
+            "example": "AI_GENERATED"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Timestamp when the sentence was created"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "Timestamp when the sentence was last updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "target_language_code",
+          "content",
+          "translation",
+          "verb_id",
+          "pronoun",
+          "tense",
+          "direct_object",
+          "indirect_object",
+          "negation",
+          "is_correct",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SentenceResponse",
+        "description": "API response model for sentence data.\n\nContains complete sentence information including the French content,\ntranslation, grammatical metadata, and validation information.",
+        "example": {
+          "content": "Je parle fran\u00e7ais tous les jours.",
+          "created_at": "2024-01-15T11:30:00Z",
+          "direct_object": "masculine",
+          "explanation": "This sentence uses the present tense with a direct object complement.",
+          "id": "789e1234-e89b-12d3-a456-426614174333",
+          "indirect_object": "none",
+          "is_correct": true,
+          "negation": "none",
+          "pronoun": "first_person",
+          "source": "AI_GENERATED",
+          "target_language_code": "eng",
+          "tense": "present",
+          "translation": "I speak French every day.",
+          "updated_at": "2024-01-15T11:30:00Z",
+          "verb_id": "123e4567-e89b-12d3-a456-426614174000"
+        }
+      },
+      "Tense": {
+        "type": "string",
+        "enum": [
+          "present",
+          "passe_compose",
+          "imparfait",
+          "future_simple",
+          "conditionnel",
+          "subjonctif",
+          "imperatif"
+        ],
+        "title": "Tense",
+        "description": "French verb tenses."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerbClassification": {
+        "type": "string",
+        "enum": [
+          "first_group",
+          "second_group",
+          "third_group"
+        ],
+        "title": "VerbClassification",
+        "description": "French verb group classifications."
+      },
+      "VerbDownloadRequest": {
+        "properties": {
+          "infinitive": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-zA-Z\u00c0-\u00ff\\s]+$",
+            "title": "Infinitive",
+            "description": "French verb in infinitive form",
+            "examples": [
+              "parler",
+              "\u00eatre",
+              "avoir",
+              "se lever"
+            ]
+          },
+          "target_language_code": {
+            "type": "string",
+            "pattern": "^[a-z]{3}$",
+            "title": "Target Language Code",
+            "description": "Target language code for translation (ISO 639-3 format)",
+            "default": "eng",
+            "examples": [
+              "eng",
+              "spa",
+              "fra",
+              "deu"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "infinitive"
+        ],
+        "title": "VerbDownloadRequest",
+        "description": "Request model for downloading a verb from AI service.\n\nThis endpoint uses AI to generate comprehensive verb information including\nconjugations, auxiliary verb information, participle forms, and translations.",
+        "example": {
+          "infinitive": "parler",
+          "target_language_code": "eng"
+        }
+      },
+      "VerbResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "Unique verb identifier",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "infinitive": {
+            "type": "string",
+            "title": "Infinitive",
+            "description": "Verb infinitive form",
+            "example": "parler"
+          },
+          "auxiliary": {
+            "$ref": "#/components/schemas/AuxiliaryType",
+            "description": "Auxiliary verb used in compound tenses (avoir or \u00eatre)",
+            "example": "avoir"
+          },
+          "reflexive": {
+            "type": "boolean",
+            "title": "Reflexive",
+            "description": "Whether the verb is reflexive (uses reflexive pronouns)",
+            "example": false
+          },
+          "target_language_code": {
+            "type": "string",
+            "title": "Target Language Code",
+            "description": "ISO 639-3 target language code for translation",
+            "example": "eng"
+          },
+          "translation": {
+            "type": "string",
+            "title": "Translation",
+            "description": "Translation of the verb in the target language",
+            "example": "to speak"
+          },
+          "past_participle": {
+            "type": "string",
+            "title": "Past Participle",
+            "description": "Past participle form (used in compound tenses)",
+            "example": "parl\u00e9"
+          },
+          "present_participle": {
+            "type": "string",
+            "title": "Present Participle",
+            "description": "Present participle form (gerund form)",
+            "example": "parlant"
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerbClassification"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "French verb group classification (1st, 2nd, or 3rd group)",
+            "example": "first_group"
+          },
+          "is_irregular": {
+            "type": "boolean",
+            "title": "Is Irregular",
+            "description": "Whether the verb has irregular conjugation patterns",
+            "example": false
+          },
+          "can_have_cod": {
+            "type": "boolean",
+            "title": "Can Have Cod",
+            "description": "Whether the verb can take a direct object (COD)",
+            "example": true
+          },
+          "can_have_coi": {
+            "type": "boolean",
+            "title": "Can Have Coi",
+            "description": "Whether the verb can take an indirect object (COI)",
+            "example": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Timestamp when the verb was first created in the database"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "Timestamp when the verb was last updated"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At",
+            "description": "Timestamp when the verb was last accessed (for analytics)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "infinitive",
+          "auxiliary",
+          "reflexive",
+          "target_language_code",
+          "translation",
+          "past_participle",
+          "present_participle",
+          "is_irregular",
+          "can_have_cod",
+          "can_have_coi",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "VerbResponse",
+        "description": "API response model for verb data.\n\nContains complete verb information including metadata, participles,\nclassification, and grammatical properties.",
+        "example": {
+          "auxiliary": "avoir",
+          "can_have_cod": true,
+          "can_have_coi": true,
+          "classification": "first_group",
+          "created_at": "2024-01-15T10:30:00Z",
+          "id": "123e4567-e89b-12d3-a456-426614174000",
+          "infinitive": "parler",
+          "is_irregular": false,
+          "last_used_at": "2024-01-15T16:45:00Z",
+          "past_participle": "parl\u00e9",
+          "present_participle": "parlant",
+          "reflexive": false,
+          "target_language_code": "eng",
+          "translation": "to speak",
+          "updated_at": "2024-01-15T10:30:00Z"
+        }
+      },
+      "VerbWithConjugationsResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "Unique verb identifier",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "infinitive": {
+            "type": "string",
+            "title": "Infinitive",
+            "description": "Verb infinitive form",
+            "example": "parler"
+          },
+          "auxiliary": {
+            "$ref": "#/components/schemas/AuxiliaryType",
+            "description": "Auxiliary verb used in compound tenses (avoir or \u00eatre)",
+            "example": "avoir"
+          },
+          "reflexive": {
+            "type": "boolean",
+            "title": "Reflexive",
+            "description": "Whether the verb is reflexive (uses reflexive pronouns)",
+            "example": false
+          },
+          "target_language_code": {
+            "type": "string",
+            "title": "Target Language Code",
+            "description": "ISO 639-3 target language code for translation",
+            "example": "eng"
+          },
+          "translation": {
+            "type": "string",
+            "title": "Translation",
+            "description": "Translation of the verb in the target language",
+            "example": "to speak"
+          },
+          "past_participle": {
+            "type": "string",
+            "title": "Past Participle",
+            "description": "Past participle form (used in compound tenses)",
+            "example": "parl\u00e9"
+          },
+          "present_participle": {
+            "type": "string",
+            "title": "Present Participle",
+            "description": "Present participle form (gerund form)",
+            "example": "parlant"
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerbClassification"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "French verb group classification (1st, 2nd, or 3rd group)",
+            "example": "first_group"
+          },
+          "is_irregular": {
+            "type": "boolean",
+            "title": "Is Irregular",
+            "description": "Whether the verb has irregular conjugation patterns",
+            "example": false
+          },
+          "can_have_cod": {
+            "type": "boolean",
+            "title": "Can Have Cod",
+            "description": "Whether the verb can take a direct object (COD)",
+            "example": true
+          },
+          "can_have_coi": {
+            "type": "boolean",
+            "title": "Can Have Coi",
+            "description": "Whether the verb can take an indirect object (COI)",
+            "example": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Timestamp when the verb was first created in the database"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At",
+            "description": "Timestamp when the verb was last updated"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At",
+            "description": "Timestamp when the verb was last accessed (for analytics)"
+          },
+          "conjugations": {
+            "items": {
+              "$ref": "#/components/schemas/ConjugationResponse"
+            },
+            "type": "array",
+            "title": "Conjugations",
+            "description": "Array containing conjugation objects for each tense (present, pass\u00e9 compos\u00e9, imparfait, etc.)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "infinitive",
+          "auxiliary",
+          "reflexive",
+          "target_language_code",
+          "translation",
+          "past_participle",
+          "present_participle",
+          "is_irregular",
+          "can_have_cod",
+          "can_have_coi",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "VerbWithConjugationsResponse",
+        "description": "API response model for verb with all its conjugations.\n\nExtends VerbResponse to include complete conjugation tables\nfor all supported tenses.",
+        "example": {
+          "auxiliary": "avoir",
+          "can_have_cod": true,
+          "can_have_coi": true,
+          "classification": "first_group",
+          "conjugations": [
+            {
+              "auxiliary": "avoir",
+              "created_at": "2024-01-15T10:30:00Z",
+              "first_person_plural": "parlons",
+              "first_person_singular": "parle",
+              "id": "123e4567-e89b-12d3-a456-426614174001",
+              "infinitive": "parler",
+              "reflexive": false,
+              "second_person_plural": "parlez",
+              "second_person_singular": "parles",
+              "tense": "present",
+              "third_person_plural": "parlent",
+              "third_person_singular": "parle",
+              "updated_at": "2024-01-15T10:30:00Z"
+            },
+            {
+              "auxiliary": "avoir",
+              "created_at": "2024-01-15T10:30:00Z",
+              "first_person_plural": "parlions",
+              "first_person_singular": "parlais",
+              "id": "123e4567-e89b-12d3-a456-426614174002",
+              "infinitive": "parler",
+              "reflexive": false,
+              "second_person_plural": "parliez",
+              "second_person_singular": "parlais",
+              "tense": "imparfait",
+              "third_person_plural": "parlaient",
+              "third_person_singular": "parlait",
+              "updated_at": "2024-01-15T10:30:00Z"
+            }
+          ],
+          "created_at": "2024-01-15T10:30:00Z",
+          "id": "123e4567-e89b-12d3-a456-426614174000",
+          "infinitive": "parler",
+          "is_irregular": false,
+          "past_participle": "parl\u00e9",
+          "present_participle": "parlant",
+          "reflexive": false,
+          "target_language_code": "eng",
+          "translation": "to speak",
+          "updated_at": "2024-01-15T10:30:00Z"
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service health and status endpoints"
+    },
+    {
+      "name": "Verbs",
+      "description": "French verb retrieval and AI-powered verb downloading"
+    },
+    {
+      "name": "Sentences",
+      "description": "French sentence retrieval with grammatical metadata"
+    },
+    {
+      "name": "Problems",
+      "description": "Quiz problem generation and retrieval"
+    },
+    {
+      "name": "Generation Requests",
+      "description": "Track async problem generation requests"
+    },
+    {
+      "name": "API Keys",
+      "description": "API key management (admin only)"
+    },
+    {
+      "name": "Cache",
+      "description": "Cache statistics and monitoring"
+    }
+  ]
+}
