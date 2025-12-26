@@ -1,0 +1,1 @@
+"""Generation request CLI commands."""

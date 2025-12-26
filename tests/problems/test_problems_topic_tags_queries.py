@@ -1,5 +1,7 @@
 """Tests for database cleanup functionality with topic_tags."""
 
+from uuid import uuid4
+
 import pytest
 
 from src.repositories.problem_repository import ProblemRepository
@@ -81,27 +83,31 @@ class TestDatabaseCleanupWithTopicTags:
         """Test batch deletion of problems with test_data tag."""
         repo = ProblemRepository(test_supabase_client)
 
-        # Create 5 test problems
+        # Use a unique tag to avoid interference with parallel tests
+        unique_batch_tag = f"batch_test_{uuid4().hex[:8]}"
+
+        # Create 5 test problems with unique batch tag
         test_problems = []
         for i in range(5):
             problem_data = generate_random_problem_data(
-                title=f"Batch test {i}", topic_tags=["test_data", "batch_test"]
+                title=f"Batch test {i}",
+                topic_tags=["test_data", unique_batch_tag],
             )
             created = await repo.create_problem(ProblemCreate(**problem_data))
             test_problems.append(created)
 
-        # Find all test problems
+        # Find only our test problems using the unique batch tag
         result = (
             await test_supabase_client.table("problems")
             .select("id")
-            .contains("topic_tags", ["test_data"])
+            .contains("topic_tags", [unique_batch_tag])
             .execute()
         )
 
         test_ids = [p["id"] for p in result.data]
-        assert len(test_ids) >= 5
+        assert len(test_ids) == 5  # Exactly our 5 problems
 
-        # Batch delete (simulate cleanup command)
+        # Batch delete only our problems
         delete_result = (
             await test_supabase_client.table("problems")
             .delete()
@@ -110,7 +116,7 @@ class TestDatabaseCleanupWithTopicTags:
         )
 
         # Verify deletion
-        assert len(delete_result.data) >= 5
+        assert len(delete_result.data) == 5
 
         # Verify problems are gone
         for problem in test_problems:
@@ -122,6 +128,9 @@ class TestDatabaseCleanupWithTopicTags:
         """Test that cleanup preserves problems without test_data tag."""
         repo = ProblemRepository(test_supabase_client)
 
+        # Use a unique tag to avoid interference with parallel tests
+        unique_cleanup_tag = f"cleanup_test_{uuid4().hex[:8]}"
+
         # Create one real problem and one test problem
         real_problem_data = generate_random_problem_data(
             title="Real problem to preserve", topic_tags=["grammar", "production"]
@@ -130,19 +139,21 @@ class TestDatabaseCleanupWithTopicTags:
         real_problem = await repo.create_problem(ProblemCreate(**real_problem_data))
 
         test_problem_data = generate_random_problem_data(
-            title="Test problem to delete", topic_tags=["test_data", "cleanup"]
+            title="Test problem to delete",
+            topic_tags=["test_data", unique_cleanup_tag],
         )
         test_problem = await repo.create_problem(ProblemCreate(**test_problem_data))
 
-        # Query and delete only test problems
+        # Query and delete only our specific test problem using unique tag
         test_result = (
             await test_supabase_client.table("problems")
             .select("id")
-            .contains("topic_tags", ["test_data"])
+            .contains("topic_tags", [unique_cleanup_tag])
             .execute()
         )
 
         test_ids = [p["id"] for p in test_result.data]
+        assert len(test_ids) == 1  # Only our test problem
 
         await (
             test_supabase_client.table("problems")

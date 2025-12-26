@@ -111,6 +111,20 @@ class ProblemService:
         repo = await self._get_problem_repository()
         return await repo.delete_problem(problem_id)
 
+    async def delete_problems_by_generation_id(
+        self, generation_request_id: UUID
+    ) -> int:
+        """Delete all problems associated with a generation request.
+
+        Args:
+            generation_request_id: The UUID of the generation request
+
+        Returns:
+            Number of problems deleted
+        """
+        repo = await self._get_problem_repository()
+        return await repo.delete_problems_by_generation_id(generation_request_id)
+
     async def create_random_grammar_problem(
         self,
         constraints: GrammarProblemConstraints | None = None,

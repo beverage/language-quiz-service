@@ -23,20 +23,12 @@ async def clear_database(ctx):
     - All problems tagged with 'test_data' in topic_tags
     - All generation requests with 'test_data' in metadata topic_tags
 
-    Respects --local/--remote flags:
-    - Default: cleans local Supabase instance
-    - Use --local to explicitly target local Supabase
-    - Use --remote to target remote Supabase (disaster recovery)
-
-    Warning: This is a destructive operation. Use --remote with caution.
+    By default, operates on local Supabase. Use --remote to target remote database.
+    Remote operations require confirmation.
     """
     # Get flag info from context
-    is_remote = ctx.obj.get("remote", False) if ctx.obj else False
-    is_local = ctx.obj.get("local", False) if ctx.obj else False
-
-    # Default to local if no flags
-    if not is_remote and not is_local:
-        is_local = True
+    root_ctx = ctx.find_root()
+    is_remote = root_ctx.obj.get("remote", False) if root_ctx.obj else False
 
     target = "REMOTE" if is_remote else "LOCAL"
 

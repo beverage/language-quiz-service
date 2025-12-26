@@ -15,6 +15,10 @@ from src.cli.api_keys.commands import (
 from src.cli.api_keys.commands import (
     revoke as api_keys_revoke,
 )
+from src.cli.cache.commands import (
+    cache_stats,
+    reload_cache,
+)
 from src.cli.cloud.database import (
     status as database_status,
 )
@@ -23,6 +27,15 @@ from src.cli.cloud.service import up as service_up
 from src.cli.database.clear import clear_database
 from src.cli.database.init import init_verbs
 from src.cli.database.wipe import wipe_database
+from src.cli.generation_requests.commands import (
+    clean_requests as genreq_clean,
+)
+from src.cli.generation_requests.commands import (
+    get_status as genreq_status,
+)
+from src.cli.generation_requests.commands import (
+    list_requests as genreq_list,
+)
 from src.cli.problems.create import (
     generate_random_problem,
     generate_random_problems_batch,
@@ -32,7 +45,9 @@ from src.cli.problems.create import (
     search_problems_by_focus,
     search_problems_by_topic,
 )
+from src.cli.problems.delete import delete_problem
 from src.cli.problems.get import get_problem
+from src.cli.problems.wipe import wipe_problems
 from src.cli.sentences.create import create_random_sentence_batch, create_sentence
 from src.cli.verbs.commands import download, get, random
 from src.schemas.problems import GrammarProblemConstraints
@@ -46,16 +61,10 @@ from src.schemas.problems import GrammarProblemConstraints
     "--detailed", default=False, is_flag=True, help="Show detailed problem information"
 )
 @click.option(
-    "--local",
-    default=False,
-    is_flag=True,
-    help="Target local service at http://localhost:8000",
-)
-@click.option(
     "--remote",
     default=False,
     is_flag=True,
-    help="Target remote service from SERVICE_URL",
+    help="Target remote service from SERVICE_URL (requires confirmation for dangerous ops)",
 )
 @click.pass_context
 async def cli(
@@ -64,18 +73,17 @@ async def cli(
     debug_openai=False,
     debug_recovery=True,
     detailed=False,
-    local=False,
     remote=False,
 ):
     # Load environment variables from .env file
     load_dotenv()
 
-    # If --local flag is set, override Supabase credentials to use local instance
-    if local:
+    # Default behavior: use local Supabase (unless --remote is set)
+    if not remote:
         from src.cli.utils.local_supabase import get_local_supabase_config
         from src.core.config import reset_settings
 
-        click.echo("🔧 Configuring local Supabase connection...")
+        click.echo("🔧 Using local Supabase connection (default)...")
         local_config = get_local_supabase_config()
 
         click.echo(f"   Setting SUPABASE_URL to {local_config['SUPABASE_URL']}")
@@ -106,8 +114,7 @@ async def cli(
     from src.cli.utils.http_client import get_service_url_from_flag
 
     ctx.ensure_object(dict)
-    ctx.obj["service_url"] = get_service_url_from_flag(local, remote)
-    ctx.obj["local"] = local
+    ctx.obj["service_url"] = get_service_url_from_flag(remote)
     ctx.obj["remote"] = remote
 
     # Removed: await reflect_tables()  # SQLAlchemy dependency removed
@@ -314,8 +321,10 @@ async def problem_stats():
         click.echo(f"❌ Error getting statistics: {ex}")
 
 
-# Add get command to problem group
+# Add get, delete, and wipe commands to problem group
 problem.add_command(get_problem)
+problem.add_command(delete_problem)
+problem.add_command(wipe_problems)
 
 
 # Keep the existing batch command but update it to use new system
@@ -378,6 +387,29 @@ async def api_keys():
 api_keys.add_command(api_keys_create, name="create")
 api_keys.add_command(api_keys_list, name="list")
 api_keys.add_command(api_keys_revoke, name="revoke")
+
+
+@cli.group("generation-request")
+async def generation_request():
+    """Generation request management commands."""
+    pass
+
+
+# Add generation request commands to the group
+generation_request.add_command(genreq_list, name="list")
+generation_request.add_command(genreq_status, name="status")
+generation_request.add_command(genreq_clean, name="clean")
+
+
+@cli.group()
+async def cache():
+    """Cache management commands."""
+    pass
+
+
+# Add cache commands to the group
+cache.add_command(cache_stats, name="stats")
+cache.add_command(reload_cache, name="reload")
 
 
 def main():

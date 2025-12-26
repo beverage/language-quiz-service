@@ -69,7 +69,7 @@ async def get_problem(
 
     if not service_url:
         raise click.ClickException(
-            "Service URL not configured. Use --local or --remote flag."
+            "Service URL not configured. This should not happen - please report a bug."
         )
 
     api_key = get_api_key()

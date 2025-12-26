@@ -246,3 +246,110 @@ class GenerationRequestRepository:
         except PostgrestAPIError as e:
             logger.error(f"Database error updating final status: {e.message}")
             raise RepositoryError(f"Failed to update final status: {e.message}") from e
+
+    async def get_all_requests(
+        self,
+        status: GenerationStatus | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[GenerationRequest], int]:
+        """
+        Get all generation requests with optional status filtering.
+
+        Args:
+            status: Optional status filter
+            limit: Maximum number of requests to return
+            offset: Number of requests to skip
+
+        Returns:
+            Tuple of (list of requests, total count)
+        """
+        try:
+            query = self.client.table("generation_requests").select("*", count="exact")
+
+            if status:
+                query = query.eq("status", status.value)
+
+            query = query.order("requested_at", desc=True).range(
+                offset, offset + limit - 1
+            )
+
+            result = await query.execute()
+
+            requests = [
+                GenerationRequest.model_validate(row) for row in (result.data or [])
+            ]
+            total_count = result.count if result.count is not None else len(requests)
+
+            return requests, total_count
+        except PostgrestAPIError as e:
+            logger.error(f"Database error getting generation requests: {e.message}")
+            raise RepositoryError(
+                f"Failed to get generation requests: {e.message}"
+            ) from e
+
+    async def delete_request(self, request_id: UUID) -> bool:
+        """
+        Delete a generation request by ID.
+
+        Note: This does NOT delete associated problems. Problems retain their
+        generation_request_id as a historical reference.
+
+        Args:
+            request_id: ID of the generation request to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        try:
+            result = (
+                await self.client.table("generation_requests")
+                .delete()
+                .eq("id", str(request_id))
+                .execute()
+            )
+            return len(result.data) > 0 if result.data else False
+        except PostgrestAPIError as e:
+            logger.error(f"Database error deleting generation request: {e.message}")
+            raise RepositoryError(
+                f"Failed to delete generation request: {e.message}"
+            ) from e
+
+    async def delete_old_requests(
+        self,
+        older_than_days: int,
+        statuses: list[GenerationStatus] | None = None,
+    ) -> int:
+        """
+        Delete generation requests older than a specified number of days.
+
+        Args:
+            older_than_days: Delete requests older than this many days
+            statuses: Optional list of statuses to filter (defaults to completed/failed)
+
+        Returns:
+            Number of requests deleted
+        """
+        from datetime import timedelta
+
+        cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
+
+        if statuses is None:
+            statuses = [GenerationStatus.COMPLETED, GenerationStatus.FAILED]
+
+        try:
+            query = (
+                self.client.table("generation_requests")
+                .delete()
+                .lt("requested_at", cutoff.isoformat())
+            )
+
+            # Filter by statuses
+            status_values = [s.value for s in statuses]
+            query = query.in_("status", status_values)
+
+            result = await query.execute()
+            return len(result.data) if result.data else 0
+        except PostgrestAPIError as e:
+            logger.error(f"Database error deleting old requests: {e.message}")
+            raise RepositoryError(f"Failed to delete old requests: {e.message}") from e

@@ -8,6 +8,7 @@ complete conjugation data.
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 
 import asyncclick as click
@@ -184,10 +185,9 @@ async def init_verbs(ctx, verbs_only: bool):
     2. Calls the verb download API for each verb to download conjugations
     3. Uses a worker pool of 50 concurrent workers processing from a queue
     4. Retries failures up to 3 times
-    5. Respects --local/--remote flags (default: local at http://localhost:8000)
+    5. Targets local service by default (http://localhost:8000)
 
-    Use --local to target local service (default)
-    Use --remote to target remote service from SERVICE_URL env var
+    Use --remote to target remote service from SERVICE_URL env var.
 
     Note: Verbs must already exist in the database (added via migrations).
     """
@@ -200,11 +200,12 @@ async def init_verbs(ctx, verbs_only: bool):
         return
 
     # Get service URL from context (set by root CLI)
-    service_url = ctx.obj.get("service_url") if ctx.obj else None
-
-    if not service_url:
-        # Default to local if no flags provided
-        service_url = "http://localhost:8000"
+    # Fallback uses SERVICE_PORT for consistency
+    if ctx.obj and ctx.obj.get("service_url"):
+        service_url = ctx.obj["service_url"]
+    else:
+        port = os.getenv("SERVICE_PORT", "8000")
+        service_url = f"http://localhost:{port}"
 
     logger.info(f"Initializing verb conjugations using API at {service_url}")
 

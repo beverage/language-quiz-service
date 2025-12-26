@@ -69,12 +69,12 @@ class TestProblemGenerationWithTopicTags:
             yield
 
     async def test_topic_tags_in_response(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that topic_tags are accepted in async generation request."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"topic_tags": ["test_data", "custom_tag", "advanced"]},
         )
 
@@ -83,12 +83,12 @@ class TestProblemGenerationWithTopicTags:
         assert data["count"] == 1
 
     async def test_empty_topic_tags(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test API with empty topic_tags list."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"topic_tags": ["test_data"]},
         )
 
@@ -97,12 +97,12 @@ class TestProblemGenerationWithTopicTags:
         assert data["count"] == 1
 
     async def test_topic_tags_with_constraints(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test topic_tags alongside problem generation constraints."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={
                 "constraints": {
                     "grammatical_focus": ["negation"],
@@ -118,12 +118,12 @@ class TestProblemGenerationWithTopicTags:
         assert data["count"] == 1
 
     async def test_topic_tags_with_special_characters(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that topic_tags with special characters are accepted."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={
                 "topic_tags": [
                     "test_data",
@@ -139,12 +139,12 @@ class TestProblemGenerationWithTopicTags:
         assert data["count"] == 1
 
     async def test_invalid_topic_tags_type(
-        self, client: TestClient, read_headers, test_verb, mock_llm_responses
+        self, client: TestClient, write_headers, test_verb, mock_llm_responses
     ):
         """Test that invalid topic_tags type is rejected."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"topic_tags": "not_a_list"},  # Invalid: string instead of list
         )
 

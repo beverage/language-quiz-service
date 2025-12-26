@@ -21,7 +21,7 @@ def client():
 class TestAsyncGenerationErrors:
     """Test error handling in async generation endpoint."""
 
-    def test_queue_service_failure_returns_500(self, client, read_headers):
+    def test_queue_service_failure_returns_500(self, client, write_headers):
         """Test that Kafka connection failures return 500."""
         with patch("src.api.problems.QueueService") as mock_queue_class:
             mock_queue = AsyncMock()
@@ -32,7 +32,7 @@ class TestAsyncGenerationErrors:
 
             response = client.post(
                 f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
+                headers=write_headers,
                 json={"count": 1, "topic_tags": ["test_data"]},
             )
 
@@ -41,7 +41,7 @@ class TestAsyncGenerationErrors:
             assert "message" in data
             assert "Failed to enqueue" in data["message"]
 
-    def test_queue_service_partial_failure(self, client, read_headers):
+    def test_queue_service_partial_failure(self, client, write_headers):
         """Test handling when some messages fail to enqueue."""
         with patch("src.api.problems.QueueService") as mock_queue_class:
             mock_queue = AsyncMock()
@@ -54,7 +54,7 @@ class TestAsyncGenerationErrors:
 
             response = client.post(
                 f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
+                headers=write_headers,
                 json={"count": 5, "topic_tags": ["test_data"]},
             )
 
