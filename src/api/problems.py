@@ -184,7 +184,7 @@ async def get_random_problem(
     }
     ```
 
-    **Required Permission**: `read`, `write`, or `admin`
+    **Required Permission**: `write` or `admin`
     """,
     responses={
         202: {
@@ -194,6 +194,19 @@ async def get_random_problem(
                     "example": {
                         "message": "Enqueued 10 problem generation requests",
                         "count": 10,
+                    }
+                }
+            },
+        },
+        403: {
+            "description": "Insufficient permissions",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Write or admin permission required to generate problems",
+                        "status_code": 403,
+                        "path": "/api/v1/problems/generate",
                     }
                 }
             },
@@ -225,7 +238,17 @@ async def generate_random_problem(
 
     Publishes generation requests to Kafka for background worker processing.
     Returns immediately with 202 Accepted status.
+
+    Requires 'write' or 'admin' permission.
     """
+    # Check permissions
+    permissions = current_key.get("permissions_scope", [])
+    if "write" not in permissions and "admin" not in permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Write or admin permission required to generate problems",
+        )
+
     try:
         # Use defaults if no request body provided
         if problem_request is None:

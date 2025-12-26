@@ -123,22 +123,19 @@ class TestProblemsAPIAuthentication:
         assert response.status_code == 401
 
     async def test_wrong_scope_permissions(self, client: TestClient, read_headers):
-        """Test that read scope can enqueue generation requests."""
-        with patch("src.api.problems.QueueService") as mock_queue_class:
-            mock_queue = AsyncMock()
-            mock_queue.publish_problem_generation_request.return_value = (
-                1,
-                str(uuid4()),
-            )
-            mock_queue_class.return_value = mock_queue
-
-            # Read operations should work with read key
-            response = client.post(
-                f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
-                json={"topic_tags": ["test_data"]},
-            )
-            assert response.status_code == 202
+        """Test that read scope cannot enqueue generation requests."""
+        # Read-only keys should be rejected for write operations
+        response = client.post(
+            f"{PROBLEMS_PREFIX}/generate",
+            headers=read_headers,
+            json={"topic_tags": ["test_data"]},
+        )
+        assert response.status_code == 403
+        data = response.json()
+        assert (
+            "write" in data["message"].lower()
+            or "permission" in data["message"].lower()
+        )
 
 
 @pytest.mark.integration
@@ -163,7 +160,7 @@ class TestProblemsAPIIntegration:
             raise ValueError(f"Known verb {infinitive} not found in database")
         return verb
 
-    async def test_generate_problem_endpoint(self, client: TestClient, read_headers):
+    async def test_generate_problem_endpoint(self, client: TestClient, write_headers):
         """Test generate problem endpoint returns 202 and enqueues async generation."""
         with patch("src.api.problems.QueueService") as mock_queue_class:
             mock_queue = AsyncMock()
@@ -175,7 +172,7 @@ class TestProblemsAPIIntegration:
 
             response = client.post(
                 f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
+                headers=write_headers,
                 json={"count": 5, "topic_tags": ["test_data"]},
             )
             assert response.status_code == 202
@@ -236,12 +233,12 @@ class TestRandomProblemParameterized:
             yield
 
     async def test_default_behavior_generates_problem(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that POST request with no parameters enqueues with defaults."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"topic_tags": ["test_data"]},
         )
 
@@ -254,12 +251,12 @@ class TestRandomProblemParameterized:
         assert "1 problem generation request" in data["message"].lower()
 
     async def test_target_language_basic(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that generate endpoint accepts target language parameter."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"target_language_code": "eng", "topic_tags": ["test_data"]},
         )
 
@@ -268,12 +265,12 @@ class TestRandomProblemParameterized:
         assert "message" in data
 
     async def test_get_problem_by_id(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that generate endpoint enqueues requests successfully."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"count": 3, "topic_tags": ["test_data"]},
         )
 
@@ -282,12 +279,12 @@ class TestRandomProblemParameterized:
         assert data["count"] == 3
 
     async def test_basic_constraint_processing(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that constraints are accepted in request."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={
                 "constraints": {"grammatical_focus": ["direct_objects"]},
                 "topic_tags": ["test_data"],
@@ -322,7 +319,7 @@ class TestRandomProblemParameterized:
     async def test_realistic_learning_scenarios(
         self,
         client: TestClient,
-        read_headers,
+        write_headers,
         mock_queue_service,
         scenario_name,
         expected_structure,
@@ -330,7 +327,7 @@ class TestRandomProblemParameterized:
         """Test that generate endpoint accepts various request scenarios."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"topic_tags": ["test_data"]},
         )
 
@@ -339,13 +336,13 @@ class TestRandomProblemParameterized:
         assert data["count"] == 1
 
     async def test_content_generation_error_handling(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that generate endpoint enqueues even if worker might fail later."""
         # With async processing, errors surface in worker logs, not API response
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"topic_tags": ["test_data"]},
         )
 
@@ -355,12 +352,12 @@ class TestRandomProblemParameterized:
         assert data["count"] == 1
 
     async def test_empty_request_uses_defaults(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that empty request uses default count of 1."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"topic_tags": ["test_data"]},
         )
 
@@ -369,12 +366,12 @@ class TestRandomProblemParameterized:
         assert data["count"] == 1  # Default count
 
     async def test_response_format_consistency(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that 202 response format is consistent."""
         response = client.post(
             f"{PROBLEMS_PREFIX}/generate",
-            headers=read_headers,
+            headers=write_headers,
             json={"count": 5, "topic_tags": ["test_data"]},
         )
 
@@ -393,7 +390,7 @@ class TestRandomProblemParameterized:
         assert data["count"] == 5
 
     async def test_multiple_request_consistency(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that multiple requests to the same endpoint work consistently."""
         # Make multiple requests
@@ -401,7 +398,7 @@ class TestRandomProblemParameterized:
         for _ in range(3):
             response = client.post(
                 f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
+                headers=write_headers,
                 json={"topic_tags": ["test_data"]},
             )
             responses.append(response)
@@ -413,7 +410,7 @@ class TestRandomProblemParameterized:
             assert data["count"] == 1
 
     async def test_concurrent_request_handling(
-        self, client: TestClient, read_headers, mock_queue_service
+        self, client: TestClient, write_headers, mock_queue_service
     ):
         """Test that the endpoint can handle concurrent requests."""
         import asyncio
@@ -421,7 +418,7 @@ class TestRandomProblemParameterized:
         async def make_request():
             return client.post(
                 f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
+                headers=write_headers,
                 json={"topic_tags": ["test_data"]},
             )
 
