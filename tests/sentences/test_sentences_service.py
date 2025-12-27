@@ -264,17 +264,21 @@ async def test_generate_sentence_success(sentence_service, sample_verb):
     # Inject mocks
     sentence_service.openai_client = mock_client
 
-    # Generate sentence
-    result = await sentence_service.generate_sentence(
+    # Generate sentence - now returns (Sentence, LLMResponse) tuple
+    sentence, llm_response = await sentence_service.generate_sentence(
         verb_id=sample_verb.id,
         pronoun=Pronoun.FIRST_PERSON,
         tense=Tense.PRESENT,
     )
 
-    assert result.content == "Je parle français"
-    assert result.translation == "I speak French"
-    assert result.verb_id == sample_verb.id
-    assert result.is_correct is True
+    assert sentence.content == "Je parle français"
+    assert sentence.translation == "I speak French"
+    assert sentence.verb_id == sample_verb.id
+    assert sentence.is_correct is True
+
+    # Verify LLMResponse is returned
+    assert llm_response is not None
+    assert llm_response.content is not None
 
 
 @pytest.mark.asyncio

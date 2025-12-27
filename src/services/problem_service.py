@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from src.core.config import settings
 from src.core.exceptions import (
     LanguageResourceNotFoundError,
     NotFoundError,
@@ -14,6 +15,7 @@ from src.core.exceptions import (
 )
 from src.prompts.sentences import SentencePromptBuilder
 from src.repositories.problem_repository import ProblemRepository
+from src.schemas.llm_response import ProblemGenerationTrace, SentenceGenerationTrace
 from src.schemas.problems import (
     GrammarProblemConstraints,
     Problem,
@@ -194,8 +196,9 @@ class ProblemService:
         random.shuffle(available_pronouns)
         selected_pronouns = available_pronouns[:statement_count]
 
-        # Prepare all sentence generation tasks
+        # Prepare all sentence generation tasks and track metadata for traces
         sentence_tasks = []
+        task_metadata = []  # Track (is_correct, error_type) for each task
         error_type_index = 0
         for i in range(statement_count):
             is_correct = i == correct_answer_index
@@ -229,10 +232,50 @@ class ProblemService:
                 conjugations=conjugations,  # Pass pre-fetched conjugations
             )
             sentence_tasks.append(task)
+            task_metadata.append((is_correct, error_type))
 
         # Execute all sentence generation in parallel
         logger.debug(f"⚡ Generating {statement_count} statements in parallel...")
-        sentences = await asyncio.gather(*sentence_tasks)
+        import time
+
+        generation_start = time.time()
+        results = await asyncio.gather(*sentence_tasks)
+        total_generation_time_ms = (time.time() - generation_start) * 1000
+
+        # Unpack results: each is (Sentence, LLMResponse)
+        sentences = []
+        sentence_traces = []
+        for i, (sentence, llm_response) in enumerate(results):
+            sentences.append(sentence)
+
+            # Build trace for this sentence
+            is_correct, error_type = task_metadata[i]
+            trace = SentenceGenerationTrace(
+                sentence_index=i,
+                is_correct=is_correct,
+                error_type=error_type.value if error_type else None,
+                llm_response=llm_response,
+                prompt_text=None,  # Could capture prompt if needed
+            )
+            sentence_traces.append(trace)
+
+        # Build aggregated problem trace
+        problem_trace = ProblemGenerationTrace(
+            model=settings.reasoning_model,
+            prompt_version="2.0",
+            total_generation_time_ms=total_generation_time_ms,
+            sentence_traces=sentence_traces,
+        )
+
+        # Log trace summary
+        total_reasoning = sum(
+            t.llm_response.reasoning_tokens or 0 for t in sentence_traces
+        )
+        logger.info(
+            f"📊 Generation trace: {len(sentences)} sentences, "
+            f"{total_generation_time_ms:.0f}ms total, "
+            f"{total_reasoning} reasoning tokens"
+        )
 
         # Find the actual correct answer index based on sentence service results
         actual_correct_index = None
@@ -257,6 +300,7 @@ class ProblemService:
             target_language_code=target_language_code,
             additional_tags=additional_tags,
             generation_request_id=generation_request_id,
+            generation_trace=problem_trace,
         )
 
         # Step 5: Create problem in background (fire and forget)
@@ -439,6 +483,7 @@ class ProblemService:
         target_language_code: str,
         additional_tags: list[str] | None = None,
         generation_request_id: UUID | None = None,
+        generation_trace: ProblemGenerationTrace | None = None,
     ) -> ProblemCreate:
         """Package sentences into atomic problem format."""
 
@@ -479,6 +524,7 @@ class ProblemService:
             source_statement_ids=[s.id for s in sentences],
             metadata=metadata,
             generation_request_id=generation_request_id,
+            generation_trace=generation_trace.to_dict() if generation_trace else None,
         )
 
     def _derive_grammar_metadata(

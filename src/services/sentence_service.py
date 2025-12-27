@@ -15,6 +15,7 @@ from src.prompts.response_schemas import (
 )
 from src.prompts.sentences import ErrorType, SentencePromptBuilder
 from src.repositories.sentence_repository import SentenceRepository
+from src.schemas.llm_response import LLMResponse
 from src.schemas.sentences import (
     DirectObject,
     IndirectObject,
@@ -89,12 +90,15 @@ class SentenceService:
         error_type: ErrorType | None = None,
         verb: Verb | None = None,
         conjugations: list | None = None,
-    ) -> Sentence:
+    ) -> tuple[Sentence, LLMResponse]:
         """Generate a sentence using AI integration.
 
         Args:
             verb: Optional pre-fetched verb to avoid duplicate DB calls
             conjugations: Optional pre-fetched conjugations to avoid duplicate DB calls
+
+        Returns:
+            Tuple of (Sentence, LLMResponse) for trace capture
         """
         logger.debug(f"Generating sentence for verb_id {verb_id}")
 
@@ -256,7 +260,7 @@ class SentenceService:
             updated_at=now,
             **sentence_request.model_dump(),
         )
-        return sentence
+        return sentence, response
 
     async def _create_sentence_background(
         self, sentence_data: SentenceCreate, sentence_id: UUID, timestamp: datetime
