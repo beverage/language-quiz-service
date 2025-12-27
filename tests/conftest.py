@@ -10,7 +10,25 @@ import pytest
 # Force reset of Settings after environment override
 # This is crucial for the FastAPI app to load with the correct test settings
 from src.core.config import reset_settings
+from src.schemas.llm_response import LLMResponse
 from supabase import Client, acreate_client
+
+
+def mock_llm_response(content: str) -> LLMResponse:
+    """Create an LLMResponse for test mocking.
+
+    Use this when mocking OpenAIClient.handle_request() which now returns
+    LLMResponse instead of str.
+    """
+    return LLMResponse(
+        content=content,
+        model="test-model",
+        response_id="test-id",
+        duration_ms=0.0,
+        prompt_tokens=0,
+        completion_tokens=0,
+        total_tokens=0,
+    )
 
 
 # Helper function to create a test client, now co-located with tests

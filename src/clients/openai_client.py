@@ -1,3 +1,9 @@
+"""OpenAI client with observability and metadata capture.
+
+Handles both reasoning models (gpt-5) and standard models (gpt-4o-mini),
+returning LLMResponse with full metadata including reasoning traces when available.
+"""
+
 import logging
 import time
 from typing import Any
@@ -6,34 +12,31 @@ from openai import APIError, APITimeoutError, AsyncOpenAI, RateLimitError
 from opentelemetry import metrics, trace
 
 from src.core.config import settings
+from src.schemas.llm_response import LLMResponse
 
 logger = logging.getLogger(__name__)
 
 # Initialize OpenTelemetry meter for custom LLM metrics
 meter = metrics.get_meter(__name__)
 
-# LLM request duration histogram
 llm_request_duration = meter.create_histogram(
     name="llm.request.duration",
     unit="ms",
     description="Duration of LLM API requests",
 )
 
-# LLM request counter
 llm_request_total = meter.create_counter(
     name="llm.request.total",
     unit="1",
     description="Total number of LLM API requests",
 )
 
-# LLM error counter (by error type)
 llm_errors_total = meter.create_counter(
     name="llm.errors.total",
     unit="1",
     description="Total number of LLM API errors by type",
 )
 
-# Token usage counters
 llm_tokens_input = meter.create_counter(
     name="llm.tokens.input",
     unit="1",
@@ -52,19 +55,21 @@ llm_tokens_total = meter.create_counter(
     description="Total tokens (input + output)",
 )
 
+llm_tokens_reasoning = meter.create_counter(
+    name="llm.tokens.reasoning",
+    unit="1",
+    description="Total reasoning tokens consumed (gpt-5 models)",
+)
+
 
 class OpenAIClient:
-    """Async client for OpenAI with timeout and retry protection."""
+    """Async client for OpenAI with timeout, retry protection, and full observability."""
 
-    def __init__(self, api_key: str = None):
-        # Configure timeouts to prevent hung requests
-        # OpenAI Timeout expects: timeout, connect (optional)
-        # If we pass just a float, it's the total timeout
-        # For more control, use httpx.Timeout which OpenAI accepts
+    def __init__(self, api_key: str | None = None):
         self.client = AsyncOpenAI(
             api_key=api_key or settings.openai_api_key,
-            timeout=120.0,  # Total timeout for entire request (seconds)
-            max_retries=5,  # Background workers can tolerate higher latency for reliability
+            timeout=120.0,
+            max_retries=1,
         )
 
     async def handle_request(
@@ -73,26 +78,21 @@ class OpenAIClient:
         model: str,
         operation: str | None = None,
         response_format: dict[str, Any] | None = None,
-    ) -> str:
-        """
-        Send a chat completion request to OpenAI and return the content string.
+    ) -> LLMResponse:
+        """Send a chat completion request to OpenAI.
 
         Args:
             prompt: The prompt to send to OpenAI
             model: The model to use (e.g., "gpt-4o-mini", "gpt-5-nano-2025-08-07")
-            operation: Optional operation name for metrics (e.g., "problem_generation", "sentence_validation")
+            operation: Optional operation name for metrics
             response_format: Optional JSON schema for structured output
 
         Returns:
-            Cleaned response content
+            LLMResponse with content and metadata (reasoning data included for gpt-5)
         """
         start_time = time.time()
         status = "success"
-
-        # Determine if this is a reasoning model (o1, o3, or gpt-5 series)
-        is_reasoning_model = any(x in model.lower() for x in ["o1", "o3", "gpt-5"])
-
-        # Get current span for adding attributes
+        is_reasoning_model = "gpt-5" in model.lower()
         span = trace.get_current_span()
 
         try:
@@ -103,17 +103,14 @@ class OpenAIClient:
                 "service_tier": "priority",
             }
 
-            # Only add reasoning_effort for reasoning models
+            # Add reasoning effort for gpt-5 models
             if is_reasoning_model:
-                request_params["reasoning_effort"] = "minimal"
+                request_params["reasoning_effort"] = "medium"
 
-            # Add response format if provided
             if response_format:
                 request_params["response_format"] = response_format
 
             response = await self.client.chat.completions.create(**request_params)
-
-            # Calculate duration
             duration_ms = (time.time() - start_time) * 1000
 
             # Extract usage information
@@ -122,54 +119,70 @@ class OpenAIClient:
             completion_tokens = usage.completion_tokens if usage else 0
             total_tokens = usage.total_tokens if usage else 0
 
-            # Prepare metric attributes
-            attributes = {
-                "model": model,
-                "status": status,
-            }
+            # Extract reasoning data for gpt-5 models
+            reasoning_tokens = None
+            reasoning_content = None
+            if is_reasoning_model:
+                reasoning_tokens, reasoning_content = self._extract_reasoning_data(
+                    response, usage
+                )
+
+            # Record metrics
+            attributes = {"model": model, "status": status}
             if operation:
                 attributes["operation"] = operation
 
-            # Record metrics
             llm_request_duration.record(duration_ms, attributes=attributes)
             llm_request_total.add(1, attributes=attributes)
 
-            # Record token usage
             if usage:
-                token_attributes = attributes.copy()
-                llm_tokens_input.add(prompt_tokens, attributes=token_attributes)
-                llm_tokens_output.add(completion_tokens, attributes=token_attributes)
-                llm_tokens_total.add(total_tokens, attributes=token_attributes)
+                llm_tokens_input.add(prompt_tokens, attributes=attributes)
+                llm_tokens_output.add(completion_tokens, attributes=attributes)
+                llm_tokens_total.add(total_tokens, attributes=attributes)
 
-            # Add span attributes for distributed tracing (following OpenTelemetry semantic conventions)
+            if reasoning_tokens:
+                llm_tokens_reasoning.add(reasoning_tokens, attributes=attributes)
+
+            # Record span attributes
             if span.is_recording():
                 span.set_attribute("llm.model", model)
                 span.set_attribute("llm.request.duration_ms", duration_ms)
                 span.set_attribute("llm.response.id", response.id)
-
-                # Token breakdown
                 span.set_attribute("llm.usage.prompt_tokens", prompt_tokens)
                 span.set_attribute("llm.usage.completion_tokens", completion_tokens)
                 span.set_attribute("llm.usage.total_tokens", total_tokens)
-
                 if operation:
                     span.set_attribute("llm.operation", operation)
+                if reasoning_tokens is not None:
+                    span.set_attribute("llm.usage.reasoning_tokens", reasoning_tokens)
 
-            # Log token usage for debugging and analysis
+            # Log completion
+            reasoning_log = (
+                f", reasoning={reasoning_tokens}" if reasoning_tokens else ""
+            )
             logger.info(
                 f"LLM request completed: operation={operation or 'unknown'}, "
                 f"model={model}, duration={duration_ms:.0f}ms, "
-                f"tokens=(prompt={prompt_tokens}, completion={completion_tokens}, total={total_tokens})"
+                f"tokens=(prompt={prompt_tokens}, completion={completion_tokens}, "
+                f"total={total_tokens}{reasoning_log})"
             )
 
             raw_content = response.choices[0].message.content
-            return self._clean_response(raw_content)
+            return LLMResponse(
+                content=self._clean_response(raw_content),
+                model=model,
+                response_id=response.id,
+                duration_ms=duration_ms,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                reasoning_tokens=reasoning_tokens,
+                reasoning_content=reasoning_content,
+                raw_content=raw_content,
+            )
 
         except Exception as e:
-            # Record error metrics
             duration_ms = (time.time() - start_time) * 1000
-
-            # Categorize error type for better monitoring
             error_type = self._categorize_error(e)
 
             error_attributes = {
@@ -180,12 +193,10 @@ class OpenAIClient:
             if operation:
                 error_attributes["operation"] = operation
 
-            # Record error in metrics
             llm_request_duration.record(duration_ms, attributes=error_attributes)
             llm_request_total.add(1, attributes=error_attributes)
             llm_errors_total.add(1, attributes=error_attributes)
 
-            # Add error attributes to span
             if span.is_recording():
                 span.set_attribute("llm.model", model)
                 span.set_attribute("llm.request.duration_ms", duration_ms)
@@ -195,63 +206,71 @@ class OpenAIClient:
                     span.set_attribute("llm.operation", operation)
                 span.set_status(trace.Status(trace.StatusCode.ERROR, str(e)))
 
-            # Log error with categorization
             logger.error(
                 f"LLM request failed: operation={operation or 'unknown'}, "
                 f"model={model}, duration={duration_ms:.0f}ms, "
                 f"error_type={error_type}, error={type(e).__name__}: {str(e)}"
             )
-
             raise
 
-    def _categorize_error(self, error: Exception) -> str:
-        """
-        Categorize OpenAI errors into monitoring-friendly types.
+    def _extract_reasoning_data(self, response, usage) -> tuple[int | None, str | None]:
+        """Extract reasoning tokens and content from gpt-5 response."""
+        reasoning_tokens = None
+        reasoning_content = None
 
-        Returns:
-            str: Error category (insufficient_funds, timeout, rate_limit, api_error, unknown)
-        """
+        # Get reasoning tokens from usage details
+        if usage and hasattr(usage, "completion_tokens_details"):
+            details = usage.completion_tokens_details
+            if details and hasattr(details, "reasoning_tokens"):
+                reasoning_tokens = details.reasoning_tokens
+
+        # Get reasoning content from message
+        message = response.choices[0].message
+        if hasattr(message, "reasoning_content") and message.reasoning_content:
+            reasoning_content = message.reasoning_content
+        elif hasattr(message, "reasoning") and message.reasoning:
+            if isinstance(message.reasoning, list):
+                reasoning_content = "\n".join(str(step) for step in message.reasoning)
+            else:
+                reasoning_content = str(message.reasoning)
+
+        return reasoning_tokens, reasoning_content
+
+    def _categorize_error(self, error: Exception) -> str:
+        """Categorize OpenAI errors into monitoring-friendly types."""
         error_message = str(error).lower()
 
-        # Check for insufficient funds (CRITICAL - circuit breaker trigger)
         if "insufficient" in error_message and "quota" in error_message:
             return "insufficient_funds"
         if "quota" in error_message and "exceeded" in error_message:
             return "insufficient_funds"
-
-        # Check for timeout errors
         if isinstance(error, APITimeoutError):
             return "timeout"
         if "timeout" in error_message:
             return "timeout"
-
-        # Check for rate limiting
         if isinstance(error, RateLimitError):
             return "rate_limit"
         if "rate limit" in error_message or "rate_limit" in error_message:
             return "rate_limit"
-
-        # General API errors
         if isinstance(error, APIError):
             return "api_error"
-
-        # Unknown/unexpected errors
         return "unknown"
 
-    def _clean_response(self, raw_content: str) -> str:
+    def _clean_response(self, raw_content: str | None) -> str:
         """Clean LLM response by removing markdown code blocks."""
+        if raw_content is None:
+            return ""
         if not raw_content:
             return raw_content
 
         cleaned = raw_content.strip()
 
-        # Remove markdown code blocks if present
         if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]  # Remove ```json
+            cleaned = cleaned[7:]
         elif cleaned.startswith("```"):
-            cleaned = cleaned[3:]  # Remove ```
+            cleaned = cleaned[3:]
 
         if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]  # Remove ```
+            cleaned = cleaned[:-3]
 
         return cleaned.strip()

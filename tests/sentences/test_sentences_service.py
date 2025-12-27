@@ -20,6 +20,7 @@ from src.schemas.sentences import (
 )
 from src.schemas.verbs import VerbCreate
 from src.services.sentence_service import SentenceService
+from tests.conftest import mock_llm_response
 from tests.sentences.fixtures import generate_random_sentence_data
 from tests.verbs.fixtures import generate_random_verb_data, verb_service
 
@@ -255,8 +256,10 @@ async def test_generate_sentence_success(sentence_service, sample_verb):
     mock_verb_service.get_conjugations.return_value = [mock_conjugation]
     sentence_service.verb_service = mock_verb_service
 
-    # Setup AI mock
-    mock_client.handle_request.return_value = '{"sentence": "Je parle français", "translation": "I speak French", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "negation": "none"}'
+    # Setup AI mock - returns LLMResponse
+    mock_client.handle_request.return_value = mock_llm_response(
+        '{"sentence": "Je parle français", "translation": "I speak French", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "negation": "none"}'
+    )
 
     # Inject mocks
     sentence_service.openai_client = mock_client

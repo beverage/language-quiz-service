@@ -196,7 +196,7 @@ class SentenceService:
             operation="sentence_generation",
             response_format=response_schema,
         )
-        response_json = json.loads(response)
+        response_json = json.loads(response.content)
 
         # Update the sentence with AI response
         sentence_request.content = response_json.get("sentence", "")

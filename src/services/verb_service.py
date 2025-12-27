@@ -376,7 +376,7 @@ class VerbService:
 
             repo = await self._get_verb_repository()
             try:
-                response_json = json.loads(llm_response)
+                response_json = json.loads(llm_response.content)
                 verb_payload = LLMVerbPayload.model_validate(response_json)
             except (json.JSONDecodeError, ValidationError) as e:
                 logger.error(f"Failed to decode or validate LLM response: {e}")
@@ -429,7 +429,7 @@ class VerbService:
             )
 
             try:
-                objects_json = json.loads(objects_response)
+                objects_json = json.loads(objects_response.content)
                 can_have_cod = objects_json.get("can_have_cod", True)
                 can_have_coi = objects_json.get("can_have_coi", True)
             except json.JSONDecodeError:
@@ -533,7 +533,7 @@ class VerbService:
 
             try:
                 # Parse as array of conjugations (new prompt returns array, not full verb object)
-                response_json = json.loads(llm_response)
+                response_json = json.loads(llm_response.content)
 
                 # Validate it's a list
                 if not isinstance(response_json, list):

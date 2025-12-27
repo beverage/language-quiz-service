@@ -144,6 +144,7 @@ async def generate_random_problem(
                 )
             elif display:
                 print(f"✅ {enqueued_response.message}")
+                print(f"   Request ID: {enqueued_response.request_id}")
 
             logger.debug(f"✅ Enqueued {enqueued_response.count} generation requests")
             return enqueued_response

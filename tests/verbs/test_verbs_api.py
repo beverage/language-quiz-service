@@ -14,6 +14,7 @@ from src.schemas.verbs import (
     VerbCreate,
     VerbWithConjugations,
 )
+from tests.conftest import mock_llm_response
 
 # Import fixtures from verbs domain
 from tests.verbs.fixtures import (
@@ -128,23 +129,25 @@ class TestVerbsAPIIntegration:
             mock_llm_instance = mock_openai_client.return_value
             mock_llm_instance.handle_request = AsyncMock()
 
-            # Mock conjugation response (returns JSON array)
+            # Mock conjugation response (returns LLMResponse with JSON array)
             if expected_status == 200:
-                mock_llm_instance.handle_request.return_value = json.dumps(
-                    [
-                        {
-                            "tense": "present",
-                            "infinitive": infinitive,
-                            "auxiliary": "avoir",
-                            "reflexive": False,
-                            "first_person_singular": "parle",
-                            "second_person_singular": "parles",
-                            "third_person_singular": "parle",
-                            "first_person_plural": "parlons",
-                            "second_person_plural": "parlez",
-                            "third_person_plural": "parlent",
-                        }
-                    ]
+                mock_llm_instance.handle_request.return_value = mock_llm_response(
+                    json.dumps(
+                        [
+                            {
+                                "tense": "present",
+                                "infinitive": infinitive,
+                                "auxiliary": "avoir",
+                                "reflexive": False,
+                                "first_person_singular": "parle",
+                                "second_person_singular": "parles",
+                                "third_person_singular": "parle",
+                                "first_person_plural": "parlons",
+                                "second_person_plural": "parlez",
+                                "third_person_plural": "parlent",
+                            }
+                        ]
+                    )
                 )
 
             request_body = {

@@ -136,8 +136,14 @@ class KafkaConsumer:  # pragma: no cover
                 error_type=type(e).__name__,
             )
 
-            # Don't commit - message will be reprocessed
-            # In production, might want to send to DLQ after N retries
+            # Commit on failure - the handler already tracks failure status in the database
+            # (generation_request status updated to FAILED with error message)
+            # This prevents infinite retry loops on restart
+            if self.consumer:
+                await self.consumer.commit()
+                logger.info(
+                    f"Committed failed message at offset {message.offset} to prevent retry loop"
+                )
         finally:
             metrics.decrement_active_tasks()
 
