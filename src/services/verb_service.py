@@ -9,7 +9,8 @@ from opentelemetry import trace
 from pydantic import ValidationError
 
 from src.cache import conjugation_cache, verb_cache
-from src.clients.openai_client import OpenAIClient
+from src.clients.abstract_llm_client import AbstractLLMClient
+from src.clients.llm_client_factory import get_client
 from src.clients.supabase import get_supabase_client
 from src.core.config import settings
 from src.core.exceptions import ContentGenerationError
@@ -33,9 +34,9 @@ tracer = trace.get_tracer(__name__)
 
 
 class VerbService:
-    def __init__(self):
+    def __init__(self, llm_client: AbstractLLMClient | None = None):
         """Initialize the verb service with injectable dependencies."""
-        self.openai_client: OpenAIClient = OpenAIClient()
+        self.llm_client: AbstractLLMClient = llm_client or get_client()
         self.verb_prompt_generator: VerbPromptGenerator = VerbPromptGenerator()
         self.verb_repository: VerbRepository | None = None
         self.db_client: AsyncClient | None = None
@@ -369,7 +370,7 @@ class VerbService:
             )
 
             # Get AI response for main verb data
-            llm_response = await self.openai_client.handle_request(
+            llm_response = await self.llm_client.handle_request(
                 verb_prompt, model=settings.standard_model, operation="verb_analysis"
             )
             logger.debug("✅ LLM Response: %s", llm_response)
@@ -416,7 +417,7 @@ class VerbService:
                 verb_infinitive=verb_payload.infinitive,
                 auxiliary=verb_payload.auxiliary.value,
             )
-            objects_response = await self.openai_client.handle_request(
+            objects_response = await self.llm_client.handle_request(
                 objects_prompt,
                 model=settings.reasoning_model,
                 operation="verb_object_detection",
@@ -524,7 +525,7 @@ class VerbService:
             )
 
             # Get AI response for conjugations
-            llm_response = await self.openai_client.handle_request(
+            llm_response = await self.llm_client.handle_request(
                 conjugation_prompt,
                 model=settings.standard_model,
                 operation="conjugation_generation",

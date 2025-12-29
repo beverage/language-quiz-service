@@ -68,9 +68,17 @@ fi
 
 # Copy required vars from .env if they exist
 OPENAI_API_KEY=""
+GEMINI_API_KEY=""
+LLM_PROVIDER=""
+REASONING_MODEL=""
+STANDARD_MODEL=""
 SERVICE_API_KEY=""
 if [ -f .env ]; then
   OPENAI_API_KEY=$(grep "^OPENAI_API_KEY=" .env | cut -d '=' -f2- || echo "")
+  GEMINI_API_KEY=$(grep "^GEMINI_API_KEY=" .env | cut -d '=' -f2- || echo "")
+  LLM_PROVIDER=$(grep "^LLM_PROVIDER=" .env | cut -d '=' -f2- || echo "")
+  REASONING_MODEL=$(grep "^REASONING_MODEL=" .env | cut -d '=' -f2- || echo "")
+  STANDARD_MODEL=$(grep "^STANDARD_MODEL=" .env | cut -d '=' -f2- || echo "")
   SERVICE_API_KEY=$(grep "^SERVICE_API_KEY=" .env | cut -d '=' -f2- || echo "")
 fi
 
@@ -88,8 +96,16 @@ SUPABASE_ANON_KEY=${ANON_KEY}
 # Environment
 ENVIRONMENT=development
 
+# LLM Provider Configuration (copied from .env)
+LLM_PROVIDER=${LLM_PROVIDER}
+REASONING_MODEL=${REASONING_MODEL}
+STANDARD_MODEL=${STANDARD_MODEL}
+
 # OpenAI (copied from .env)
 OPENAI_API_KEY=${OPENAI_API_KEY}
+
+# Gemini (copied from .env)
+GEMINI_API_KEY=${GEMINI_API_KEY}
 
 # API Key for CLI testing (copied from .env)
 SERVICE_API_KEY=${SERVICE_API_KEY}
@@ -98,6 +114,9 @@ EOF
 
 echo_info "Wrote ${OUT_FILE} with local Supabase settings:"
 echo "  SUPABASE_URL=${HOSTED_API_URL}"
+echo "  LLM_PROVIDER=${LLM_PROVIDER}"
+echo "  REASONING_MODEL=${REASONING_MODEL}"
+echo "  STANDARD_MODEL=${STANDARD_MODEL}"
 echo "  API Key: ${SERVICE_API_KEY:0:15}... (from .env)"
 echo ""
 echo "✅ Ready for docker-compose up"

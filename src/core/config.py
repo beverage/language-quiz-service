@@ -46,21 +46,27 @@ class Settings(BaseSettings):
         description="Require authentication (default: true for security)",
     )
 
-    # OpenAI API settings
-    openai_api_key: str = Field(default="test_key", alias="OPENAI_API_KEY")
-    openai_model: str = "gpt-4-turbo-preview"  # Legacy, kept for backward compatibility
+    # LLM Provider selection (required)
+    llm_provider: str = Field(
+        alias="LLM_PROVIDER",
+        description="LLM provider: 'openai' or 'gemini'",
+    )
 
-    # Multi-model configuration
+    # Model configuration (required)
     standard_model: str = Field(
-        default="gpt-4o-mini",
         alias="STANDARD_MODEL",
         description="Standard model for knowledge retrieval tasks (verbs, simple queries)",
     )
     reasoning_model: str = Field(
-        default="gpt-5-nano-2025-08-07",
         alias="REASONING_MODEL",
         description="Reasoning model for complex tasks (problems, sentences)",
     )
+
+    # OpenAI API settings
+    openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+
+    # Gemini API settings
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
 
     # Supabase settings
     supabase_url: str = Field(default="http://test.supabase.co", alias="SUPABASE_URL")
