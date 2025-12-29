@@ -425,7 +425,7 @@ async def test_download_verb_success(verb_service):
     ]
 
     # Inject mocks
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     result = await verb_service.download_verb("parler", "eng")
@@ -449,7 +449,7 @@ async def test_download_verb_invalid_json(verb_service):
     mock_client.handle_request.return_value = mock_llm_response("invalid json")
 
     # Inject mocks
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     with pytest.raises(ContentGenerationError, match="Failed to parse verb data"):
@@ -470,7 +470,7 @@ async def test_download_verb_validation_error(verb_service):
     )
 
     # Inject mocks
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     with pytest.raises(ContentGenerationError, match="Failed to parse verb data"):
@@ -515,7 +515,7 @@ async def test_download_conjugations_empty_response_logs_warning(verb_service, c
         json.dumps([])
     )  # Empty!
 
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     result = await verb_service.download_conjugations(created_verb.infinitive, "eng")
@@ -573,7 +573,7 @@ async def test_download_conjugations_success(verb_service):
         )
     )
 
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     result = await verb_service.download_conjugations(created_verb.infinitive, "eng")
@@ -601,7 +601,7 @@ async def test_download_conjugations_invalid_json(verb_service):
     mock_prompt_gen.generate_conjugation_prompt.return_value = "conjugation prompt"
     mock_client.handle_request.return_value = mock_llm_response("not valid json")
 
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     with pytest.raises(
@@ -630,7 +630,7 @@ async def test_download_conjugations_returns_object_not_array(verb_service):
         json.dumps({"tense": "present"})
     )  # Object not array!
 
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     with pytest.raises(

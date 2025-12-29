@@ -1,7 +1,7 @@
 """API tests for verb endpoints."""
 
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -125,9 +125,10 @@ class TestVerbsAPIIntegration:
         Verbs must be added via database migrations first.
         """
         # Only mock the LLM client to avoid actual API calls
-        with patch("src.services.verb_service.OpenAIClient") as mock_openai_client:
-            mock_llm_instance = mock_openai_client.return_value
+        with patch("src.services.verb_service.get_client") as mock_get_client:
+            mock_llm_instance = MagicMock()
             mock_llm_instance.handle_request = AsyncMock()
+            mock_get_client.return_value = mock_llm_instance
 
             # Mock conjugation response (returns LLMResponse with JSON array)
             if expected_status == 200:
