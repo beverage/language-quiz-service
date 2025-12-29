@@ -26,6 +26,7 @@ class LLMResponse:
         reasoning_tokens: Reasoning tokens used (gpt-5 models only)
         reasoning_content: The reasoning trace text (gpt-5 models only)
         raw_content: Uncleaned response content
+        prompt_text: The input prompt that was sent to the LLM
     """
 
     content: str
@@ -38,6 +39,7 @@ class LLMResponse:
     reasoning_tokens: int | None = None
     reasoning_content: str | None = None
     raw_content: str | None = None
+    prompt_text: str | None = None
 
     def to_trace_dict(
         self, prompt_text: str | None = None, prompt_version: str = "1.0"
@@ -45,12 +47,15 @@ class LLMResponse:
         """Convert to dictionary format for storage in generation_trace.
 
         Args:
-            prompt_text: The full prompt that was sent (optional but recommended)
+            prompt_text: Override prompt text (uses self.prompt_text if not provided)
             prompt_version: Version tag for the prompt template
 
         Returns:
             Dictionary suitable for JSONB storage
         """
+        # Use instance prompt_text if not overridden
+        effective_prompt = prompt_text if prompt_text is not None else self.prompt_text
+
         trace = {
             "model": self.model,
             "prompt_version": prompt_version,
@@ -72,9 +77,9 @@ class LLMResponse:
         if self.reasoning_content is not None:
             trace["reasoning_content"] = self.reasoning_content
 
-        # Add prompt if provided
-        if prompt_text is not None:
-            trace["prompt_text"] = prompt_text
+        # Add prompt if available
+        if effective_prompt is not None:
+            trace["prompt_text"] = effective_prompt
 
         return trace
 

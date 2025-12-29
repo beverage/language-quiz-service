@@ -26,15 +26,27 @@ def get_correct_sentence_response_schema() -> dict[str, Any]:
                     },
                     "negation": {
                         "type": "string",
-                        "description": "The negation type used: none, pas, jamais, rien, personne, plus, aucun, aucune, or encore",
+                        "description": "The negation type used in the sentence",
+                        "enum": [
+                            "none",
+                            "pas",
+                            "jamais",
+                            "rien",
+                            "personne",
+                            "plus",
+                            "aucun",
+                            "aucune",
+                        ],
                     },
                     "direct_object": {
                         "type": "string",
-                        "description": "Grammatical gender/number of direct object: none, masculine, feminine, or plural",
+                        "description": "Grammatical gender/number of direct object pronoun",
+                        "enum": ["none", "masculine", "feminine", "plural"],
                     },
                     "indirect_object": {
                         "type": "string",
-                        "description": "Grammatical gender/number of indirect object: none, masculine, feminine, or plural",
+                        "description": "Grammatical gender/number of indirect object pronoun",
+                        "enum": ["none", "masculine", "feminine", "plural"],
                     },
                     "has_compliment_object_direct": {
                         "type": "boolean",
@@ -83,15 +95,27 @@ def get_incorrect_sentence_response_schema() -> dict[str, Any]:
                     },
                     "negation": {
                         "type": "string",
-                        "description": "The negation type used: none, pas, jamais, rien, personne, plus, aucun, aucune, or encore",
+                        "description": "The negation type used in the sentence",
+                        "enum": [
+                            "none",
+                            "pas",
+                            "jamais",
+                            "rien",
+                            "personne",
+                            "plus",
+                            "aucun",
+                            "aucune",
+                        ],
                     },
                     "direct_object": {
                         "type": "string",
-                        "description": "Grammatical gender/number of direct object: none, masculine, feminine, or plural",
+                        "description": "Grammatical gender/number of direct object pronoun",
+                        "enum": ["none", "masculine", "feminine", "plural"],
                     },
                     "indirect_object": {
                         "type": "string",
-                        "description": "Grammatical gender/number of indirect object: none, masculine, feminine, or plural",
+                        "description": "Grammatical gender/number of indirect object pronoun",
+                        "enum": ["none", "masculine", "feminine", "plural"],
                     },
                     "has_compliment_object_direct": {
                         "type": "boolean",

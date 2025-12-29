@@ -255,7 +255,7 @@ class ProblemService:
                 is_correct=is_correct,
                 error_type=error_type.value if error_type else None,
                 llm_response=llm_response,
-                prompt_text=None,  # Could capture prompt if needed
+                prompt_text=llm_response.prompt_text,
             )
             sentence_traces.append(trace)
 

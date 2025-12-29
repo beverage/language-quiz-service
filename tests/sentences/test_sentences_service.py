@@ -262,7 +262,7 @@ async def test_generate_sentence_success(sentence_service, sample_verb):
     )
 
     # Inject mocks
-    sentence_service.openai_client = mock_client
+    sentence_service.llm_client = mock_client
 
     # Generate sentence - now returns (Sentence, LLMResponse) tuple
     sentence, llm_response = await sentence_service.generate_sentence(

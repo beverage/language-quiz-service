@@ -8,12 +8,15 @@ from src.schemas.problems import Problem
 
 
 async def _get_problem_by_id_http(
-    service_url: str, api_key: str, problem_id: str
+    service_url: str, api_key: str, problem_id: str, include_metadata: bool = False
 ) -> Problem:
     """Get a problem by ID via HTTP API."""
+    endpoint = f"/api/v1/problems/{problem_id}"
+    if include_metadata:
+        endpoint += "?include_metadata=true"
     response = await make_api_request(
         method="GET",
-        endpoint=f"/api/v1/problems/{problem_id}",
+        endpoint=endpoint,
         base_url=service_url,
         api_key=api_key,
     )
@@ -76,8 +79,10 @@ async def get_problem(
 
     try:
         if problem_id:
-            # Get single problem by ID
-            problem = await _get_problem_by_id_http(service_url, api_key, problem_id)
+            # Get single problem by ID (include metadata when detailed/verbose)
+            problem = await _get_problem_by_id_http(
+                service_url, api_key, problem_id, include_metadata=detailed
+            )
 
             if output_json:
                 import json

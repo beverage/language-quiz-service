@@ -6,7 +6,8 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from src.clients.openai_client import OpenAIClient
+from src.clients.abstract_llm_client import AbstractLLMClient
+from src.clients.llm_client_factory import get_client
 from src.core.config import settings
 from src.core.exceptions import NotFoundError
 from src.prompts.response_schemas import (
@@ -35,14 +36,14 @@ logger = logging.getLogger(__name__)
 class SentenceService:
     def __init__(
         self,
-        openai_client: OpenAIClient = None,
+        llm_client: AbstractLLMClient | None = None,
         sentence_repository: SentenceRepository | None = None,
         verb_service: VerbService | None = None,
         sentence_builder: SentencePromptBuilder | None = None,
         use_compositional: bool = True,
     ):
         """Initialize the sentence service with injectable dependencies."""
-        self.openai_client = openai_client or OpenAIClient()
+        self.llm_client = llm_client or get_client()
         self.sentence_repository = sentence_repository
         self.verb_service = verb_service or VerbService()
         self.sentence_builder = sentence_builder or SentencePromptBuilder()
@@ -194,12 +195,14 @@ class SentenceService:
             response_schema = None  # Legacy prompts don't use structured output
             logger.debug("📝 Using legacy prompt generator")
 
-        response = await self.openai_client.handle_request(
+        response = await self.llm_client.handle_request(
             prompt,
             model=settings.reasoning_model,
             operation="sentence_generation",
             response_format=response_schema,
         )
+        # Attach the prompt to the response for trace capture
+        response.prompt_text = prompt
         response_json = json.loads(response.content)
 
         # Update the sentence with AI response
