@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 @click.command("list")
 @click.option(
     "--status",
-    type=click.Choice(["pending", "processing", "completed", "failed", "partial"]),
+    type=click.Choice(
+        ["pending", "processing", "completed", "failed", "partial", "expired"]
+    ),
     help="Filter by status",
 )
 @click.option("--limit", default=20, help="Number of requests to show")
@@ -56,6 +58,7 @@ async def list_requests(ctx, status: str | None, limit: int):
                 GenerationStatus.COMPLETED: "✅",
                 GenerationStatus.FAILED: "❌",
                 GenerationStatus.PARTIAL: "⚠️",
+                GenerationStatus.EXPIRED: "⌛",
             }.get(req.status, "❓")
 
             # Format time
@@ -73,9 +76,12 @@ async def list_requests(ctx, status: str | None, limit: int):
                 f"{time_str}"
             )
 
-            # Show error if failed
-            if req.error_message and req.status == GenerationStatus.FAILED:
-                click.echo(f"      └─ Error: {req.error_message[:60]}...")
+            # Show error if failed or expired
+            if req.error_message and req.status in (
+                GenerationStatus.FAILED,
+                GenerationStatus.EXPIRED,
+            ):
+                click.echo(f"      └─ {req.error_message[:60]}...")
 
         click.echo()
 
@@ -108,6 +114,7 @@ async def get_status(ctx, request_id: UUID):
             GenerationStatus.COMPLETED: "✅",
             GenerationStatus.FAILED: "❌",
             GenerationStatus.PARTIAL: "⚠️",
+            GenerationStatus.EXPIRED: "⌛",
         }.get(request.status, "❓")
 
         click.echo(f"\n{status_emoji} Generation Request: {request.id}\n")
@@ -169,9 +176,9 @@ async def get_status(ctx, request_id: UUID):
 @click.pass_context
 async def clean_requests(ctx, older_than: int, force: bool):
     """
-    Delete old completed/failed generation requests.
+    Delete old completed/failed/expired generation requests.
 
-    By default, deletes completed and failed requests older than 7 days.
+    By default, deletes completed, failed, and expired requests older than 7 days.
     Does NOT delete pending or processing requests.
     """
     is_remote = get_remote_flag(ctx)
@@ -184,8 +191,12 @@ async def clean_requests(ctx, older_than: int, force: bool):
 
         cutoff = datetime.now(UTC) - timedelta(days=older_than)
 
-        # Count requests to be deleted
-        statuses = [GenerationStatus.COMPLETED, GenerationStatus.FAILED]
+        # Count requests to be deleted (include EXPIRED in cleanup)
+        statuses = [
+            GenerationStatus.COMPLETED,
+            GenerationStatus.FAILED,
+            GenerationStatus.EXPIRED,
+        ]
         all_requests, _ = await repo.get_all_requests(limit=10000)
 
         # Filter locally to get count
@@ -196,12 +207,12 @@ async def clean_requests(ctx, older_than: int, force: bool):
 
         if count == 0:
             click.echo(
-                f"✅ No completed/failed requests older than {older_than} days to delete."
+                f"✅ No completed/failed/expired requests older than {older_than} days to delete."
             )
             return
 
         click.echo(
-            f"🎯 Found {count} completed/failed requests older than {older_than} days"
+            f"🎯 Found {count} completed/failed/expired requests older than {older_than} days"
         )
 
         # Confirm deletion

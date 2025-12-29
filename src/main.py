@@ -208,6 +208,24 @@ async def lifespan(app: FastAPI):
         logger.info(f"📊 API key cache: {api_key_cache.get_stats()}")
         logger.info("✅ All caches loaded successfully")
 
+        # Expire stale pending generation requests
+        from src.repositories.generation_requests_repository import (
+            GenerationRequestRepository,
+        )
+
+        try:
+            gen_repo = await GenerationRequestRepository.create(client)
+            expired_count = await gen_repo.expire_stale_pending_requests(
+                older_than_minutes=10
+            )
+            if expired_count > 0:
+                logger.info(f"🧹 Expired {expired_count} stale pending requests")
+            else:
+                logger.info("🧹 No stale pending requests to expire")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to expire stale requests: {e}")
+            # Don't raise - this is a nice-to-have, not critical
+
     except Exception as e:
         logger.error(f"❌ Failed to initialize caches: {e}", exc_info=True)
         raise

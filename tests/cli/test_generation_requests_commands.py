@@ -278,7 +278,7 @@ class TestCleanRequests:
         result = await runner.invoke(clean_requests, ["--older-than", "7"])
 
         assert result.exit_code == 0
-        assert "Found 1 completed/failed requests" in result.output
+        assert "Found 1 completed/failed/expired requests" in result.output
         assert "Deleted 1 generation requests" in result.output
         mock_repo.delete_old_requests.assert_called_once()
 
@@ -311,7 +311,7 @@ class TestCleanRequests:
         result = await runner.invoke(clean_requests, ["--older-than", "7"])
 
         assert result.exit_code == 0
-        assert "No completed/failed requests older than 7 days" in result.output
+        assert "No completed/failed/expired requests older than 7 days" in result.output
 
     @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
     @patch("src.cli.generation_requests.commands.require_confirmation")

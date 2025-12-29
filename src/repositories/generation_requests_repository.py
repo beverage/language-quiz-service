@@ -335,7 +335,11 @@ class GenerationRequestRepository:
         cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
 
         if statuses is None:
-            statuses = [GenerationStatus.COMPLETED, GenerationStatus.FAILED]
+            statuses = [
+                GenerationStatus.COMPLETED,
+                GenerationStatus.FAILED,
+                GenerationStatus.EXPIRED,
+            ]
 
         try:
             query = (
@@ -353,3 +357,52 @@ class GenerationRequestRepository:
         except PostgrestAPIError as e:
             logger.error(f"Database error deleting old requests: {e.message}")
             raise RepositoryError(f"Failed to delete old requests: {e.message}") from e
+
+    async def expire_stale_pending_requests(
+        self,
+        older_than_minutes: int = 10,
+    ) -> int:
+        """
+        Mark old PENDING requests as EXPIRED.
+
+        Requests that have been in PENDING state for too long likely never
+        got picked up from Kafka (service crash, rebalance, etc.).
+
+        Args:
+            older_than_minutes: Mark PENDING requests older than this as EXPIRED
+
+        Returns:
+            Number of requests marked as expired
+        """
+        from datetime import timedelta
+
+        cutoff = datetime.now(UTC) - timedelta(minutes=older_than_minutes)
+
+        try:
+            result = (
+                await self.client.table("generation_requests")
+                .update(
+                    {
+                        "status": GenerationStatus.EXPIRED.value,
+                        "completed_at": datetime.now(UTC).isoformat(),
+                        "error_message": f"Expired after {older_than_minutes} minutes in pending state",
+                    }
+                )
+                .eq("status", GenerationStatus.PENDING.value)
+                .lt("requested_at", cutoff.isoformat())
+                .execute()
+            )
+            expired_count = len(result.data) if result.data else 0
+
+            if expired_count > 0:
+                logger.info(
+                    f"Marked {expired_count} stale PENDING requests as EXPIRED "
+                    f"(older than {older_than_minutes} minutes)"
+                )
+
+            return expired_count
+        except PostgrestAPIError as e:
+            logger.error(f"Database error expiring stale requests: {e.message}")
+            raise RepositoryError(
+                f"Failed to expire stale requests: {e.message}"
+            ) from e
