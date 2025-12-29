@@ -13,6 +13,7 @@ import asyncclick
 
 from src.cli.utils.decorators import output_format_options
 from src.cli.utils.formatters import format_output
+from src.core.factories import create_sentence_service, create_verb_service
 from src.schemas.sentences import (
     DirectObject,
     IndirectObject,
@@ -20,8 +21,6 @@ from src.schemas.sentences import (
     Pronoun,
     Tense,
 )
-from src.services.sentence_service import SentenceService
-from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +49,8 @@ async def create_sentence(
 ):
     """Create a sentence using AI - migrated to use Supabase services."""
 
-    sentence_service = SentenceService()
-    verb_service = VerbService()
+    sentence_service = await create_sentence_service()
+    verb_service = await create_verb_service()
 
     if not verb_infinitive:
         verb = await verb_service.get_random_verb()
@@ -109,8 +108,8 @@ async def create_sentence(
 
 async def create_random_sentence(is_correct: bool = True):
     """Create a random sentence with client-side parameter selection and validation."""
-    sentence_service = SentenceService()
-    verb_service = VerbService()
+    sentence_service = await create_sentence_service()
+    verb_service = await create_verb_service()
 
     # Step 1: Generate random grammatical parameters first
     pronoun = random.choice(list(Pronoun))

@@ -5,6 +5,10 @@ from typing import Any
 from uuid import UUID
 
 from src.core.exceptions import ValidationError
+from src.core.factories import (
+    create_generation_request_repository,
+    create_problem_service,
+)
 from src.repositories.generation_requests_repository import (
     GenerationRequestRepository,
 )
@@ -31,13 +35,19 @@ class ProblemGenerationHandler:
 
     def __init__(self):
         """Initialize handler with problem service and generation request repository."""
-        self.problem_service = ProblemService()
+        self.problem_service: ProblemService | None = None
         self.gen_request_repo: GenerationRequestRepository | None = None
+
+    async def _get_problem_service(self) -> ProblemService:
+        """Lazily initialize problem service."""
+        if self.problem_service is None:
+            self.problem_service = await create_problem_service()
+        return self.problem_service
 
     async def _get_gen_request_repo(self) -> GenerationRequestRepository:
         """Lazily initialize generation request repository."""
         if self.gen_request_repo is None:
-            self.gen_request_repo = await GenerationRequestRepository.create()
+            self.gen_request_repo = await create_generation_request_repository()
         return self.gen_request_repo
 
     def _validate_message(
@@ -187,7 +197,8 @@ class ProblemGenerationHandler:
             )
 
             # Generate problem using existing service
-            problem = await self.problem_service.create_random_grammar_problem(
+            problem_service = await self._get_problem_service()
+            problem = await problem_service.create_random_grammar_problem(
                 constraints=constraints,
                 statement_count=statement_count,
                 additional_tags=topic_tags,

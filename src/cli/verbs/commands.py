@@ -70,9 +70,9 @@ async def download(ctx, verbs, output_json: bool, output_format: str):
                 result = await _download_verb_http(verb, service_url, api_key)
             else:
                 # Direct mode - call service directly
-                from src.services.verb_service import VerbService
+                from src.core.factories import create_verb_service
 
-                service = VerbService()
+                service = await create_verb_service()
                 result = await service.download_conjugations(
                     infinitive=verb, target_language_code="eng"
                 )

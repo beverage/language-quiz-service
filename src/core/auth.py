@@ -10,7 +10,7 @@ from opentelemetry import trace
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.core.config import get_settings
-from src.services.api_key_service import ApiKeyService
+from src.core.factories import create_api_key_service
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -155,7 +155,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         """Validate API key against database with IP checking and return key info if valid."""
         try:
             # Use the ApiKeyService for validation (handles IP checking and usage tracking)
-            service = ApiKeyService()
+            service = await create_api_key_service()
             result = await service.authenticate_api_key(api_key, client_ip)
 
             if result:

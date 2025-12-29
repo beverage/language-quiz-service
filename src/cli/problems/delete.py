@@ -8,6 +8,7 @@ from uuid import UUID
 import asyncclick as click
 
 from src.cli.utils.safety import get_remote_flag, require_confirmation
+from src.core.factories import create_problem_service
 from src.services.problem_service import ProblemService
 
 logger = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ async def delete_problem(
     is_remote = get_remote_flag(ctx)
 
     try:
-        service = ProblemService()
+        service = await create_problem_service()
 
         if problem_id:
             # Delete single problem
@@ -98,8 +99,7 @@ async def _delete_single_problem(
         return
 
     # Delete
-    repo = await service._get_problem_repository()
-    success = await repo.delete_problem(problem_id)
+    success = await service.delete_problem(problem_id)
 
     if success:
         click.echo(f"✅ Problem {problem_id} deleted successfully")
@@ -115,9 +115,9 @@ async def _delete_by_generation_id(
 ) -> None:
     """Delete all problems associated with a generation request."""
     # Get the generation request info first to show what we're deleting
-    from src.services.generation_request_service import GenerationRequestService
+    from src.core.factories import create_generation_request_service
 
-    gen_service = GenerationRequestService()
+    gen_service = await create_generation_request_service()
 
     try:
         gen_request, problems = await gen_service.get_generation_request_with_entities(

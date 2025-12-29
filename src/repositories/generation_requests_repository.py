@@ -6,7 +6,6 @@ from uuid import UUID
 
 from postgrest import APIError as PostgrestAPIError
 
-from src.clients.supabase import get_supabase_client
 from src.core.exceptions import RepositoryError
 from src.schemas.generation_requests import (
     GenerationRequest,
@@ -20,15 +19,6 @@ logger = logging.getLogger(__name__)
 
 class GenerationRequestRepository:
     """Repository for generation request data access operations."""
-
-    @classmethod
-    async def create(
-        cls, client: AsyncClient | None = None
-    ) -> "GenerationRequestRepository":
-        """Asynchronously create an instance of GenerationRequestRepository."""
-        if client is None:
-            client = await get_supabase_client()
-        return cls(client)
 
     def __init__(self, client: AsyncClient):
         """Initialize the repository with a Supabase client."""

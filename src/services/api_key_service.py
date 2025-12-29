@@ -4,7 +4,6 @@ import logging
 from uuid import UUID
 
 from src.cache import api_key_cache
-from src.clients.supabase import get_supabase_client
 from src.core.exceptions import NotFoundError, RepositoryError, ServiceError
 from src.repositories.api_keys_repository import ApiKeyRepository
 from src.schemas.api_keys import (
@@ -26,19 +25,28 @@ class ApiKeyService:
     """Service for API key business logic and orchestration."""
 
     def __init__(self, api_key_repository: ApiKeyRepository | None = None):
-        """Initialize the API key service with injectable dependencies."""
+        """Initialize the API key service with injectable dependencies.
+
+        Args:
+            api_key_repository: Optional repository (can be set later for lazy init).
+        """
         self.api_key_repository = api_key_repository
 
-    async def _get_api_key_repository(self) -> ApiKeyRepository:
-        """Asynchronously get the API key repository, creating it if it doesn't exist."""
+    def set_repository(self, api_key_repository: ApiKeyRepository) -> None:
+        """Set the API key repository (for cases requiring lazy initialization)."""
+        self.api_key_repository = api_key_repository
+
+    def _get_api_key_repository(self) -> ApiKeyRepository:
+        """Get the API key repository, raising if not set."""
         if self.api_key_repository is None:
-            client = await get_supabase_client()
-            self.api_key_repository = ApiKeyRepository(client)
+            raise RuntimeError(
+                "ApiKeyRepository not set. Either pass it to __init__ or call set_repository()."
+            )
         return self.api_key_repository
 
     async def create_api_key(self, api_key_data: ApiKeyCreate) -> ApiKeyWithPlainText:
         """Create a new API key with business logic."""
-        repo = await self._get_api_key_repository()
+        repo = self._get_api_key_repository()
 
         # Generate the API key and hash it
         api_key_plain, key_prefix = generate_api_key()
@@ -58,7 +66,7 @@ class ApiKeyService:
 
     async def get_api_key(self, api_key_id: UUID) -> ApiKeyResponse:
         """Get an API key by ID (safe response, no sensitive data)."""
-        repo = await self._get_api_key_repository()
+        repo = self._get_api_key_repository()
         api_key = await repo.get_api_key(api_key_id)
 
         if not api_key or not api_key.is_active:
@@ -69,7 +77,7 @@ class ApiKeyService:
         self, limit: int = 100, include_inactive: bool = False
     ) -> list[ApiKeyResponse]:
         """Get all API keys (safe response, no sensitive data)."""
-        repo = await self._get_api_key_repository()
+        repo = self._get_api_key_repository()
         api_keys = await repo.get_all_api_keys(limit, include_inactive)
 
         return [ApiKeyResponse.model_validate(key.model_dump()) for key in api_keys]
@@ -78,7 +86,7 @@ class ApiKeyService:
         self, api_key_id: UUID, api_key_data: ApiKeyUpdate
     ) -> ApiKeyResponse:
         """Update an API key."""
-        repo = await self._get_api_key_repository()
+        repo = self._get_api_key_repository()
         api_key = await repo.update_api_key(api_key_id, api_key_data)
 
         if not api_key:
@@ -91,7 +99,7 @@ class ApiKeyService:
 
     async def revoke_api_key(self, api_key_id: UUID) -> bool:
         """Revoke an API key (soft delete)."""
-        repo = await self._get_api_key_repository()
+        repo = self._get_api_key_repository()
         success = await repo.delete_api_key(api_key_id)
 
         if success:
@@ -121,7 +129,7 @@ class ApiKeyService:
         ):
             return None
 
-        repo = await self._get_api_key_repository()
+        repo = self._get_api_key_repository()
 
         try:
             # Get the key prefix for lookup (first 12 chars to match generation function)
@@ -206,12 +214,12 @@ class ApiKeyService:
 
     async def get_api_key_stats(self) -> ApiKeyStats:
         """Get API key usage statistics."""
-        repo = await self._get_api_key_repository()
+        repo = self._get_api_key_repository()
         return await repo.get_api_key_stats()
 
     async def find_api_keys_by_name(self, name_pattern: str) -> list[ApiKeyResponse]:
         """Find API keys by name pattern."""
-        repo = await self._get_api_key_repository()
+        repo = self._get_api_key_repository()
         api_keys = await repo.find_keys_by_name(name_pattern)
 
         return [ApiKeyResponse.model_validate(key.model_dump()) for key in api_keys]

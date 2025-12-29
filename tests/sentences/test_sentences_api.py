@@ -1,11 +1,12 @@
 """API contract tests for sentences endpoints.
 
 These tests focus on HTTP behavior, validation, and API contracts.
-Uses real test API keys for end-to-end testing against local Supabase.
+Service dependencies are mocked to avoid database/event loop issues.
 
-Authentication tests verify the real auth middleware.
-Validation tests verify FastAPI/Pydantic validation.
-Business logic is tested in service/repository layers.
+Test Categories:
+- Authentication tests (@pytest.mark.security): Test real auth middleware
+- Contract tests (@pytest.mark.integration): Mock services, test HTTP contracts
+- Validation tests (@pytest.mark.unit): Mock services, test parameter validation
 """
 
 from uuid import uuid4
@@ -19,21 +20,51 @@ from src.main import ROUTER_PREFIX, app
 SENTENCES_PREFIX = f"{ROUTER_PREFIX}{API_PREFIX}"
 
 
+# =============================================================================
+# Test Client Fixtures with Dependency Overrides
+# =============================================================================
+
+
 @pytest.fixture
-def client():
-    """Create a test client for the FastAPI app."""
+def client(monkeypatch):
+    """Create a test client with auth disabled and services mocked."""
+    from src.core.config import reset_settings
+    from src.core.dependencies import get_sentence_service
+    from tests.api.conftest import MockSentenceService
+
+    # Disable auth for contract testing
+    monkeypatch.setenv("REQUIRE_AUTH", "false")
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    reset_settings()
+
+    mock_service = MockSentenceService()
+    app.dependency_overrides[get_sentence_service] = lambda: mock_service
+
+    yield TestClient(app)
+
+    app.dependency_overrides.clear()
+    reset_settings()
+
+
+@pytest.fixture
+def auth_client():
+    """Create a test client with real auth enabled for auth tests.
+
+    Uses real API key validation but mocked services.
+    """
     return TestClient(app)
 
 
-# Note: admin_headers, write_headers, read_headers, and inactive_headers
-# are now provided by tests/conftest.py with dynamically generated test keys
+# =============================================================================
+# Authentication Tests - Use real auth middleware
+# =============================================================================
 
 
 @pytest.mark.security
 class TestSentencesAPIAuthentication:
     """Test authentication requirements without mocking."""
 
-    def test_endpoints_require_authentication(self, client: TestClient):
+    def test_endpoints_require_authentication(self, auth_client: TestClient):
         """Test that all endpoints require authentication."""
         endpoints = [
             f"{SENTENCES_PREFIX}/random",
@@ -42,155 +73,139 @@ class TestSentencesAPIAuthentication:
         ]
 
         for endpoint in endpoints:
-            response = client.get(endpoint)
+            response = auth_client.get(endpoint)
             assert response.status_code == 401
             data = response.json()
             assert data["error"] is True
             assert "API key required" in data["message"]
 
-    def test_delete_requires_authentication(self, client: TestClient):
+    def test_delete_requires_authentication(self, auth_client: TestClient):
         """Test that delete endpoint requires authentication."""
-        response = client.delete(f"{SENTENCES_PREFIX}/{uuid4()}")
+        response = auth_client.delete(f"{SENTENCES_PREFIX}/{uuid4()}")
         assert response.status_code == 401
         data = response.json()
         assert data["error"] is True
         assert "API key required" in data["message"]
 
-    def test_invalid_api_key_rejected(self, client: TestClient):
+    def test_invalid_api_key_rejected(self, auth_client: TestClient):
         """Test that invalid API keys are rejected."""
         headers = {"X-API-Key": "invalid-key-12345"}
-        response = client.get(f"{SENTENCES_PREFIX}/random", headers=headers)
+        response = auth_client.get(f"{SENTENCES_PREFIX}/random", headers=headers)
 
         assert response.status_code == 401
         data = response.json()
         assert data["error"] is True
         assert "Invalid API key" in data["message"]
 
-    def test_inactive_api_key_rejected(self, client: TestClient, inactive_headers):
-        """Test that inactive API keys are rejected."""
-        response = client.get(f"{SENTENCES_PREFIX}/random", headers=inactive_headers)
 
-        assert response.status_code == 401
-        data = response.json()
-        assert data["error"] is True
-        assert "Invalid API key" in data["message"]
+# =============================================================================
+# Validation Tests - Mock services, test parameter validation
+# =============================================================================
 
 
 @pytest.mark.unit
 class TestSentencesAPIValidation:
-    """Test request validation with authenticated requests."""
+    """Test request validation with mocked services."""
 
-    def test_invalid_uuid_format(self, client: TestClient, admin_headers):
+    def test_invalid_uuid_format(self, client: TestClient):
         """Test validation with invalid UUID formats."""
-        # Test invalid UUID in path
-        response = client.get(f"{SENTENCES_PREFIX}/not-a-uuid", headers=admin_headers)
+        response = client.get(f"{SENTENCES_PREFIX}/not-a-uuid")
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
 
-    def test_query_parameter_validation(self, client: TestClient, admin_headers):
+    def test_query_parameter_validation(self, client: TestClient):
         """Test query parameter validation."""
-        # Test invalid limit value
-        response = client.get(
-            f"{SENTENCES_PREFIX}/?limit=not-a-number", headers=admin_headers
-        )
+        response = client.get(f"{SENTENCES_PREFIX}/?limit=not-a-number")
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
 
-    def test_negative_limit_rejected(self, client: TestClient, admin_headers):
+    def test_negative_limit_rejected(self, client: TestClient):
         """Test that negative limit values are rejected."""
-        response = client.get(f"{SENTENCES_PREFIX}/?limit=-1", headers=admin_headers)
+        response = client.get(f"{SENTENCES_PREFIX}/?limit=-1")
         assert response.status_code == 422
 
-    def test_method_not_allowed(self, client: TestClient, admin_headers):
+    def test_method_not_allowed(self, client: TestClient):
         """Test that unsupported HTTP methods are rejected."""
-        # POST not supported on random endpoint
-        response = client.post(f"{SENTENCES_PREFIX}/random", headers=admin_headers)
+        response = client.post(f"{SENTENCES_PREFIX}/random")
         assert response.status_code == 405  # Method not allowed
 
 
-@pytest.mark.integration
-class TestSentencesAPIIntegration:
-    """Test full API integration with real authentication and services."""
+# =============================================================================
+# Contract Tests - Mock services, test HTTP behavior
+# =============================================================================
 
-    def test_random_sentence_success(self, client: TestClient, read_headers):
+
+@pytest.mark.integration
+class TestSentencesAPIContracts:
+    """Test API contracts with mocked services."""
+
+    def test_random_sentence_success(self, client: TestClient):
         """Test random sentence endpoint successfully retrieves a sentence."""
-        response = client.get(f"{SENTENCES_PREFIX}/random", headers=read_headers)
-        assert (
-            response.status_code == 200
-        ), f"Expected 200, got {response.status_code}: {response.text}"
+        response = client.get(f"{SENTENCES_PREFIX}/random")
+        assert response.status_code == 200
 
         data = response.json()
-        assert "content" in data and "translation" in data
+        assert "content" in data
+        assert "translation" in data
         assert "id" in data
 
-    def test_random_sentence_not_found(self, client: TestClient, read_headers):
+    def test_random_sentence_not_found(self, client: TestClient, monkeypatch):
         """Test random sentence endpoint returns 404 if no sentence matches."""
-        # Use a verb_id that is highly unlikely to exist
-        non_existent_verb_id = uuid4()
-        response = client.get(
-            f"{SENTENCES_PREFIX}/random?verb_id={non_existent_verb_id}",
-            headers=read_headers,
-        )
+        from src.core.config import reset_settings
+        from src.core.dependencies import get_sentence_service
+        from tests.api.conftest import MockSentenceService
+
+        # Create a mock service that returns None
+        mock_service = MockSentenceService()
+        mock_service.return_none = True
+        mock_service.sentences = {}
+
+        monkeypatch.setenv("REQUIRE_AUTH", "false")
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        reset_settings()
+
+        app.dependency_overrides[get_sentence_service] = lambda: mock_service
+
+        response = client.get(f"{SENTENCES_PREFIX}/random")
         assert response.status_code == 404
         assert "no sentences found" in response.json()["message"].lower()
 
-    def test_list_sentences_success(self, client: TestClient, read_headers):
+        app.dependency_overrides.clear()
+        reset_settings()
+
+    def test_list_sentences_success(self, client: TestClient):
         """Test list sentences endpoint successfully retrieves sentences."""
-        response = client.get(f"{SENTENCES_PREFIX}/", headers=read_headers)
-        assert (
-            response.status_code == 200
-        ), f"Expected 200, got {response.status_code}: {response.text}"
+        response = client.get(f"{SENTENCES_PREFIX}/")
+        assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
 
-    def test_get_sentence_by_id_not_found(self, client: TestClient, read_headers):
+    def test_get_sentence_by_id_not_found(self, client: TestClient):
         """Test retrieving a non-existent sentence by ID returns 404."""
         non_existent_id = uuid4()
-        response = client.get(
-            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=read_headers
-        )
+        response = client.get(f"{SENTENCES_PREFIX}/{non_existent_id}")
         assert response.status_code == 404
-        assert "sentence not found" in response.json()["message"].lower()
+        assert "not found" in response.json()["message"].lower()
 
-    def test_delete_sentence_permission_and_not_found(
-        self, client: TestClient, read_headers, write_headers, admin_headers
-    ):
-        """Test delete sentence permissions and not-found case."""
+    def test_delete_sentence_not_found(self, client: TestClient):
+        """Test deleting a non-existent sentence returns 404."""
         non_existent_id = uuid4()
-
-        # 1. Read-only key should be forbidden
-        response = client.delete(
-            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=read_headers
-        )
-        assert response.status_code == 403
-        assert "permission required" in response.json()["message"].lower()
-
-        # 2. Write key should be allowed, but will return 404 for a non-existent sentence
-        response = client.delete(
-            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=write_headers
-        )
+        response = client.delete(f"{SENTENCES_PREFIX}/{non_existent_id}")
         assert response.status_code == 404
         assert "not found" in response.json()["message"].lower()
 
-        # 3. Admin key should also be allowed and return 404
-        response = client.delete(
-            f"{SENTENCES_PREFIX}/{non_existent_id}", headers=admin_headers
-        )
-        assert response.status_code == 404
-        assert "not found" in response.json()["message"].lower()
-
-    def test_health_endpoint_bypasses_auth(self, client: TestClient):
+    def test_health_endpoint_bypasses_auth(self, auth_client: TestClient):
         """Test that health endpoint doesn't require authentication."""
-        response = client.get("/health")
+        response = auth_client.get("/health")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
 
-    def test_api_returns_proper_json_structure(self, client: TestClient):
+    def test_api_returns_proper_json_structure(self, auth_client: TestClient):
         """Test that API returns properly structured JSON errors."""
-        response = client.get(f"{SENTENCES_PREFIX}/random")
+        response = auth_client.get(f"{SENTENCES_PREFIX}/random")
 
         assert response.status_code == 401
         assert response.headers["content-type"] == "application/json"

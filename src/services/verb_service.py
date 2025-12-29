@@ -10,8 +10,6 @@ from pydantic import ValidationError
 
 from src.cache import conjugation_cache, verb_cache
 from src.clients.abstract_llm_client import AbstractLLMClient
-from src.clients.llm_client_factory import get_client
-from src.clients.supabase import get_supabase_client
 from src.core.config import settings
 from src.core.exceptions import ContentGenerationError
 from src.prompts.verb_prompts import VerbPromptGenerator
@@ -27,36 +25,44 @@ from src.schemas.verbs import (
     VerbUpdate,
     VerbWithConjugations,
 )
-from supabase import AsyncClient
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
 class VerbService:
-    def __init__(self, llm_client: AbstractLLMClient | None = None):
-        """Initialize the verb service with injectable dependencies."""
-        self.llm_client: AbstractLLMClient = llm_client or get_client()
+    def __init__(
+        self,
+        llm_client: AbstractLLMClient,
+        verb_repository: VerbRepository | None = None,
+    ):
+        """Initialize the verb service with injectable dependencies.
+
+        Args:
+            llm_client: Required LLM client for AI operations.
+            verb_repository: Optional repository (can be set later for lazy init).
+        """
+        self.llm_client: AbstractLLMClient = llm_client
         self.verb_prompt_generator: VerbPromptGenerator = VerbPromptGenerator()
-        self.verb_repository: VerbRepository | None = None
-        self.db_client: AsyncClient | None = None
+        self.verb_repository: VerbRepository | None = verb_repository
 
-    async def _get_db_client(self):
-        if not self.db_client:
-            self.db_client = await get_supabase_client()
-        return self.db_client
+    def set_repository(self, verb_repository: VerbRepository) -> None:
+        """Set the verb repository (for cases requiring lazy initialization)."""
+        self.verb_repository = verb_repository
 
-    async def _get_verb_repository(self):
+    def _get_verb_repository(self) -> VerbRepository:
+        """Get the verb repository, raising if not set."""
         if not self.verb_repository:
-            client = await self._get_db_client()
-            self.verb_repository = VerbRepository(client=client)
+            raise RuntimeError(
+                "VerbRepository not set. Either pass it to __init__ or call set_repository()."
+            )
         return self.verb_repository
 
     # ===== VERB CRUD OPERATIONS =====
 
     async def create_verb(self, verb_data: VerbCreate) -> Verb:
         """Create a new verb."""
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         verb = await repo.create_verb(verb_data)
 
         # Refresh cache with new verb
@@ -67,7 +73,7 @@ class VerbService:
     async def delete_verb(self, verb_id: UUID) -> bool:
         """Delete a verb and all its conjugations."""
         # First get the verb to know its parameters
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         verb = await self.get_verb(verb_id)
         if not verb:
             return False
@@ -97,7 +103,7 @@ class VerbService:
         self, limit: int = 100, target_language_code: str | None = None
     ) -> list[Verb]:
         """Get all verbs, optionally filtered by language."""
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         return await repo.get_all_verbs(
             limit=limit, target_language_code=target_language_code
         )
@@ -113,7 +119,7 @@ class VerbService:
     async def _update_last_used_background(self, verb_id: UUID) -> None:
         """Update last_used_at timestamp in background (fire and forget)."""
         try:
-            repo = await self._get_verb_repository()
+            repo = self._get_verb_repository()
             await repo.update_last_used(verb_id)
         except Exception as e:
             logger.warning(f"Failed to update last_used for verb {verb_id}: {e}")
@@ -126,7 +132,7 @@ class VerbService:
             return verb
 
         # Cache miss - fetch from database
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         verb = await repo.get_verb(verb_id)
 
         # Warm cache for next time
@@ -167,7 +173,7 @@ class VerbService:
                     return verb
 
             # Cache miss or filter mismatch - fetch from database
-            repo = await self._get_verb_repository()
+            repo = self._get_verb_repository()
             verb = await repo.get_verb_by_infinitive(
                 infinitive=infinitive,
                 auxiliary=auxiliary,
@@ -183,12 +189,12 @@ class VerbService:
 
     async def get_verbs_by_infinitive(self, infinitive: str) -> list[Verb]:
         """Get all verb variants with the same infinitive."""
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         return await repo.get_verbs_by_infinitive(infinitive)
 
     async def update_verb(self, verb_id: UUID, verb_data: VerbUpdate) -> Verb | None:
         """Update a verb."""
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         verb = await repo.update_verb(verb_id, verb_data)
 
         # Refresh cache with updated verb
@@ -201,7 +207,7 @@ class VerbService:
 
     async def create_conjugation(self, conjugation: ConjugationCreate) -> Conjugation:
         """Create a new conjugation."""
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         conj = await repo.create_conjugation(conjugation)
 
         # Refresh cache with new conjugation
@@ -221,7 +227,7 @@ class VerbService:
             return conjugations
 
         # Cache miss - fetch from database
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         conjugations = await repo.get_conjugations(
             infinitive=infinitive, auxiliary=auxiliary, reflexive=reflexive
         )
@@ -234,7 +240,7 @@ class VerbService:
 
     async def get_conjugations_by_verb_id(self, verb_id: UUID) -> list[Conjugation]:
         """Get conjugations by verb ID (backwards compatibility)."""
-        await self._get_verb_repository()
+        self._get_verb_repository()
         verb = await self.get_verb(verb_id)
         if not verb:
             return []
@@ -254,7 +260,7 @@ class VerbService:
         conjugation_data: ConjugationUpdate,
     ) -> Conjugation | None:
         """Update a conjugation by verb parameters and tense."""
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         conj = await repo.update_conjugation_by_verb_and_tense(
             infinitive=infinitive,
             auxiliary=auxiliary,
@@ -279,7 +285,7 @@ class VerbService:
         target_language_code: str = "eng",
     ) -> VerbWithConjugations | None:
         """Get a verb with all its conjugations."""
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         # If auxiliary not specified, try to find any variant
         if auxiliary is None:
             verbs = await self.get_verbs_by_infinitive(infinitive)
@@ -304,7 +310,7 @@ class VerbService:
         limit: int = 20,
     ) -> list[Verb]:
         """Search verbs by infinitive or translation."""
-        repo = await self._get_verb_repository()
+        repo = self._get_verb_repository()
         return await repo.search_verbs(
             query=query,
             search_translation=search_translation,
@@ -375,7 +381,7 @@ class VerbService:
             )
             logger.debug("✅ LLM Response: %s", llm_response)
 
-            repo = await self._get_verb_repository()
+            repo = self._get_verb_repository()
             try:
                 response_json = json.loads(llm_response.content)
                 verb_payload = LLMVerbPayload.model_validate(response_json)
@@ -492,7 +498,7 @@ class VerbService:
             logger.info(f"Downloading conjugations for {infinitive}")
 
             # Get the existing verb from database
-            repo = await self._get_verb_repository()
+            repo = self._get_verb_repository()
             verbs = await repo.get_verbs_by_infinitive(infinitive)
 
             if not verbs:

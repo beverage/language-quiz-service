@@ -103,14 +103,14 @@ class TestDeleteProblemValidation:
 class TestDeleteProblemById:
     """Test delete problem by ID."""
 
-    @patch("src.cli.problems.delete.ProblemService")
+    @patch("src.cli.problems.delete.create_problem_service")
     @patch("src.cli.problems.delete.require_confirmation")
     @patch("src.cli.problems.delete.get_remote_flag")
     async def test_delete_by_id_success(
         self,
         mock_get_remote,
         mock_confirm,
-        mock_service_class,
+        mock_create_service,
         sample_problem,
     ):
         """Test successful deletion by problem ID."""
@@ -118,12 +118,9 @@ class TestDeleteProblemById:
         mock_confirm.return_value = True
 
         mock_service = AsyncMock()
-        mock_service_class.return_value = mock_service
+        mock_create_service.return_value = mock_service
         mock_service.get_problem_by_id.return_value = sample_problem
-
-        mock_repo = AsyncMock()
-        mock_repo.delete_problem.return_value = True
-        mock_service._get_problem_repository.return_value = mock_repo
+        mock_service.delete_problem.return_value = True
 
         runner = CliRunner()
         result = await runner.invoke(
@@ -133,16 +130,16 @@ class TestDeleteProblemById:
 
         assert result.exit_code == 0
         assert "deleted successfully" in result.output
-        mock_repo.delete_problem.assert_called_once()
+        mock_service.delete_problem.assert_called_once()
 
-    @patch("src.cli.problems.delete.ProblemService")
+    @patch("src.cli.problems.delete.create_problem_service")
     @patch("src.cli.problems.delete.require_confirmation")
     @patch("src.cli.problems.delete.get_remote_flag")
     async def test_delete_by_id_aborted(
         self,
         mock_get_remote,
         mock_confirm,
-        mock_service_class,
+        mock_create_service,
         sample_problem,
     ):
         """Test deletion aborted when user declines confirmation."""
@@ -150,7 +147,7 @@ class TestDeleteProblemById:
         mock_confirm.return_value = False  # User declines
 
         mock_service = AsyncMock()
-        mock_service_class.return_value = mock_service
+        mock_create_service.return_value = mock_service
         mock_service.get_problem_by_id.return_value = sample_problem
 
         runner = CliRunner()
@@ -162,14 +159,14 @@ class TestDeleteProblemById:
         assert result.exit_code == 0
         assert "Aborted" in result.output
 
-    @patch("src.cli.problems.delete.ProblemService")
+    @patch("src.cli.problems.delete.create_problem_service")
     @patch("src.cli.problems.delete.require_confirmation")
     @patch("src.cli.problems.delete.get_remote_flag")
     async def test_delete_by_id_with_force(
         self,
         mock_get_remote,
         mock_confirm,
-        mock_service_class,
+        mock_create_service,
         sample_problem,
     ):
         """Test deletion with --force skips confirmation."""
@@ -177,12 +174,9 @@ class TestDeleteProblemById:
         mock_confirm.return_value = True  # Should be called with force=True
 
         mock_service = AsyncMock()
-        mock_service_class.return_value = mock_service
+        mock_create_service.return_value = mock_service
         mock_service.get_problem_by_id.return_value = sample_problem
-
-        mock_repo = AsyncMock()
-        mock_repo.delete_problem.return_value = True
-        mock_service._get_problem_repository.return_value = mock_repo
+        mock_service.delete_problem.return_value = True
 
         runner = CliRunner()
         result = await runner.invoke(
@@ -195,18 +189,18 @@ class TestDeleteProblemById:
         mock_confirm.assert_called_once()
         assert mock_confirm.call_args.kwargs.get("force") is True
 
-    @patch("src.cli.problems.delete.ProblemService")
+    @patch("src.cli.problems.delete.create_problem_service")
     @patch("src.cli.problems.delete.get_remote_flag")
     async def test_delete_by_id_not_found(
         self,
         mock_get_remote,
-        mock_service_class,
+        mock_create_service,
     ):
         """Test deletion when problem is not found."""
         mock_get_remote.return_value = False
 
         mock_service = AsyncMock()
-        mock_service_class.return_value = mock_service
+        mock_create_service.return_value = mock_service
         mock_service.get_problem_by_id.side_effect = Exception("Problem not found")
 
         runner = CliRunner()
@@ -223,16 +217,16 @@ class TestDeleteProblemById:
 class TestDeleteProblemByGenerationId:
     """Test delete problems by generation request ID."""
 
-    @patch("src.services.generation_request_service.GenerationRequestService")
-    @patch("src.cli.problems.delete.ProblemService")
+    @patch("src.core.factories.create_generation_request_service")
+    @patch("src.cli.problems.delete.create_problem_service")
     @patch("src.cli.problems.delete.require_confirmation")
     @patch("src.cli.problems.delete.get_remote_flag")
     async def test_delete_by_generation_id_success(
         self,
         mock_get_remote,
         mock_confirm,
-        mock_problem_service_class,
-        mock_gen_service_class,
+        mock_create_problem_service,
+        mock_create_gen_service,
         sample_generation_request,
         sample_problem,
     ):
@@ -242,7 +236,7 @@ class TestDeleteProblemByGenerationId:
 
         # Mock generation request service
         mock_gen_service = AsyncMock()
-        mock_gen_service_class.return_value = mock_gen_service
+        mock_create_gen_service.return_value = mock_gen_service
         mock_gen_service.get_generation_request_with_entities.return_value = (
             sample_generation_request,
             [sample_problem, sample_problem],  # Two problems
@@ -250,7 +244,7 @@ class TestDeleteProblemByGenerationId:
 
         # Mock problem service
         mock_problem_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_problem_service
+        mock_create_problem_service.return_value = mock_problem_service
         mock_problem_service.delete_problems_by_generation_id.return_value = 2
 
         runner = CliRunner()
@@ -263,21 +257,21 @@ class TestDeleteProblemByGenerationId:
         assert "Deleted 2 problem(s)" in result.output
         mock_problem_service.delete_problems_by_generation_id.assert_called_once()
 
-    @patch("src.services.generation_request_service.GenerationRequestService")
-    @patch("src.cli.problems.delete.ProblemService")
+    @patch("src.core.factories.create_generation_request_service")
+    @patch("src.cli.problems.delete.create_problem_service")
     @patch("src.cli.problems.delete.get_remote_flag")
     async def test_delete_by_generation_id_no_problems(
         self,
         mock_get_remote,
-        mock_problem_service_class,
-        mock_gen_service_class,
+        mock_create_problem_service,
+        mock_create_gen_service,
         sample_generation_request,
     ):
         """Test deletion when generation request has no problems."""
         mock_get_remote.return_value = False
 
         mock_gen_service = AsyncMock()
-        mock_gen_service_class.return_value = mock_gen_service
+        mock_create_gen_service.return_value = mock_gen_service
         mock_gen_service.get_generation_request_with_entities.return_value = (
             sample_generation_request,
             [],  # No problems
@@ -292,20 +286,20 @@ class TestDeleteProblemByGenerationId:
         assert result.exit_code == 0
         assert "No problems to delete" in result.output
 
-    @patch("src.services.generation_request_service.GenerationRequestService")
-    @patch("src.cli.problems.delete.ProblemService")
+    @patch("src.core.factories.create_generation_request_service")
+    @patch("src.cli.problems.delete.create_problem_service")
     @patch("src.cli.problems.delete.get_remote_flag")
     async def test_delete_by_generation_id_not_found(
         self,
         mock_get_remote,
-        mock_problem_service_class,
-        mock_gen_service_class,
+        mock_create_problem_service,
+        mock_create_gen_service,
     ):
         """Test deletion when generation request is not found."""
         mock_get_remote.return_value = False
 
         mock_gen_service = AsyncMock()
-        mock_gen_service_class.return_value = mock_gen_service
+        mock_create_gen_service.return_value = mock_gen_service
         mock_gen_service.get_generation_request_with_entities.side_effect = Exception(
             "Not found"
         )
@@ -324,14 +318,14 @@ class TestDeleteProblemByGenerationId:
 class TestDeleteProblemRemoteConfirmation:
     """Test remote confirmation behavior for delete command."""
 
-    @patch("src.cli.problems.delete.ProblemService")
+    @patch("src.cli.problems.delete.create_problem_service")
     @patch("src.cli.problems.delete.require_confirmation")
     @patch("src.cli.problems.delete.get_remote_flag")
     async def test_remote_delete_calls_confirmation_with_remote_flag(
         self,
         mock_get_remote,
         mock_confirm,
-        mock_service_class,
+        mock_create_service,
         sample_problem,
     ):
         """Test that remote delete passes is_remote=True to confirmation."""
@@ -339,12 +333,9 @@ class TestDeleteProblemRemoteConfirmation:
         mock_confirm.return_value = True
 
         mock_service = AsyncMock()
-        mock_service_class.return_value = mock_service
+        mock_create_service.return_value = mock_service
         mock_service.get_problem_by_id.return_value = sample_problem
-
-        mock_repo = AsyncMock()
-        mock_repo.delete_problem.return_value = True
-        mock_service._get_problem_repository.return_value = mock_repo
+        mock_service.delete_problem.return_value = True
 
         runner = CliRunner()
         await runner.invoke(

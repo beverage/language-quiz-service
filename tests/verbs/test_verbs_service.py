@@ -258,20 +258,18 @@ async def test_get_conjugations_with_filters(verb_service):
 
 
 @pytest.mark.asyncio
-async def test_service_initialization_without_client(verb_service):
-    """Test service can initialize repository when no client is injected."""
-    # Create a fresh service without injected client
-    fresh_service = VerbService()
+async def test_service_initialization_requires_llm_client():
+    """Test service requires llm_client to be provided."""
+    # Service should raise an error when trying to access repository without one set
+    mock_client = AsyncMock()
+    fresh_service = VerbService(llm_client=mock_client)
 
-    # This should trigger lazy initialization
-    # Note: This might fail if Supabase isn't running locally
-    try:
-        repo = await fresh_service._get_verb_repository()
-        assert repo is not None
-        assert fresh_service.verb_repository == repo
-    except Exception:
-        # Expected if local Supabase isn't running
-        pytest.skip("Local Supabase not available for lazy initialization test")
+    # Repository should be None since none was provided
+    assert fresh_service.verb_repository is None
+
+    # Attempting to get repository should raise RuntimeError
+    with pytest.raises(RuntimeError, match="VerbRepository not set"):
+        fresh_service._get_verb_repository()
 
 
 @pytest.mark.asyncio
@@ -388,6 +386,8 @@ async def test_search_verbs(verb_service):
 @pytest.mark.asyncio
 async def test_download_verb_success(verb_service):
     """Test successful verb download with mocked AI responses."""
+    from unittest.mock import MagicMock
+
     # Mock the repository to simulate the verb not existing
     mock_repo = AsyncMock()
     mock_repo.get_verb_by_infinitive.return_value = None
@@ -406,7 +406,8 @@ async def test_download_verb_success(verb_service):
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
     )
-    verb_service._get_verb_repository = AsyncMock(return_value=mock_repo)
+    # Use MagicMock for the sync method _get_verb_repository
+    verb_service._get_verb_repository = MagicMock(return_value=mock_repo)
 
     # Create async mock for the client
     mock_client = AsyncMock()

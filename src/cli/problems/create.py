@@ -10,13 +10,13 @@ import traceback
 from src.api.models.problems import ProblemGenerationEnqueuedResponse
 from src.cli.problems.display import display_problem, display_problem_summary
 from src.cli.utils.http_client import get_api_key, make_api_request
+from src.core.factories import create_problem_service
 from src.schemas.problems import (
     GrammarProblemConstraints,
     Problem,
     ProblemFilters,
     ProblemType,
 )
-from src.services.problem_service import ProblemService
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ async def generate_random_problem(
             return enqueued_response
         else:
             # Direct service call (synchronous generation)
-            problems_service = ProblemService()
+            problems_service = await create_problem_service()
             problem = await problems_service.create_random_grammar_problem(
                 constraints=constraints,
                 statement_count=statement_count,
@@ -198,7 +198,7 @@ async def get_random_problem(
         else:
             # Direct mode - use service layer
             logger.debug("💾 Using direct service layer mode")
-            problems_service = ProblemService()
+            problems_service = await create_problem_service()
             problem = await problems_service.get_random_problem()
 
             if problem is None:
@@ -308,7 +308,7 @@ async def list_problems(
     detailed: bool = False,
 ) -> tuple[list[Problem], int]:
     """List problems with optional filtering."""
-    problems_service = ProblemService()
+    problems_service = await create_problem_service()
 
     # Build filters
     filters = ProblemFilters(limit=limit)
@@ -340,7 +340,7 @@ async def search_problems_by_focus(
     detailed: bool = False,
 ) -> list[Problem]:
     """Search problems by grammatical focus."""
-    problems_service = ProblemService()
+    problems_service = await create_problem_service()
 
     problems = await problems_service.get_problems_by_grammatical_focus(
         grammatical_focus, limit
@@ -359,7 +359,7 @@ async def search_problems_by_topic(
     detailed: bool = False,
 ) -> list[Problem]:
     """Search problems by topic tags."""
-    problems_service = ProblemService()
+    problems_service = await create_problem_service()
 
     problems = await problems_service.get_problems_by_topic(topic_tags, limit)
 
@@ -372,7 +372,7 @@ async def search_problems_by_topic(
 
 async def get_problem_statistics() -> dict:
     """Get and display problem statistics."""
-    problems_service = ProblemService()
+    problems_service = await create_problem_service()
 
     stats = await problems_service.get_problem_statistics()
 

@@ -769,29 +769,31 @@ class TestProblemServiceIntegration:
         """Test service initialization with injected dependencies."""
         service = ProblemService(problem_repository=problem_repository)
 
+        # With explicit DI, only provided dependencies are set
         assert service.problem_repository == problem_repository
-        assert service.sentence_service is not None
-        assert service.verb_service is not None
+        # These are None until explicitly set (no sneaky fallback)
+        assert service.sentence_service is None
+        assert service.verb_service is None
 
     def test_service_initialization_without_dependencies(self):
         """Test service initialization without injected dependencies."""
         service = ProblemService()
 
+        # All dependencies are None when not provided (no sneaky fallback)
         assert service.problem_repository is None
-        assert service.sentence_service is not None
-        assert service.verb_service is not None
+        assert service.sentence_service is None
+        assert service.verb_service is None
 
-    @pytest.mark.asyncio
-    async def test_lazy_repository_initialization(self):
-        """Test that repository is lazily initialized when needed."""
-        service = ProblemService()  # No repository injected
+    def test_getter_raises_when_dependency_not_set(self):
+        """Test that getters raise RuntimeError when dependencies not set."""
+        service = ProblemService()
 
-        # This should trigger lazy initialization
-        # Note: This test might fail if Supabase isn't running, which is expected
-        try:
-            repo = await service._get_problem_repository()
-            assert repo is not None
-            assert service.problem_repository == repo
-        except Exception:
-            # Expected if Supabase isn't running in this test context
-            pytest.skip("Supabase not available for lazy initialization test")
+        # Attempting to get unset dependencies should raise RuntimeError
+        with pytest.raises(RuntimeError, match="ProblemRepository not set"):
+            service._get_problem_repository()
+
+        with pytest.raises(RuntimeError, match="SentenceService not set"):
+            service._get_sentence_service()
+
+        with pytest.raises(RuntimeError, match="VerbService not set"):
+            service._get_verb_service()

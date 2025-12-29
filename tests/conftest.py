@@ -31,6 +31,20 @@ def mock_llm_response(content: str) -> LLMResponse:
     )
 
 
+@pytest.fixture
+def mock_llm_client():
+    """Create a mock LLM client for testing.
+
+    This fixture provides a mock AbstractLLMClient that can be injected into
+    services during tests, preventing real LLM calls.
+    """
+    from unittest.mock import AsyncMock
+
+    from src.clients.abstract_llm_client import AbstractLLMClient
+
+    return AsyncMock(spec=AbstractLLMClient)
+
+
 # Helper function to create a test client, now co-located with tests
 async def create_test_supabase_client(
     database_url: str, service_key: str = "test_key"

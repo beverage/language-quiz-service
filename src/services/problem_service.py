@@ -49,26 +49,63 @@ class ProblemService:
         verb_service: VerbService | None = None,
         sentence_builder: SentencePromptBuilder | None = None,
     ):
-        """Initialize the problems service with injectable dependencies."""
+        """Initialize the problems service with injectable dependencies.
+
+        Args:
+            problem_repository: Optional repository (can be set later for lazy init).
+            sentence_service: Optional sentence service (can be set later for lazy init).
+            verb_service: Optional verb service (can be set later for lazy init).
+            sentence_builder: Optional prompt builder (defaults to SentencePromptBuilder).
+        """
         self.problem_repository = problem_repository
-        self.sentence_service = sentence_service or SentenceService()
-        self.verb_service = verb_service or VerbService()
+        self.sentence_service = sentence_service
+        self.verb_service = verb_service
         self.sentence_builder = sentence_builder or SentencePromptBuilder()
 
-    async def _get_problem_repository(self) -> ProblemRepository:
-        """Asynchronously get the problems repository, creating it if it doesn't exist."""
+    def set_problem_repository(self, problem_repository: ProblemRepository) -> None:
+        """Set the problem repository (for cases requiring lazy initialization)."""
+        self.problem_repository = problem_repository
+
+    def set_sentence_service(self, sentence_service: SentenceService) -> None:
+        """Set the sentence service (for cases requiring lazy initialization)."""
+        self.sentence_service = sentence_service
+
+    def set_verb_service(self, verb_service: VerbService) -> None:
+        """Set the verb service (for cases requiring lazy initialization)."""
+        self.verb_service = verb_service
+
+    def _get_problem_repository(self) -> ProblemRepository:
+        """Get the problem repository, raising if not set."""
         if self.problem_repository is None:
-            self.problem_repository = await ProblemRepository.create()
+            raise RuntimeError(
+                "ProblemRepository not set. Either pass it to __init__ or call set_problem_repository()."
+            )
         return self.problem_repository
+
+    def _get_sentence_service(self) -> SentenceService:
+        """Get the sentence service, raising if not set."""
+        if self.sentence_service is None:
+            raise RuntimeError(
+                "SentenceService not set. Either pass it to __init__ or call set_sentence_service()."
+            )
+        return self.sentence_service
+
+    def _get_verb_service(self) -> VerbService:
+        """Get the verb service, raising if not set."""
+        if self.verb_service is None:
+            raise RuntimeError(
+                "VerbService not set. Either pass it to __init__ or call set_verb_service()."
+            )
+        return self.verb_service
 
     async def create_problem(self, problem_data: ProblemCreate) -> Problem:
         """Create a new problem."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.create_problem(problem_data)
 
     async def get_problem_by_id(self, problem_id: UUID) -> Problem:
         """Get a problem by ID, raising an error if not found."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         problem = await repo.get_problem(problem_id)
         if not problem:
             raise NotFoundError(f"Problem with ID {problem_id} not found")
@@ -78,21 +115,21 @@ class ProblemService:
         self, filters: ProblemFilters, include_statements: bool = True
     ) -> tuple[list[Problem], int]:
         """Get problems with filtering and pagination."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_problems(filters, include_statements)
 
     async def get_problem_summaries(
         self, filters: ProblemFilters
     ) -> tuple[list[ProblemSummary], int]:
         """Get lightweight problem summaries for list views."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_problem_summaries(filters)
 
     async def update_problem(
         self, problem_id: UUID, problem_data: ProblemUpdate
     ) -> Problem:
         """Update a problem, raising an error if not found."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
 
         # First, ensure the problem exists
         existing_problem = await repo.get_problem(problem_id)
@@ -110,7 +147,7 @@ class ProblemService:
 
     async def delete_problem(self, problem_id: UUID) -> bool:
         """Delete a problem."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.delete_problem(problem_id)
 
     async def delete_problems_by_generation_id(
@@ -124,7 +161,7 @@ class ProblemService:
         Returns:
             Number of problems deleted
         """
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.delete_problems_by_generation_id(generation_request_id)
 
     async def create_random_grammar_problem(
@@ -149,14 +186,15 @@ class ProblemService:
             constraints = GrammarProblemConstraints()
 
         # Step 1: Select a random verb for consistency across statements
-        verb = await self.verb_service.get_random_verb()
+        verb_service = self._get_verb_service()
+        verb = await verb_service.get_random_verb()
         if not verb:
             raise LanguageResourceNotFoundError(resource_type="verbs")
 
         logger.debug(f"📝 Selected verb: {verb.infinitive}")
 
         # Step 1b: Fetch conjugations once for all sentences (performance optimization)
-        conjugations = await self.verb_service.get_conjugations(
+        conjugations = await verb_service.get_conjugations(
             infinitive=verb.infinitive,
             auxiliary=verb.auxiliary.value,
             reflexive=verb.reflexive,
@@ -222,7 +260,8 @@ class ProblemService:
             )
 
             # Create task but don't await yet
-            task = self.sentence_service.generate_sentence(
+            sentence_service = self._get_sentence_service()
+            task = sentence_service.generate_sentence(
                 verb_id=verb.id,
                 **sentence_params,
                 is_correct=is_correct,
@@ -338,7 +377,7 @@ class ProblemService:
             problem_dict["created_at"] = timestamp.isoformat()
             problem_dict["updated_at"] = timestamp.isoformat()
 
-            repo = await self._get_problem_repository()
+            repo = self._get_problem_repository()
             # Insert directly with our generated ID
             await repo.client.table("problems").insert(problem_dict).execute()
         except Exception as e:
@@ -612,14 +651,14 @@ class ProblemService:
         self, topic_tags: list[str], limit: int = 50
     ) -> list[Problem]:
         """Get problems by topic tags."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_problems_by_topic_tags(topic_tags, limit)
 
     async def get_problems_using_verb(
         self, verb_id: UUID, limit: int = 50
     ) -> list[Problem]:
         """Get problems that use a specific verb."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         metadata_query = {"source_verb_ids": [str(verb_id)]}
         return await repo.search_problems_by_metadata(metadata_query, limit)
 
@@ -627,7 +666,7 @@ class ProblemService:
         self, focus: str, limit: int = 50
     ) -> list[Problem]:
         """Get problems by grammatical focus (metadata search)."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         filters = ProblemFilters(
             metadata_contains={"grammatical_focus": [focus]}, limit=limit
         )
@@ -641,7 +680,7 @@ class ProblemService:
         Returns:
             Problem object if found, None if no problems exist
         """
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
 
         # Get least recently served problem
         problem = await repo.get_least_recently_served_problem()
@@ -657,7 +696,7 @@ class ProblemService:
         filters: ProblemFilters | None = None,
     ) -> Problem | None:
         """Get a random problem, optionally filtered."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_random_problem(filters or ProblemFilters())
 
     async def count_problems(
@@ -666,10 +705,10 @@ class ProblemService:
         topic_tags: list[str] | None = None,
     ) -> int:
         """Count problems with optional filters."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.count_problems(problem_type, topic_tags)
 
     async def get_problem_statistics(self) -> dict[str, Any]:
         """Get problem statistics for analytics."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_problem_statistics()

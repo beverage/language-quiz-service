@@ -14,6 +14,7 @@ from src.api.models.problems import (
     ProblemResponse,
 )
 from src.core.auth import get_current_api_key
+from src.core.dependencies import get_problem_service
 from src.services.problem_service import ProblemService
 from src.services.queue_service import QueueService
 
@@ -24,11 +25,6 @@ limiter = Limiter(key_func=get_remote_address)
 
 API_PREFIX = "/problems"
 router = APIRouter(prefix=API_PREFIX, tags=["Problems"])
-
-
-async def get_problem_service() -> ProblemService:
-    """Dependency to get ProblemService instance."""
-    return ProblemService()
 
 
 async def get_queue_service() -> AsyncGenerator[QueueService, None]:

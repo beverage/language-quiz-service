@@ -25,11 +25,13 @@ fake = Faker()
 
 
 @pytest.fixture
-async def verb_service(test_supabase_client):
-    """Create a VerbService with real repository connection."""
-    service = VerbService()
-    service.db_client = test_supabase_client  # Inject test client
-    return service
+async def verb_service(test_supabase_client, mock_llm_client):
+    """Create a VerbService with real repository connection and mock LLM client."""
+    verb_repository = VerbRepository(client=test_supabase_client)
+    return VerbService(
+        llm_client=mock_llm_client,
+        verb_repository=verb_repository,
+    )
 
 
 def generate_random_verb_data() -> dict[str, Any]:

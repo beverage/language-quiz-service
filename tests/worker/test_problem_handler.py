@@ -20,9 +20,20 @@ pytestmark = pytest.mark.asyncio
 
 
 @pytest.fixture
-def handler():
-    """Create a ProblemGenerationHandler instance."""
-    return ProblemGenerationHandler()
+def mock_problem_service():
+    """Create a mock ProblemService for testing."""
+    service = AsyncMock()
+    service.create_random_grammar_problem = AsyncMock()
+    return service
+
+
+@pytest.fixture
+def handler(mock_problem_service):
+    """Create a ProblemGenerationHandler instance with mocked dependencies."""
+    handler_instance = ProblemGenerationHandler()
+    # Pre-set the problem service to avoid None issues in tests
+    handler_instance.problem_service = mock_problem_service
+    return handler_instance
 
 
 @pytest.fixture
