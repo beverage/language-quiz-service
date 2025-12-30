@@ -58,10 +58,10 @@ llm_tokens_total = meter.create_counter(
     description="Total tokens (input + output)",
 )
 
-llm_tokens_thinking = meter.create_counter(
-    name="llm.tokens.thinking",
+llm_tokens_reasoning = meter.create_counter(
+    name="llm.tokens.reasoning",
     unit="1",
-    description="Total thinking tokens consumed (Gemini models)",
+    description="Total reasoning/thinking tokens consumed (Gemini models)",
 )
 
 
@@ -168,8 +168,23 @@ class GeminiClient(AbstractLLMClient):
 
             # Extract thinking tokens if available
             thinking_tokens = None
-            if usage and hasattr(usage, "thoughts_token_count"):
-                thinking_tokens = usage.thoughts_token_count
+            if usage:
+                # Try multiple possible attribute names for thinking tokens
+                if (
+                    hasattr(usage, "thoughts_token_count")
+                    and usage.thoughts_token_count is not None
+                ):
+                    thinking_tokens = usage.thoughts_token_count
+                elif (
+                    hasattr(usage, "thinking_token_count")
+                    and usage.thinking_token_count is not None
+                ):
+                    thinking_tokens = usage.thinking_token_count
+                elif (
+                    hasattr(usage, "reasoning_token_count")
+                    and usage.reasoning_token_count is not None
+                ):
+                    thinking_tokens = usage.reasoning_token_count
 
             # Generate a response ID (Gemini doesn't provide one like OpenAI)
             response_id = f"gemini-{int(time.time() * 1000)}"
@@ -246,8 +261,12 @@ class GeminiClient(AbstractLLMClient):
             llm_tokens_output.add(completion_tokens, attributes=attributes)
             llm_tokens_total.add(total_tokens, attributes=attributes)
 
-        if thinking_tokens:
-            llm_tokens_thinking.add(thinking_tokens, attributes=attributes)
+        if thinking_tokens is not None and thinking_tokens > 0:
+            llm_tokens_reasoning.add(thinking_tokens, attributes=attributes)
+            logger.debug(
+                f"Recorded reasoning tokens: {thinking_tokens} for model={model}, "
+                f"operation={operation or 'unknown'}, attributes={attributes}"
+            )
 
         if span.is_recording():
             span.set_attribute("llm.provider", "gemini")

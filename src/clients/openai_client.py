@@ -327,7 +327,7 @@ class OpenAIClient(AbstractLLMClient):
             llm_tokens_output.add(completion_tokens, attributes=attributes)
             llm_tokens_total.add(total_tokens, attributes=attributes)
 
-        if reasoning_tokens:
+        if reasoning_tokens is not None and reasoning_tokens > 0:
             llm_tokens_reasoning.add(reasoning_tokens, attributes=attributes)
 
         if span.is_recording():

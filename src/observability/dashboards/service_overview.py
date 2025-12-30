@@ -524,6 +524,27 @@ def create_output_tokens_today() -> stat.Panel:
     )
 
 
+def create_reasoning_tokens_today() -> stat.Panel:
+    """Reasoning tokens in last 24h (gpt-5 models only)."""
+    return (
+        stat.Panel()
+        .title("Reasoning Tokens (24h)")
+        .datasource(DataSourceRef(uid="$datasource"))
+        .unit(units.Short)
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                'sum(increase(llm_tokens_reasoning_total{environment="$environment"}[24h])) + sum(increase(llm_tokens_thinking_total{environment="$environment"}[24h]))'
+            )
+            .legend_format("Reasoning")
+            .ref_id("A")
+        )
+        .color_mode(common.BigValueColorMode.VALUE)
+        .graph_mode(common.BigValueGraphMode.AREA)
+        .grid_pos(GridPos(x=16, y=62, w=4, h=6))
+    )
+
+
 def create_http_error_rate_gauge() -> stat.Panel:
     """HTTP 5xx error rate as percentage gauge."""
     return (
@@ -551,7 +572,7 @@ def create_http_error_rate_gauge() -> stat.Panel:
                 ]
             )
         )
-        .grid_pos(GridPos(x=16, y=62, w=8, h=6))
+        .grid_pos(GridPos(x=20, y=62, w=4, h=6))
     )
 
 
@@ -690,7 +711,7 @@ def create_worker_malformed_messages_stat() -> stat.Panel:
         stat.Panel()
         .title("Malformed Messages/min")
         .datasource(DataSourceRef(uid="$datasource"))
-        .unit(units.OpsPerMin)
+        .unit(units.OpsPerMinute)
         .with_target(
             prometheus.Dataquery()
             .expr(
@@ -820,7 +841,8 @@ def generate() -> dashboard.Dashboard:
         .with_panel(create_problem_generation_success_rate())  # (0, 62, 8, 6)
         .with_panel(create_input_tokens_today())  # (8, 62, 4, 6)
         .with_panel(create_output_tokens_today())  # (12, 62, 4, 6)
-        .with_panel(create_http_error_rate_gauge())  # (16, 62, 8, 6)
+        .with_panel(create_reasoning_tokens_today())  # (16, 62, 4, 6)
+        .with_panel(create_http_error_rate_gauge())  # (20, 62, 4, 6)
         # Worker health panels
         .with_panel(create_worker_messages_processed_stat())  # (0, 68, 6, 6)
         .with_panel(create_worker_active_tasks_stat())  # (6, 68, 6, 6)
