@@ -68,16 +68,16 @@ def sample_failed_request():
 class TestListRequests:
     """Test list generation requests command."""
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     async def test_list_shows_requests(
         self,
-        mock_repo_class,
+        mock_create_repo,
         sample_generation_request,
         sample_pending_request,
     ):
         """Test that list shows generation requests."""
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_all_requests.return_value = (
             [sample_generation_request, sample_pending_request],
             2,
@@ -92,15 +92,15 @@ class TestListRequests:
         assert "completed" in result.output
         assert "pending" in result.output
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     async def test_list_with_status_filter(
         self,
-        mock_repo_class,
+        mock_create_repo,
         sample_generation_request,
     ):
         """Test list with status filter."""
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_all_requests.return_value = ([sample_generation_request], 1)
 
         runner = CliRunner()
@@ -111,11 +111,11 @@ class TestListRequests:
         call_kwargs = mock_repo.get_all_requests.call_args.kwargs
         assert call_kwargs["status"] == GenerationStatus.COMPLETED
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
-    async def test_list_empty_results(self, mock_repo_class):
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
+    async def test_list_empty_results(self, mock_create_repo):
         """Test list with no results."""
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_all_requests.return_value = ([], 0)
 
         runner = CliRunner()
@@ -124,15 +124,15 @@ class TestListRequests:
         assert result.exit_code == 0
         assert "No generation requests found" in result.output
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     async def test_list_shows_failed_errors(
         self,
-        mock_repo_class,
+        mock_create_repo,
         sample_failed_request,
     ):
         """Test that failed requests show error message."""
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_all_requests.return_value = ([sample_failed_request], 1)
 
         runner = CliRunner()
@@ -142,10 +142,10 @@ class TestListRequests:
         assert "failed" in result.output
         assert "Error:" in result.output or "rate limit" in result.output
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
-    async def test_list_handles_database_error(self, mock_repo_class):
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
+    async def test_list_handles_database_error(self, mock_create_repo):
         """Test list handles database errors gracefully."""
-        mock_repo_class.create = AsyncMock(side_effect=Exception("Database error"))
+        mock_create_repo.side_effect = Exception("Database error")
 
         runner = CliRunner()
         result = await runner.invoke(list_requests, [])
@@ -158,15 +158,15 @@ class TestListRequests:
 class TestGetStatus:
     """Test get status command."""
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     async def test_get_status_shows_details(
         self,
-        mock_repo_class,
+        mock_create_repo,
         sample_generation_request,
     ):
         """Test that status shows request details."""
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_generation_request.return_value = sample_generation_request
         mock_repo.get_problems_by_request_id.return_value = []
 
@@ -181,11 +181,11 @@ class TestGetStatus:
         assert "10/10" in result.output  # Progress
         assert "Duration" in result.output
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
-    async def test_get_status_not_found(self, mock_repo_class):
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
+    async def test_get_status_not_found(self, mock_create_repo):
         """Test status with non-existent request."""
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_generation_request.return_value = None
 
         runner = CliRunner()
@@ -196,15 +196,15 @@ class TestGetStatus:
         assert result.exit_code == 0
         assert "not found" in result.output
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     async def test_get_status_shows_problems(
         self,
-        mock_repo_class,
+        mock_create_repo,
         sample_generation_request,
     ):
         """Test that status shows associated problems."""
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_generation_request.return_value = sample_generation_request
         mock_repo.get_problems_by_request_id.return_value = [
             {"id": "prob-1", "title": "Problem 1"},
@@ -220,15 +220,15 @@ class TestGetStatus:
         assert "Problems Generated: 2" in result.output
         assert "prob-1" in result.output
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     async def test_get_status_shows_error_message(
         self,
-        mock_repo_class,
+        mock_create_repo,
         sample_failed_request,
     ):
         """Test that status shows error message for failed requests."""
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_generation_request.return_value = sample_failed_request
         mock_repo.get_problems_by_request_id.return_value = []
 
@@ -245,14 +245,14 @@ class TestGetStatus:
 class TestCleanRequests:
     """Test clean generation requests command."""
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     @patch("src.cli.generation_requests.commands.require_confirmation")
     @patch("src.cli.generation_requests.commands.get_remote_flag")
     async def test_clean_deletes_old_requests(
         self,
         mock_get_remote,
         mock_confirm,
-        mock_repo_class,
+        mock_create_repo,
     ):
         """Test cleaning old requests."""
         mock_get_remote.return_value = False
@@ -270,7 +270,7 @@ class TestCleanRequests:
         )
 
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_all_requests.return_value = ([old_request], 1)
         mock_repo.delete_old_requests.return_value = 1
 
@@ -282,12 +282,12 @@ class TestCleanRequests:
         assert "Deleted 1 generation requests" in result.output
         mock_repo.delete_old_requests.assert_called_once()
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     @patch("src.cli.generation_requests.commands.get_remote_flag")
     async def test_clean_no_old_requests(
         self,
         mock_get_remote,
-        mock_repo_class,
+        mock_create_repo,
     ):
         """Test clean when no old requests exist."""
         mock_get_remote.return_value = False
@@ -304,7 +304,7 @@ class TestCleanRequests:
         )
 
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_all_requests.return_value = ([recent_request], 1)
 
         runner = CliRunner()
@@ -313,14 +313,14 @@ class TestCleanRequests:
         assert result.exit_code == 0
         assert "No completed/failed/expired requests older than 7 days" in result.output
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     @patch("src.cli.generation_requests.commands.require_confirmation")
     @patch("src.cli.generation_requests.commands.get_remote_flag")
     async def test_clean_aborted_on_decline(
         self,
         mock_get_remote,
         mock_confirm,
-        mock_repo_class,
+        mock_create_repo,
     ):
         """Test clean aborted when user declines confirmation."""
         mock_get_remote.return_value = False
@@ -337,7 +337,7 @@ class TestCleanRequests:
         )
 
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_all_requests.return_value = ([old_request], 1)
 
         runner = CliRunner()
@@ -346,14 +346,14 @@ class TestCleanRequests:
         assert result.exit_code == 0
         assert "Aborted" in result.output
 
-    @patch("src.cli.generation_requests.commands.GenerationRequestRepository")
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     @patch("src.cli.generation_requests.commands.require_confirmation")
     @patch("src.cli.generation_requests.commands.get_remote_flag")
     async def test_clean_with_force(
         self,
         mock_get_remote,
         mock_confirm,
-        mock_repo_class,
+        mock_create_repo,
     ):
         """Test clean with --force skips confirmation."""
         mock_get_remote.return_value = False
@@ -370,7 +370,7 @@ class TestCleanRequests:
         )
 
         mock_repo = AsyncMock()
-        mock_repo_class.create = AsyncMock(return_value=mock_repo)
+        mock_create_repo.return_value = mock_repo
         mock_repo.get_all_requests.return_value = ([old_request], 1)
         mock_repo.delete_old_requests.return_value = 1
 
