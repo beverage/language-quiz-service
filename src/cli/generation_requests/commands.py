@@ -8,7 +8,7 @@ from uuid import UUID
 import asyncclick as click
 
 from src.cli.utils.safety import get_remote_flag, require_confirmation
-from src.repositories.generation_requests_repository import GenerationRequestRepository
+from src.core.factories import create_generation_request_repository
 from src.schemas.generation_requests import GenerationStatus
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ async def list_requests(ctx, status: str | None, limit: int):
     Shows recent generation requests with their status and counts.
     """
     try:
-        repo = await GenerationRequestRepository.create()
+        repo = await create_generation_request_repository()
 
         # Convert status string to enum if provided
         status_filter = GenerationStatus(status) if status else None
@@ -100,7 +100,7 @@ async def get_status(ctx, request_id: UUID):
     REQUEST_ID is the UUID of the generation request.
     """
     try:
-        repo = await GenerationRequestRepository.create()
+        repo = await create_generation_request_repository()
         request = await repo.get_generation_request(request_id)
 
         if not request:
@@ -184,7 +184,7 @@ async def clean_requests(ctx, older_than: int, force: bool):
     is_remote = get_remote_flag(ctx)
 
     try:
-        repo = await GenerationRequestRepository.create()
+        repo = await create_generation_request_repository()
 
         # Get count of requests that will be deleted
         from datetime import UTC, datetime, timedelta

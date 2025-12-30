@@ -209,12 +209,10 @@ async def lifespan(app: FastAPI):
         logger.info("✅ All caches loaded successfully")
 
         # Expire stale pending generation requests
-        from src.repositories.generation_requests_repository import (
-            GenerationRequestRepository,
-        )
+        from src.core.factories import create_generation_request_repository
 
         try:
-            gen_repo = await GenerationRequestRepository.create(client)
+            gen_repo = await create_generation_request_repository()
             expired_count = await gen_repo.expire_stale_pending_requests(
                 older_than_minutes=10
             )
