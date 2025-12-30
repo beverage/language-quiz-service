@@ -47,8 +47,9 @@ from src.cli.problems.create import (
 )
 from src.cli.problems.delete import delete_problem
 from src.cli.problems.get import get_problem
-from src.cli.problems.wipe import wipe_problems
+from src.cli.problems.purge import purge_problems
 from src.cli.sentences.create import create_random_sentence_batch, create_sentence
+from src.cli.sentences.purge import purge_orphaned_sentences
 from src.cli.verbs.commands import download, get, random
 from src.schemas.problems import GrammarProblemConstraints
 
@@ -321,10 +322,10 @@ async def problem_stats():
         click.echo(f"❌ Error getting statistics: {ex}")
 
 
-# Add get, delete, and wipe commands to problem group
+# Add get, delete, and purge commands to problem group
 problem.add_command(get_problem)
 problem.add_command(delete_problem)
-problem.add_command(wipe_problems)
+problem.add_command(purge_problems)
 
 
 # Keep the existing batch command but update it to use new system
@@ -363,6 +364,7 @@ async def sentence():
 
 sentence.add_command(create_sentence, name="new")
 sentence.add_command(create_random_sentence_batch, name="random")
+sentence.add_command(purge_orphaned_sentences, name="purge")
 
 
 # Create the verb group

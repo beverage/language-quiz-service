@@ -92,13 +92,13 @@ This removes:
 - Test problems (tagged with `test_data`)
 - Test generation requests (with `test_data` in metadata)
 
-### 3. Wipe Problems Only
+### 3. Purge Problems Only
 
 Delete all problems while keeping verbs/conjugations:
 
 ```bash
-lqs problem wipe                    # Delete all problems
-lqs problem wipe --topic test_data  # Delete only test problems
+lqs problem purge                    # Delete all problems
+lqs problem purge --topic test_data  # Delete only test problems
 ```
 
 ### 4. Problem Generation Workflow
@@ -286,15 +286,26 @@ lqs problem delete --generation-id <generation-id>
 lqs problem delete --generation-id <generation-id> -f
 ```
 
-### `lqs problem wipe`
+### `lqs problem purge`
 
 Delete all problems (or filtered):
 
 ```bash
-lqs problem wipe                    # All problems
-lqs problem wipe --topic test_data  # Only matching topic
-lqs problem wipe -f                 # Skip confirmation
+lqs problem purge                    # All problems
+lqs problem purge --topic test_data  # Only matching topic
+lqs problem purge -f                 # Skip confirmation
 ```
+
+### `lqs sentence purge --orphaned`
+
+Delete orphaned sentences that are not referenced by any problem:
+
+```bash
+lqs sentence purge --orphaned              # Delete orphaned sentences
+lqs sentence purge --orphaned -f           # Skip confirmation
+```
+
+Orphaned sentences can occur if the service restarts during problem generation, leaving sentences without their corresponding problems.
 
 ---
 

@@ -1,5 +1,5 @@
 """
-CLI command to wipe (delete all) problems from the database.
+CLI command to purge (delete all) problems from the database.
 """
 
 import logging
@@ -12,7 +12,7 @@ from src.clients.supabase import get_supabase_client
 logger = logging.getLogger(__name__)
 
 
-@click.command("wipe")
+@click.command("purge")
 @click.option(
     "--topic",
     multiple=True,
@@ -20,23 +20,23 @@ logger = logging.getLogger(__name__)
 )
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
 @click.pass_context
-async def wipe_problems(ctx, topic: tuple, force: bool):
+async def purge_problems(ctx, topic: tuple, force: bool):
     """
     Delete all problems (or a filtered subset) from the database.
 
     By default, deletes ALL problems. Use --topic to filter.
 
     Examples:
-        lqs problem wipe                    # Delete all problems
-        lqs problem wipe --topic test_data  # Delete only test problems
-        lqs problem wipe -f                 # Skip confirmation
+        lqs problem purge                    # Delete all problems
+        lqs problem purge --topic test_data  # Delete only test problems
+        lqs problem purge -f                 # Skip confirmation
 
-    WARNING: Remote wipe is FORBIDDEN for safety.
+    WARNING: Remote purge is FORBIDDEN for safety.
     """
     is_remote = get_remote_flag(ctx)
 
-    # Forbid remote wipe operations
-    if forbid_remote("lqs problem wipe", is_remote):
+    # Forbid remote purge operations
+    if forbid_remote("lqs problem purge", is_remote):
         return
 
     try:
@@ -116,5 +116,5 @@ async def wipe_problems(ctx, topic: tuple, force: bool):
             )
 
     except Exception as e:
-        logger.error(f"Error wiping problems: {e}", exc_info=True)
+        logger.error(f"Error purging problems: {e}", exc_info=True)
         click.echo(f"❌ Error: {e}")
