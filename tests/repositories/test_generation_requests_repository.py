@@ -1,5 +1,6 @@
 """Tests for GenerationRequestRepository."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -461,19 +462,36 @@ class TestGenerationRequestRepository:
         await repo.update_status_to_processing(completed.id)
         await repo.update_final_status(completed.id, GenerationStatus.COMPLETED)
 
+        # Verify requests have the expected status before filtering
+        pending_check = await repo.get_generation_request(pending.id)
+        assert pending_check is not None, "Pending request should exist"
+        assert (
+            pending_check.status == GenerationStatus.PENDING
+        ), f"Pending request should be PENDING, got {pending_check.status}"
+
+        completed_check = await repo.get_generation_request(completed.id)
+        assert completed_check is not None, "Completed request should exist"
+        assert (
+            completed_check.status == GenerationStatus.COMPLETED
+        ), f"Completed request should be COMPLETED, got {completed_check.status}"
+
         # Filter by PENDING - should include our pending one
         pending_results, _ = await repo.get_all_requests(
             status=GenerationStatus.PENDING
         )
         pending_ids = {r.id for r in pending_results}
-        assert pending.id in pending_ids
+        assert (
+            pending.id in pending_ids
+        ), f"Pending request {pending.id} not found in results: {pending_ids}"
 
         # Filter by COMPLETED - should include our completed one
         completed_results, _ = await repo.get_all_requests(
             status=GenerationStatus.COMPLETED
         )
         completed_ids = {r.id for r in completed_results}
-        assert completed.id in completed_ids
+        assert (
+            completed.id in completed_ids
+        ), f"Completed request {completed.id} not found in results: {completed_ids}"
 
     async def test_get_all_requests_with_pagination(self, test_supabase_client):
         """Test getting requests with pagination."""
@@ -560,18 +578,21 @@ class TestGenerationRequestRepository:
         """Test deleting old completed requests."""
         repo = GenerationRequestRepository(test_supabase_client)
 
-        # Create and complete a request
+        # Create a request with requested_at set to 2 days ago
         request_create = GenerationRequestCreate(
             entity_type=EntityType.PROBLEM,
             requested_count=2,
             metadata={"topic_tags": ["test_data"]},
         )
-        created = await repo.create_generation_request(request_create)
+        two_days_ago = datetime.now(UTC) - timedelta(days=2)
+        created = await repo.create_generation_request(
+            request_create, requested_at=two_days_ago
+        )
         await repo.update_status_to_processing(created.id)
         await repo.update_final_status(created.id, GenerationStatus.COMPLETED)
 
-        # Delete with 0 days (should delete everything old)
-        count = await repo.delete_old_requests(older_than_days=0)
+        # Delete requests older than 1 day (should delete our 2-day-old request)
+        count = await repo.delete_old_requests(older_than=timedelta(days=1))
 
         # Should have deleted at least our one
         assert count >= 1
@@ -584,18 +605,21 @@ class TestGenerationRequestRepository:
         """Test deleting old failed requests."""
         repo = GenerationRequestRepository(test_supabase_client)
 
-        # Create and fail a request
+        # Create a request with requested_at set to 2 days ago
         request_create = GenerationRequestCreate(
             entity_type=EntityType.PROBLEM,
             requested_count=2,
             metadata={"topic_tags": ["test_data"]},
         )
-        created = await repo.create_generation_request(request_create)
+        two_days_ago = datetime.now(UTC) - timedelta(days=2)
+        created = await repo.create_generation_request(
+            request_create, requested_at=two_days_ago
+        )
         await repo.update_status_to_processing(created.id)
         await repo.update_final_status(created.id, GenerationStatus.FAILED)
 
-        # Delete with 0 days
-        count = await repo.delete_old_requests(older_than_days=0)
+        # Delete requests older than 1 day (should delete our 2-day-old request)
+        count = await repo.delete_old_requests(older_than=timedelta(days=1))
 
         # Should have deleted at least our one
         assert count >= 1
@@ -608,19 +632,22 @@ class TestGenerationRequestRepository:
         """Test that delete_old_requests does not delete PENDING requests."""
         repo = GenerationRequestRepository(test_supabase_client)
 
-        # Create a PENDING request
+        # Create an old PENDING request (2 days ago) to ensure it's not deleted
         request_create = GenerationRequestCreate(
             entity_type=EntityType.PROBLEM,
             requested_count=2,
             status=GenerationStatus.PENDING,
             metadata={"topic_tags": ["test_data"]},
         )
-        created = await repo.create_generation_request(request_create)
+        two_days_ago = datetime.now(UTC) - timedelta(days=2)
+        created = await repo.create_generation_request(
+            request_create, requested_at=two_days_ago
+        )
 
-        # Delete old requests
-        await repo.delete_old_requests(older_than_days=0)
+        # Delete old requests (older than 1 day) - should NOT delete PENDING
+        await repo.delete_old_requests(older_than=timedelta(days=1))
 
-        # PENDING should still exist
+        # PENDING should still exist even though it's old
         fetched = await repo.get_generation_request(created.id)
         assert fetched is not None
         assert fetched.status == GenerationStatus.PENDING
@@ -640,12 +667,61 @@ class TestGenerationRequestRepository:
         await repo.update_final_status(created.id, GenerationStatus.COMPLETED)
 
         # Try to delete with 999 days cutoff - should not delete our new request
-        await repo.delete_old_requests(older_than_days=999)
+        await repo.delete_old_requests(older_than=timedelta(days=999))
 
         # Our request was just created, so shouldn't be deleted
         # (count could be 0 or more depending on other old test data)
         fetched = await repo.get_generation_request(created.id)
         assert fetched is not None
+
+    async def test_delete_old_requests_filters_by_metadata(self, test_supabase_client):
+        """Test that delete_old_requests filters by metadata when provided."""
+        repo = GenerationRequestRepository(test_supabase_client)
+
+        # Create two old completed requests with different metadata
+        two_days_ago = datetime.now(UTC) - timedelta(days=2)
+
+        # Request with test_data tag
+        test_request = GenerationRequestCreate(
+            entity_type=EntityType.PROBLEM,
+            requested_count=2,
+            metadata={"topic_tags": ["test_data"]},
+        )
+        test_created = await repo.create_generation_request(
+            test_request, requested_at=two_days_ago
+        )
+        await repo.update_status_to_processing(test_created.id)
+        await repo.update_final_status(test_created.id, GenerationStatus.COMPLETED)
+
+        # Request with production tag
+        prod_request = GenerationRequestCreate(
+            entity_type=EntityType.PROBLEM,
+            requested_count=2,
+            metadata={"topic_tags": ["production"]},
+        )
+        prod_created = await repo.create_generation_request(
+            prod_request, requested_at=two_days_ago
+        )
+        await repo.update_status_to_processing(prod_created.id)
+        await repo.update_final_status(prod_created.id, GenerationStatus.COMPLETED)
+
+        # Delete only requests with test_data tag
+        count = await repo.delete_old_requests(
+            older_than=timedelta(days=1),
+            metadata_contains={"topic_tags": ["test_data"]},
+        )
+
+        # Should have deleted at least the test request
+        assert count >= 1
+
+        # Test request should be gone
+        test_fetched = await repo.get_generation_request(test_created.id)
+        assert test_fetched is None
+
+        # Production request should still exist
+        prod_fetched = await repo.get_generation_request(prod_created.id)
+        assert prod_fetched is not None
+        assert prod_fetched.status == GenerationStatus.COMPLETED
 
     # ========== expire_stale_pending_requests tests ==========
 
@@ -653,24 +729,27 @@ class TestGenerationRequestRepository:
         self, test_supabase_client
     ):
         """Test expiring old pending requests."""
-        import asyncio
-
         repo = GenerationRequestRepository(test_supabase_client)
 
-        # Create a PENDING request
+        # Create a PENDING request with timestamp 30 minutes ago
+        # Note: Using a unique tag to avoid interference with other tests
+        thirty_min_ago = datetime.now(UTC) - timedelta(minutes=30)
         request_create = GenerationRequestCreate(
             entity_type=EntityType.PROBLEM,
             requested_count=2,
             status=GenerationStatus.PENDING,
-            metadata={"topic_tags": ["test_data"]},
+            metadata={"topic_tags": ["test_expire_old"]},
         )
-        created = await repo.create_generation_request(request_create)
+        created = await repo.create_generation_request(
+            request_create, requested_at=thirty_min_ago
+        )
 
-        # Brief wait to ensure the request timestamp is clearly in the past
-        await asyncio.sleep(0.1)
-
-        # Expire with 0 minutes - should expire everything older than now
-        count = await repo.expire_stale_pending_requests(older_than_minutes=0)
+        # Expire requests older than 10 minutes
+        # Use skip_test_data=False since our test request would otherwise be skipped
+        # (by default, expire skips test_data to avoid interference with parallel tests)
+        count = await repo.expire_stale_pending_requests(
+            older_than_minutes=10, skip_test_data=False
+        )
 
         # Should have expired at least our one
         assert count >= 1

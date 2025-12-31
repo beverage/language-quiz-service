@@ -51,12 +51,16 @@ class VerbRepository:
     async def get_all_verbs(
         self, limit: int = 100, target_language_code: str | None = None
     ) -> list[Verb]:
-        """Get all verbs, optionally filtered by language."""
+        """Get all verbs, optionally filtered by language.
+
+        Returns verbs ordered by infinitive ASC, created_at DESC for deterministic ordering.
+        """
         query = self.client.table("verbs").select("*").limit(limit)
 
         if target_language_code:
             query = query.eq("target_language_code", target_language_code)
 
+        query = query.order("infinitive", desc=False).order("created_at", desc=True)
         result = await query.execute()
         return [Verb.model_validate(verb) for verb in result.data]
 
@@ -133,11 +137,19 @@ class VerbRepository:
             return None
 
     async def get_verbs_by_infinitive(self, infinitive: str) -> list[Verb]:
-        """Get all verbs with the same infinitive (different auxiliary/reflexive combinations)."""
+        """Get all verbs with the same infinitive (different auxiliary/reflexive combinations).
+
+        Returns verbs ordered by (auxiliary, reflexive, target_language_code, created_at DESC)
+        for deterministic ordering.
+        """
         result = (
             await self.client.table("verbs")
             .select("*")
             .eq("infinitive", infinitive)
+            .order("auxiliary", desc=False)
+            .order("reflexive", desc=False)
+            .order("target_language_code", desc=False)
+            .order("created_at", desc=True)
             .execute()
         )
         return [Verb.model_validate(verb) for verb in result.data]
@@ -320,6 +332,7 @@ class VerbRepository:
         Get all conjugations for a verb identified by infinitive, auxiliary, and reflexive.
 
         Updated to use the new schema's compound key approach.
+        Returns conjugations ordered by tense enum order for deterministic ordering.
         """
         result = (
             await self.client.table("conjugations")
@@ -329,7 +342,14 @@ class VerbRepository:
             .eq("reflexive", reflexive)
             .execute()
         )
-        return [Conjugation.model_validate(conj) for conj in result.data]
+        conjugations = [Conjugation.model_validate(conj) for conj in result.data]
+
+        # Sort by tense enum order (not alphabetical) for deterministic ordering
+        # Enum order: PRESENT, PASSE_COMPOSE, IMPARFAIT, FUTURE_SIMPLE, CONDITIONNEL, SUBJONCTIF, IMPERATIF
+        tense_order = {tense: idx for idx, tense in enumerate(Tense)}
+        conjugations.sort(key=lambda c: tense_order.get(c.tense, 999))
+
+        return conjugations
 
     async def get_all_conjugations(self, limit: int = 10000) -> list[Conjugation]:
         """

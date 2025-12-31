@@ -3258,6 +3258,18 @@ files = [
 cli = ["click (>=5.0)"]
 
 [[package]]
+name = "pytimeparse"
+version = "1.1.8"
+description = "Time expression parser"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "pytimeparse-1.1.8-py2.py3-none-any.whl", hash = "sha256:04b7be6cc8bd9f5647a6325444926c3ac34ee6bc7e69da4367ba282f076036bd"},
+    {file = "pytimeparse-1.1.8.tar.gz", hash = "sha256:e86136477be924d7e670646a98561957e8ca7308d44841e21f5ddea757556a0a"},
+]
+
+[[package]]
 name = "pywin32"
 version = "311"
 description = "Python for Window Extensions"
@@ -4228,4 +4240,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "9ce50af8411297a504fa1dbf2ac7c46c5f252262ff9a40cfa60487319d92fd8d"
+content-hash = "7532a70b97c7f997a08a59b011a80f01f1256f773c0dd482668d487d41b6930e"

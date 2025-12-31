@@ -275,12 +275,20 @@ class TestCleanRequests:
         mock_repo.delete_old_requests.return_value = 1
 
         runner = CliRunner()
-        result = await runner.invoke(clean_requests, ["--older-than", "7"])
+        result = await runner.invoke(clean_requests, ["--older-than", "7d"])
 
         assert result.exit_code == 0
         assert "Found 1 completed/failed/expired requests" in result.output
         assert "Deleted 1 generation requests" in result.output
         mock_repo.delete_old_requests.assert_called_once()
+        # Verify it was called with a timedelta
+        call_args = mock_repo.delete_old_requests.call_args
+        assert call_args is not None
+        assert "older_than" in call_args.kwargs
+        assert isinstance(call_args.kwargs["older_than"], timedelta)
+        assert call_args.kwargs["older_than"] == timedelta(days=7)
+        # Verify metadata_contains is None when no topic filter
+        assert call_args.kwargs.get("metadata_contains") is None
 
     @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     @patch("src.cli.generation_requests.commands.get_remote_flag")
@@ -308,10 +316,10 @@ class TestCleanRequests:
         mock_repo.get_all_requests.return_value = ([recent_request], 1)
 
         runner = CliRunner()
-        result = await runner.invoke(clean_requests, ["--older-than", "7"])
+        result = await runner.invoke(clean_requests, ["--older-than", "7d"])
 
         assert result.exit_code == 0
-        assert "No completed/failed/expired requests older than 7 days" in result.output
+        assert "No completed/failed/expired requests older than 7d" in result.output
 
     @patch("src.cli.generation_requests.commands.create_generation_request_repository")
     @patch("src.cli.generation_requests.commands.require_confirmation")
@@ -381,3 +389,47 @@ class TestCleanRequests:
         # Verify confirmation was called with force=True
         mock_confirm.assert_called_once()
         assert mock_confirm.call_args.kwargs.get("force") is True
+
+    @patch("src.cli.generation_requests.commands.create_generation_request_repository")
+    @patch("src.cli.generation_requests.commands.require_confirmation")
+    @patch("src.cli.generation_requests.commands.get_remote_flag")
+    async def test_clean_with_topic_filter(
+        self,
+        mock_get_remote,
+        mock_confirm,
+        mock_create_repo,
+    ):
+        """Test clean with --topic filter uses metadata filtering."""
+        mock_get_remote.return_value = False
+        mock_confirm.return_value = True
+
+        # Create an old completed request with test_data tag
+        old_request = GenerationRequest(
+            id=UUID("12345678-1234-5678-1234-567812345678"),
+            entity_type=EntityType.PROBLEM,
+            status=GenerationStatus.COMPLETED,
+            requested_count=5,
+            generated_count=5,
+            failed_count=0,
+            requested_at=datetime.now(UTC) - timedelta(days=30),
+            metadata={"topic_tags": ["test_data"]},
+        )
+
+        mock_repo = AsyncMock()
+        mock_create_repo.return_value = mock_repo
+        mock_repo.get_all_requests.return_value = ([old_request], 1)
+        mock_repo.delete_old_requests.return_value = 1
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            clean_requests, ["--older-than", "7d", "--topic", "test_data"]
+        )
+
+        assert result.exit_code == 0
+        assert "Found 1 completed/failed/expired requests" in result.output
+        mock_repo.delete_old_requests.assert_called_once()
+        # Verify metadata_contains was passed
+        call_args = mock_repo.delete_old_requests.call_args
+        assert call_args is not None
+        assert "metadata_contains" in call_args.kwargs
+        assert call_args.kwargs["metadata_contains"] == {"topic_tags": ["test_data"]}

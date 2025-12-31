@@ -30,19 +30,36 @@ class TestGenerationRequestsAPI:
     """Test suite for generation requests API."""
 
     @pytest.fixture
-    async def test_generation_request_with_problems(self, test_supabase_client):
-        """Create a generation request with problems for testing."""
+    async def test_generation_request_empty(self, test_supabase_client):
+        """Create a generation request without problems for testing."""
+        gen_repo = GenerationRequestRepository(test_supabase_client)
+
+        request_create = GenerationRequestCreate(
+            entity_type=EntityType.PROBLEM,
+            requested_count=5,
+            metadata={"topic_tags": ["test_data"]},
+        )
+        return await gen_repo.create_generation_request(request_create)
+
+    @pytest.mark.asyncio
+    async def test_get_generation_request_success(
+        self, client: TestClient, admin_headers, test_supabase_client
+    ):
+        """Test GET /generation-requests/{id} returns 200 with data."""
         gen_repo = GenerationRequestRepository(test_supabase_client)
         prob_repo = ProblemRepository(test_supabase_client)
 
+        # Create a generation request with test_data tag
+        # Test data is protected from expiration by skip_test_data=True in expire_stale_pending_requests
         request_create = GenerationRequestCreate(
             entity_type=EntityType.PROBLEM,
             requested_count=2,
             metadata={"topic_tags": ["test_data"]},
         )
         gen_request = await gen_repo.create_generation_request(request_create)
+        assert gen_request.status.value == "pending"
 
-        # Create problems
+        # Create associated problems
         for i in range(2):
             problem = ProblemCreate(
                 problem_type=ProblemType.GRAMMAR,
@@ -65,26 +82,6 @@ class TestGenerationRequestsAPI:
                 generation_request_id=gen_request.id,
             )
             await prob_repo.create_problem(problem)
-
-        return gen_request
-
-    @pytest.fixture
-    async def test_generation_request_empty(self, test_supabase_client):
-        """Create a generation request without problems for testing."""
-        gen_repo = GenerationRequestRepository(test_supabase_client)
-
-        request_create = GenerationRequestCreate(
-            entity_type=EntityType.PROBLEM,
-            requested_count=5,
-            metadata={"topic_tags": ["test_data"]},
-        )
-        return await gen_repo.create_generation_request(request_create)
-
-    def test_get_generation_request_success(
-        self, client: TestClient, admin_headers, test_generation_request_with_problems
-    ):
-        """Test GET /generation-requests/{id} returns 200 with data."""
-        gen_request = test_generation_request_with_problems
 
         response = client.get(
             f"{GEN_REQUESTS_PREFIX}/{gen_request.id}",

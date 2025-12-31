@@ -8,6 +8,8 @@ Test verbs/conjugations are identified by having an underscore '_' in their infi
 import asyncclick as click
 
 from src.clients.supabase import get_supabase_client
+from src.core.factories import create_generation_request_repository
+from src.schemas.generation_requests import GenerationStatus
 
 
 @click.command()
@@ -157,46 +159,31 @@ async def clear_database(ctx):
         # NOTE: Must be done AFTER problems cleanup since problems.generation_request_id references generation_requests(id)
         click.echo("🔍 Checking for test generation requests...")
 
-        # Get all generation_requests and filter in Python
-        # PostgREST doesn't have a simple way to query nested JSONB arrays
-        all_gen_requests_result = (
-            await client.table("generation_requests").select("id, metadata").execute()
+        # Use repository method with efficient metadata filtering
+        gen_repo = await create_generation_request_repository()
+
+        # Delete test generation requests using metadata filtering
+        # Pass older_than=None to match all test requests regardless of age
+        # Pass all statuses explicitly to match test data in any state
+        # Filter by metadata.topic_tags containing "test_data"
+        deleted_count = await gen_repo.delete_old_requests(
+            older_than=None,  # Match all requests regardless of age
+            statuses=list(
+                GenerationStatus
+            ),  # Match all statuses (test data can be in any state)
+            metadata_contains={"topic_tags": ["test_data"]},
         )
 
-        # Filter for requests with "test_data" in metadata topic_tags
-        test_gen_request_ids = []
-        if all_gen_requests_result.data:
-            for req in all_gen_requests_result.data:
-                metadata = req.get("metadata", {}) or {}
-                topic_tags = metadata.get("topic_tags", []) or []
-                if "test_data" in topic_tags:
-                    test_gen_request_ids.append(req["id"])
-
-        test_gen_request_count = len(test_gen_request_ids)
-
-        if test_gen_request_count == 0:
+        if deleted_count == 0:
             click.echo("✅ No test generation requests found to clean.")
         else:
-            click.echo(
-                f"🎯 Found {test_gen_request_count} test generation requests to remove..."
-            )
-
-            # Delete test generation requests
-            delete_result = (
-                await client.table("generation_requests")
-                .delete()
-                .in_("id", test_gen_request_ids)
-                .execute()
-            )
-
-            deleted_count = len(delete_result.data) if delete_result.data else 0
             click.echo(f"✅ Cleaned up {deleted_count} test generation requests")
 
         if (
             test_verb_count == 0
             and orphaned_conjugation_count == 0
             and test_problem_count == 0
-            and test_gen_request_count == 0
+            and deleted_count == 0
         ):
             click.echo("✨ Database is already clean!")
 

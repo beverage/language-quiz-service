@@ -3,11 +3,13 @@ CLI commands for managing generation requests.
 """
 
 import logging
+from datetime import timedelta
 from uuid import UUID
 
 import asyncclick as click
 
 from src.cli.utils.safety import get_remote_flag, require_confirmation
+from src.cli.utils.types import DurationParam
 from src.core.factories import create_generation_request_repository
 from src.schemas.generation_requests import GenerationStatus
 
@@ -169,12 +171,18 @@ async def get_status(ctx, request_id: UUID):
 @click.command("clean")
 @click.option(
     "--older-than",
-    default=7,
-    help="Delete completed/failed requests older than N days (default: 7)",
+    type=DurationParam(),
+    default="7d",
+    help="Delete completed/failed requests older than this duration (e.g., '3h', '1d', '2w', default: '7d')",
+)
+@click.option(
+    "--topic",
+    multiple=True,
+    help="Only delete requests with these topic tags in metadata (can specify multiple)",
 )
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
 @click.pass_context
-async def clean_requests(ctx, older_than: int, force: bool):
+async def clean_requests(ctx, older_than: timedelta, topic: tuple, force: bool):
     """
     Delete old completed/failed/expired generation requests.
 
@@ -187,9 +195,9 @@ async def clean_requests(ctx, older_than: int, force: bool):
         repo = await create_generation_request_repository()
 
         # Get count of requests that will be deleted
-        from datetime import UTC, datetime, timedelta
+        from datetime import UTC, datetime
 
-        cutoff = datetime.now(UTC) - timedelta(days=older_than)
+        cutoff = datetime.now(UTC) - older_than
 
         # Count requests to be deleted (include EXPIRED in cleanup)
         statuses = [
@@ -197,22 +205,50 @@ async def clean_requests(ctx, older_than: int, force: bool):
             GenerationStatus.FAILED,
             GenerationStatus.EXPIRED,
         ]
+
+        # Build metadata filter if topics provided
+        metadata_contains = None
+        if topic:
+            metadata_contains = {"topic_tags": list(topic)}
+
+        # Get count of requests that will be deleted
+        # Note: We still fetch all to count, but deletion will use efficient DB filtering
         all_requests, _ = await repo.get_all_requests(limit=10000)
 
         # Filter locally to get count
         requests_to_delete = [
-            r for r in all_requests if r.status in statuses and r.requested_at < cutoff
+            r
+            for r in all_requests
+            if r.status in statuses
+            and r.requested_at < cutoff
+            and (
+                not metadata_contains
+                or (
+                    r.metadata
+                    and r.metadata.get("topic_tags")
+                    and any(tag in r.metadata.get("topic_tags", []) for tag in topic)
+                )
+            )
         ]
         count = len(requests_to_delete)
 
+        # Format duration for display
+        total_seconds = int(older_than.total_seconds())
+        if total_seconds < 3600:
+            duration_str = f"{total_seconds // 60}m"
+        elif total_seconds < 86400:
+            duration_str = f"{total_seconds // 3600}h"
+        else:
+            duration_str = f"{total_seconds // 86400}d"
+
         if count == 0:
             click.echo(
-                f"✅ No completed/failed/expired requests older than {older_than} days to delete."
+                f"✅ No completed/failed/expired requests older than {duration_str} to delete."
             )
             return
 
         click.echo(
-            f"🎯 Found {count} completed/failed/expired requests older than {older_than} days"
+            f"🎯 Found {count} completed/failed/expired requests older than {duration_str}"
         )
 
         # Confirm deletion
@@ -229,8 +265,9 @@ async def clean_requests(ctx, older_than: int, force: bool):
         click.echo(f"🗑️  Deleting {count} old generation requests...")
 
         deleted = await repo.delete_old_requests(
-            older_than_days=older_than,
+            older_than=older_than,
             statuses=statuses,
+            metadata_contains=metadata_contains,
         )
 
         click.echo(f"✅ Deleted {deleted} generation requests")

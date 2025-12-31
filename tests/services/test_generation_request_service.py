@@ -91,7 +91,7 @@ class TestGenerationRequestService:
         )
         gen_request = await gen_repo.create_generation_request(request_create)
 
-        # Test service
+        # Test service - request stays pending because test_data is protected from expiration
         service = GenerationRequestService(gen_repo, prob_repo)
         (
             result_request,

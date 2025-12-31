@@ -1,7 +1,8 @@
 """Generation requests repository for data access."""
 
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 from postgrest import APIError as PostgrestAPIError
@@ -25,10 +26,27 @@ class GenerationRequestRepository:
         self.client = client
 
     async def create_generation_request(
-        self, request: GenerationRequestCreate
+        self,
+        request: GenerationRequestCreate,
+        requested_at: datetime | None = None,
     ) -> GenerationRequest:
-        """Create a new generation request."""
+        """
+        Create a new generation request.
+
+        Args:
+            request: The generation request data to create
+            requested_at: Optional timestamp to set for requested_at.
+                          If None, uses database default (NOW()).
+                          Useful for testing and management tooling.
+
+        Returns:
+            The created GenerationRequest
+        """
         request_dict = request.model_dump(mode="json")
+
+        # Override requested_at if provided (useful for testing/managing old requests)
+        if requested_at is not None:
+            request_dict["requested_at"] = requested_at.isoformat()
 
         try:
             result = (
@@ -260,8 +278,10 @@ class GenerationRequestRepository:
             if status:
                 query = query.eq("status", status.value)
 
-            query = query.order("requested_at", desc=True).range(
-                offset, offset + limit - 1
+            query = (
+                query.order("requested_at", desc=True)
+                .order("id", desc=True)
+                .range(offset, offset + limit - 1)
             )
 
             result = await query.execute()
@@ -307,23 +327,24 @@ class GenerationRequestRepository:
 
     async def delete_old_requests(
         self,
-        older_than_days: int,
+        older_than: timedelta | None = None,
         statuses: list[GenerationStatus] | None = None,
+        metadata_contains: dict[str, Any] | None = None,
     ) -> int:
         """
-        Delete generation requests older than a specified number of days.
+        Delete generation requests, optionally filtered by age, status, and metadata.
 
         Args:
-            older_than_days: Delete requests older than this many days
-            statuses: Optional list of statuses to filter (defaults to completed/failed)
+            older_than: Optional duration - delete requests older than this (timedelta).
+                       If None, age filtering is skipped (matches all ages).
+            statuses: Optional list of statuses to filter (defaults to completed/failed/expired)
+            metadata_contains: Optional dict to filter by metadata JSONB containment.
+                              Example: {"topic_tags": ["test_data"]} to match requests
+                              with "test_data" in metadata.topic_tags array.
 
         Returns:
             Number of requests deleted
         """
-        from datetime import timedelta
-
-        cutoff = datetime.now(UTC) - timedelta(days=older_than_days)
-
         if statuses is None:
             statuses = [
                 GenerationStatus.COMPLETED,
@@ -332,15 +353,20 @@ class GenerationRequestRepository:
             ]
 
         try:
-            query = (
-                self.client.table("generation_requests")
-                .delete()
-                .lt("requested_at", cutoff.isoformat())
-            )
+            query = self.client.table("generation_requests").delete()
+
+            # Filter by age if provided
+            if older_than is not None:
+                cutoff = datetime.now(UTC) - older_than
+                query = query.lt("requested_at", cutoff.isoformat())
 
             # Filter by statuses
             status_values = [s.value for s in statuses]
             query = query.in_("status", status_values)
+
+            # Filter by metadata if provided
+            if metadata_contains:
+                query = query.contains("metadata", metadata_contains)
 
             result = await query.execute()
             return len(result.data) if result.data else 0
@@ -351,6 +377,7 @@ class GenerationRequestRepository:
     async def expire_stale_pending_requests(
         self,
         older_than_minutes: int = 10,
+        skip_test_data: bool = True,
     ) -> int:
         """
         Mark old PENDING requests as EXPIRED.
@@ -360,6 +387,8 @@ class GenerationRequestRepository:
 
         Args:
             older_than_minutes: Mark PENDING requests older than this as EXPIRED
+            skip_test_data: If True, skip requests with "test_data" in metadata.topic_tags.
+                           This prevents test data from being expired during parallel test runs.
 
         Returns:
             Number of requests marked as expired
@@ -369,8 +398,8 @@ class GenerationRequestRepository:
         cutoff = datetime.now(UTC) - timedelta(minutes=older_than_minutes)
 
         try:
-            result = (
-                await self.client.table("generation_requests")
+            query = (
+                self.client.table("generation_requests")
                 .update(
                     {
                         "status": GenerationStatus.EXPIRED.value,
@@ -380,8 +409,15 @@ class GenerationRequestRepository:
                 )
                 .eq("status", GenerationStatus.PENDING.value)
                 .lt("requested_at", cutoff.isoformat())
-                .execute()
             )
+
+            # Skip test data to avoid expiring requests created by parallel tests
+            if skip_test_data:
+                # Use NOT contains to exclude test data
+                # PostgREST: .not_.contains() excludes rows where metadata contains the filter
+                query = query.not_.contains("metadata", {"topic_tags": ["test_data"]})
+
+            result = await query.execute()
             expired_count = len(result.data) if result.data else 0
 
             if expired_count > 0:
