@@ -386,7 +386,12 @@ class ProblemService:
     def _generate_grammatical_parameters(
         self, verb, constraints: GrammarProblemConstraints
     ) -> dict[str, Any]:
-        """Generate base grammatical parameters for the problem."""
+        """Generate base grammatical parameters for the problem.
+
+        For dimensions under test (pronoun, tense): select specific values.
+        For dimensions not under test (COD, COI, negation): use ANY to let
+        the LLM choose what's natural, avoiding contradictory constraints.
+        """
         # Use constraints if provided, otherwise randomize
         pronoun = random.choice(list(Pronoun))
 
@@ -400,118 +405,15 @@ class ProblemService:
 
         tense = random.choice(available_tenses)
 
-        # Apply verb-specific constraints for COD/COI
-        can_use_cod = verb.can_have_cod and (constraints.includes_cod is not False)
-        can_use_coi = verb.can_have_coi and (constraints.includes_coi is not False)
-
-        # Determine direct and indirect objects
-        if can_use_cod and random.choice([True, False]):
-            direct_object = random.choice(
-                [d for d in DirectObject if d != DirectObject.NONE]
-            )
-        else:
-            direct_object = DirectObject.NONE
-
-        if (
-            can_use_coi
-            and direct_object == DirectObject.NONE
-            and random.choice([True, False])
-        ):
-            indirect_object = random.choice(
-                [i for i in IndirectObject if i != IndirectObject.NONE]
-            )
-        else:
-            indirect_object = IndirectObject.NONE
-
-        # Handle negation
-        if constraints.includes_negation or (
-            constraints.includes_negation is None
-            and random.choice([True, False, False])
-        ):  # 33% chance
-            negation = random.choice([n for n in Negation if n != Negation.NONE])
-        else:
-            negation = Negation.NONE
-
+        # For non-tested dimensions, use ANY to let LLM choose naturally
+        # This avoids contradictory constraints that cause reasoning loops
         return {
             "pronoun": pronoun,
             "tense": tense,
-            "direct_object": direct_object,
-            "indirect_object": indirect_object,
-            "negation": negation,
+            "direct_object": DirectObject.ANY,
+            "indirect_object": IndirectObject.ANY,
+            "negation": Negation.ANY,
         }
-
-    # NOTE: Legacy method - no longer used with compositional prompt builder
-    # The compositional approach generates errors through targeted prompts rather than
-    # parameter variation. This method is kept for reference/rollback purposes.
-    #
-    # def _vary_parameters_for_statement(
-    #     self,
-    #     base_params: dict[str, Any],
-    #     statement_index: int,
-    #     is_correct: bool,
-    #     verb,
-    # ) -> dict[str, Any]:
-    #     """Create parameter variations for each statement."""
-    #     params = base_params.copy()
-    #
-    #     if is_correct:
-    #         # Correct statement uses base parameters as-is
-    #         return params
-    #
-    #     # For incorrect statements, introduce targeted errors
-    #     error_type = statement_index % 3  # Cycle through error types
-    #
-    #     if error_type == 0 and params["direct_object"] != DirectObject.NONE:
-    #         # Error: Wrong direct object type or incorrect indirect object usage
-    #         if random.choice([True, False]):
-    #             # Switch to indirect object incorrectly
-    #             params["direct_object"] = DirectObject.NONE
-    #             params["indirect_object"] = random.choice(
-    #                 [i for i in IndirectObject if i != IndirectObject.NONE]
-    #             )
-    #         else:
-    #             # Wrong direct object gender/number
-    #             current = params["direct_object"]
-    #             available = [
-    #                 d for d in DirectObject if d != DirectObject.NONE and d != current
-    #             ]
-    #             if available:
-    #                 params["direct_object"] = random.choice(available)
-    #
-    #     elif error_type == 1 and params["indirect_object"] != IndirectObject.NONE:
-    #         # Error: Wrong indirect object type or incorrect direct object usage
-    #         if random.choice([True, False]):
-    #             # Switch to direct object incorrectly
-    #             params["indirect_object"] = IndirectObject.NONE
-    #             params["direct_object"] = random.choice(
-    #                 [d for d in DirectObject if d != DirectObject.NONE]
-    #             )
-    #         else:
-    #             # Wrong indirect object gender/number
-    #             current = params["indirect_object"]
-    #             available = [
-    #                 i
-    #                 for i in IndirectObject
-    #                 if i != IndirectObject.NONE and i != current
-    #             ]
-    #             if available:
-    #                 params["indirect_object"] = random.choice(available)
-    #
-    #     elif error_type == 2:
-    #         # Error: Wrong negation or pronoun agreement
-    #         if params["negation"] != Negation.NONE:
-    #             # Wrong negation type
-    #             current = params["negation"]
-    #             available = [n for n in Negation if n != Negation.NONE and n != current]
-    #             if available:
-    #                 params["negation"] = random.choice(available)
-    #         else:
-    #             # Add incorrect negation
-    #             params["negation"] = random.choice(
-    #                 [n for n in Negation if n != Negation.NONE]
-    #             )
-    #
-    #     return params
 
     def _package_grammar_problem(
         self,

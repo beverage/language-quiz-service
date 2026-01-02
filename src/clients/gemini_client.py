@@ -26,6 +26,7 @@ llm_request_duration = meter.create_histogram(
     name="llm.request.duration",
     unit="ms",
     description="Duration of LLM API requests",
+    explicit_bucket_boundaries_advisory=[1000, 5000, 10000, 20000, 30000, 60000],
 )
 
 llm_request_total = meter.create_counter(

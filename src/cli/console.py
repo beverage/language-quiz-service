@@ -67,6 +67,13 @@ from src.schemas.problems import GrammarProblemConstraints
     is_flag=True,
     help="Target remote service from SERVICE_URL (requires confirmation for dangerous ops)",
 )
+@click.option(
+    "-q",
+    "--quiet",
+    default=False,
+    is_flag=True,
+    help="Suppress startup messages (use with --json for clean output)",
+)
 @click.pass_context
 async def cli(
     ctx,
@@ -75,19 +82,29 @@ async def cli(
     debug_recovery=True,
     detailed=False,
     remote=False,
+    quiet=False,
 ):
     # Load environment variables from .env file
     load_dotenv()
+
+    # Auto-enable quiet mode if --json is anywhere in the command line
+    # This allows `lqs problem random --json` to work without needing -q
+    import sys
+
+    if "--json" in sys.argv:
+        quiet = True
 
     # Default behavior: use local Supabase (unless --remote is set)
     if not remote:
         from src.cli.utils.local_supabase import get_local_supabase_config
         from src.core.config import reset_settings
 
-        click.echo("🔧 Using local Supabase connection (default)...")
+        if not quiet:
+            click.echo("🔧 Using local Supabase connection (default)...")
         local_config = get_local_supabase_config()
 
-        click.echo(f"   Setting SUPABASE_URL to {local_config['SUPABASE_URL']}")
+        if not quiet:
+            click.echo(f"   Setting SUPABASE_URL to {local_config['SUPABASE_URL']}")
         for key, value in local_config.items():
             if value:  # Only set if value is non-empty
                 os.environ[key] = value
@@ -98,7 +115,8 @@ async def cli(
         # Verify the override worked
         from src.core.config import settings
 
-        click.echo(f"   ✅ Settings now use: {settings.supabase_url}")
+        if not quiet:
+            click.echo(f"   ✅ Settings now use: {settings.supabase_url}")
 
     logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
 
@@ -117,6 +135,7 @@ async def cli(
     ctx.ensure_object(dict)
     ctx.obj["service_url"] = get_service_url_from_flag(remote)
     ctx.obj["remote"] = remote
+    ctx.obj["quiet"] = quiet
 
     # Removed: await reflect_tables()  # SQLAlchemy dependency removed
 

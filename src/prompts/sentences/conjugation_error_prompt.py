@@ -1,8 +1,12 @@
 """Prompt builder for wrong conjugation error generation."""
 
 from src.prompts.sentences.helpers import get_conjugation_pair
-from src.prompts.sentences.templates import build_base_template
-from src.schemas.sentences import Negation, SentenceBase
+from src.prompts.sentences.templates import (
+    COMPOUND_TENSES,
+    build_base_template,
+    format_optional_dimension,
+)
+from src.schemas.sentences import SentenceBase
 from src.schemas.verbs import Verb
 
 
@@ -19,9 +23,10 @@ def build_wrong_conjugation_prompt(
     Returns:
         Complete prompt string for conjugation error generation
     """
-    base = build_base_template(verb)
+    base = build_base_template(verb, sentence.tense)
 
     # Get INCORRECT conjugation pair (mismatched pronoun/conjugation)
+    # For compound tenses, wrong_conjugation is just the auxiliary (e.g., "sommes")
     pronoun_display, wrong_conjugation, auxiliary = get_conjugation_pair(
         pronoun=sentence.pronoun,
         tense=sentence.tense,
@@ -30,39 +35,46 @@ def build_wrong_conjugation_prompt(
         correct=False,
     )
 
-    # Build negation display
-    negation_display = (
-        sentence.negation.value if sentence.negation != Negation.NONE else "none"
-    )
+    # For compound tenses, build the full wrong form: wrong auxiliary + correct participle
+    # E.g., "sommes" + "descendu" = "sommes descendu"
+    if sentence.tense in COMPOUND_TENSES:
+        wrong_verb_display = f"{wrong_conjugation} {verb.past_participle}"
+    else:
+        wrong_verb_display = wrong_conjugation
+
+    # Format optional dimensions (may be "any" or specific values)
+    negation_display = format_optional_dimension(sentence.negation)
+    direct_object_display = format_optional_dimension(sentence.direct_object)
+    indirect_object_display = format_optional_dimension(sentence.indirect_object)
 
     required_params = f"""
-REQUIRED PARAMETERS (you MUST use these exactly):
+REQUIRED (must use exactly):
 - Pronoun: {pronoun_display}
-- Conjugation you MUST use: {wrong_conjugation} (this is deliberately WRONG for this pronoun)
-- Tense: {sentence.tense.value}
+- Wrong verb form: {wrong_verb_display} (DELIBERATELY INCORRECT - do not fix)
+- Tense context: {sentence.tense.value}
+
+OPTIONAL GUIDANCE (use if natural, ignore if problematic):
 - Negation: {negation_display}
-- Direct Object (COD): {sentence.direct_object.value}
-- Indirect Object (COI): {sentence.indirect_object.value}
+- Direct object: {direct_object_display}
+- Indirect object: {indirect_object_display}
 """
 
     instructions = f"""
-[SPECIFIC INSTRUCTIONS]
-*** CRITICAL: You MUST use the wrong conjugation form "{wrong_conjugation}" ***
+[TASK]
+Generate a French sentence with the WRONG conjugation "{wrong_verb_display}" for "{pronoun_display}".
 
-DELIBERATE ERROR:
-The conjugation "{wrong_conjugation}" is INCORRECT for pronoun "{pronoun_display}".
-You MUST use it anyway - this is a grammar exercise testing conjugation errors.
+PRIMARY ERROR (required):
+Use "{wrong_verb_display}" even though it's incorrect for "{pronoun_display}".
 
-Generate a natural French sentence using:
-- Pronoun: {pronoun_display}
-- Wrong verb form: {wrong_conjugation} (required - do not fix this!)
-- All other grammar MUST be correct (auxiliary, agreement, negation, word order, objects)
+GUIDANCE:
+- Make the sentence sound natural despite the conjugation error
+- Other grammar can be correct OR have minor issues - focus on the conjugation error
+- If the optional parameters create conflicts, ignore them and write a natural sentence
+- Keep it simple - one clause is fine
 
-EXPLANATION INSTRUCTION:
-In your explanation, ONLY explain the conjugation error. Concisely state what the correct conjugation
-should be for "{pronoun_display}" and why "{wrong_conjugation}" is incorrect.
-
-Example explanation: "The verb should be conjugated as 'parles' for 'tu', not 'parle', because 'parle' is the third person singular form."
+EXPLANATION:
+Write a brief explanation stating ONLY the conjugation error.
+Format: "The verb should be '[correct form]' for '{pronoun_display}', not '{wrong_verb_display}'."
 """
 
     return base + required_params + instructions

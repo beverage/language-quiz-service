@@ -33,10 +33,10 @@ class SentencePromptBuilder:
         """
         available_errors = []
 
-        # Available: Wrong conjugation (always applicable)
+        # Wrong conjugation: always available (forms guaranteed distinct by helper)
         available_errors.append(ErrorType.WRONG_CONJUGATION)
 
-        # Available: Wrong auxiliary (only for compound tenses)
+        # Wrong auxiliary: only for compound tenses
         if sentence.tense in [Tense.PASSE_COMPOSE]:
             available_errors.append(ErrorType.WRONG_AUXILIARY)
 
@@ -67,6 +67,9 @@ class SentencePromptBuilder:
         Returns:
             The complete prompt string
         """
+        if not conjugations:
+            raise ValueError(f"No conjugations provided for verb {verb.infinitive}")
+
         if sentence.is_correct:
             return build_correct_sentence_prompt(sentence, verb, conjugations)
 
@@ -79,12 +82,5 @@ class SentencePromptBuilder:
             return build_wrong_conjugation_prompt(sentence, verb, conjugations)
         elif error_type == ErrorType.WRONG_AUXILIARY:
             return build_wrong_auxiliary_prompt(sentence, verb, conjugations)
-        # Commented out error types:
-        # elif error_type == ErrorType.COD_PRONOUN_ERROR:
-        #     return build_cod_error_prompt(sentence, verb, conjugations)
-        # elif error_type == ErrorType.COI_PRONOUN_ERROR:
-        #     return build_coi_error_prompt(sentence, verb, conjugations)
-        # elif error_type == ErrorType.PAST_PARTICIPLE_AGREEMENT:
-        #     return build_past_participle_agreement_prompt(sentence, verb, conjugations)
         else:
             raise ValueError(f"Unknown or unsupported error type: {error_type}")

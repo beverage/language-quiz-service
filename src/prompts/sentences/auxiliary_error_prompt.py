@@ -1,8 +1,11 @@
 """Prompt builder for wrong auxiliary error generation."""
 
-from src.prompts.sentences.helpers import get_conjugation_pair
-from src.prompts.sentences.templates import build_base_template
-from src.schemas.sentences import Negation, SentenceBase
+from src.prompts.sentences.helpers import get_pronoun_display
+from src.prompts.sentences.templates import (
+    build_base_template,
+    format_optional_dimension,
+)
+from src.schemas.sentences import SentenceBase
 from src.schemas.verbs import AuxiliaryType, Verb
 
 
@@ -14,65 +17,64 @@ def build_wrong_auxiliary_prompt(
     Args:
         sentence: The sentence configuration
         verb: The verb being used
-        conjugations: List of conjugation objects for the verb
+        conjugations: List of conjugation objects for the verb (unused, kept for API consistency)
 
     Returns:
         Complete prompt string for auxiliary error generation
     """
-    base = build_base_template(verb)
+    base = build_base_template(verb, sentence.tense)
 
-    # Get CORRECT conjugation pair
-    pronoun_display, conjugation_form, correct_auxiliary = get_conjugation_pair(
-        pronoun=sentence.pronoun,
-        tense=sentence.tense,
-        verb=verb,
-        conjugations=conjugations,
-        correct=True,
-    )
+    # Get pronoun display
+    pronoun_display = get_pronoun_display(sentence.pronoun.value)
+    if "/" in pronoun_display:
+        # Pick first form for consistency (e.g., "il" from "il/elle/on")
+        pronoun_display = pronoun_display.split("/")[0]
 
-    # Determine wrong auxiliary
+    # Use the actual past participle from the verb, not the full compound conjugation
+    past_participle = verb.past_participle
+
+    # Determine correct and wrong auxiliary
+    correct_auxiliary = verb.auxiliary.value
     wrong_auxiliary = "avoir" if verb.auxiliary == AuxiliaryType.ETRE else "être"
 
-    # Build negation display
-    negation_display = (
-        sentence.negation.value if sentence.negation != Negation.NONE else "none"
-    )
+    # Format optional dimensions (may be "any" or specific values)
+    negation_display = format_optional_dimension(sentence.negation)
+    direct_object_display = format_optional_dimension(sentence.direct_object)
+    indirect_object_display = format_optional_dimension(sentence.indirect_object)
 
     required_params = f"""
-REQUIRED PARAMETERS (you MUST use these exactly):
+REQUIRED (must use exactly):
 - Pronoun: {pronoun_display}
-- Correct conjugation: {conjugation_form}
-- Auxiliary you MUST use: {wrong_auxiliary} (this is deliberately WRONG)
-- Correct auxiliary would be: {correct_auxiliary}
+- Past participle: {past_participle}
+- Wrong auxiliary: {wrong_auxiliary} (DELIBERATELY INCORRECT - do not fix)
 - Tense: {sentence.tense.value}
+
+OPTIONAL GUIDANCE (use if natural, ignore if problematic):
 - Negation: {negation_display}
-- Direct Object (COD): {sentence.direct_object.value}
-- Indirect Object (COI): {sentence.indirect_object.value}
+- Direct object: {direct_object_display}
+- Indirect object: {indirect_object_display}
 """
 
     instructions = f"""
-[SPECIFIC INSTRUCTIONS]
-*** CRITICAL: You MUST use the wrong auxiliary "{wrong_auxiliary}" ***
+[TASK]
+Generate a French sentence using the WRONG auxiliary "{wrong_auxiliary}" with "{verb.infinitive}".
 
-DELIBERATE ERROR:
-The verb "{verb.infinitive}" requires auxiliary "{correct_auxiliary}" in {sentence.tense.value},
-but you MUST use "{wrong_auxiliary}" instead - this is a grammar exercise testing auxiliary errors.
-
-Generate a natural French sentence using:
-- Pronoun: {pronoun_display}
-- Correct conjugation: {conjugation_form}
-- WRONG auxiliary: {wrong_auxiliary} (required - do not fix this!)
-- All other grammar MUST be correct (conjugation, agreement, negation, word order, objects)
+PRIMARY ERROR (required):
+Use "{wrong_auxiliary}" even though "{verb.infinitive}" requires "{correct_auxiliary}".
 
 Example:
 - Correct: "Je suis allé" (aller uses être)
-- Your task: "J'ai allé" (using avoir - WRONG but required)
+- Your output: "J'ai allé" (wrong auxiliary)
 
-EXPLANATION INSTRUCTION:
-In your explanation, ONLY explain the auxiliary error. Concisely state which auxiliary
-"{verb.infinitive}" requires and why "{wrong_auxiliary}" is incorrect.
+GUIDANCE:
+- Make the sentence sound natural despite the auxiliary error
+- Other grammar can be correct OR have minor issues - focus on the auxiliary error
+- If the optional parameters create conflicts, ignore them and write a natural sentence
+- Keep it simple - one clause is fine
 
-Example explanation: "The verb 'aller' requires the auxiliary 'être' in compound tenses, not 'avoir'."
+EXPLANATION:
+Write a brief explanation stating ONLY the auxiliary error.
+Format: "The verb '{verb.infinitive}' requires '{correct_auxiliary}', not '{wrong_auxiliary}'."
 """
 
     return base + required_params + instructions

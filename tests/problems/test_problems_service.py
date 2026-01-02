@@ -406,9 +406,11 @@ class TestProblemServiceParameterGeneration:
         constraints = GrammarProblemConstraints()
         params = service._generate_grammatical_parameters(sample_verb, constraints)
 
-        # Should still generate valid parameters
-        assert params["direct_object"] == DirectObject.NONE
-        assert params["indirect_object"] == IndirectObject.NONE
+        # Should use ANY for optional dimensions (LLM chooses naturally)
+        # This avoids contradictory constraints that cause reasoning loops
+        assert params["direct_object"] == DirectObject.ANY
+        assert params["indirect_object"] == IndirectObject.ANY
+        assert params["negation"] == Negation.ANY
 
     # def test_vary_parameters_for_correct_statement(self, sample_verb):
     #     """Test parameter variation for correct statements."""
