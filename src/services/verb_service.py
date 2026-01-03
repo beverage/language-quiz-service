@@ -531,10 +531,12 @@ class VerbService:
             )
 
             # Get AI response for conjugations
+            # Use standard model without reasoning - conjugation is pattern recall, not reasoning
             llm_response = await self.llm_client.handle_request(
                 conjugation_prompt,
                 model=settings.standard_model,
                 operation="conjugation_generation",
+                use_reasoning=False,
             )
             logger.debug(f"✅ LLM Response for {infinitive} conjugations")
 

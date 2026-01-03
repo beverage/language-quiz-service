@@ -3,7 +3,7 @@ import asyncclick
 from src.cli.utils.decorators import output_format_options
 from src.cli.utils.formatters import format_output
 from src.cli.utils.http_client import get_api_key, make_api_request
-from src.cli.verbs.get import get_random_verb, get_verb
+from src.cli.verbs.get import get_random_verb
 from src.schemas.verbs import Verb, VerbWithConjugations
 
 
@@ -21,15 +21,17 @@ async def _download_verb_http(
     return VerbWithConjugations(**response.json())
 
 
-async def _get_verb_http(verb: str, service_url: str, api_key: str) -> Verb:
-    """Get a verb via HTTP API."""
+async def _get_verb_with_conjugations_http(
+    verb: str, service_url: str, api_key: str
+) -> VerbWithConjugations:
+    """Get a verb with conjugations via HTTP API."""
     response = await make_api_request(
         method="GET",
-        endpoint=f"/api/v1/verbs/{verb}",
+        endpoint=f"/api/v1/verbs/{verb}/conjugations",
         base_url=service_url,
         api_key=api_key,
     )
-    return Verb(**response.json())
+    return VerbWithConjugations(**response.json())
 
 
 async def _get_random_verb_http(service_url: str, api_key: str) -> Verb:
@@ -53,9 +55,10 @@ async def download(ctx, verbs, output_json: bool, output_format: str):
         asyncclick.echo("❌ Please provide at least one verb to download.")
         return
 
-    asyncclick.echo(
-        f"Downloading conjugations for {len(verbs)} verb(s): {', '.join(verbs)}"
-    )
+    if not output_json:
+        asyncclick.echo(
+            f"Downloading conjugations for {len(verbs)} verb(s): {', '.join(verbs)}"
+        )
 
     # Check if using HTTP mode
     service_url = ctx.obj.get("service_url") if ctx.obj else None
@@ -77,9 +80,10 @@ async def download(ctx, verbs, output_json: bool, output_format: str):
                     infinitive=verb, target_language_code="eng"
                 )
 
-            # Display summary
-            conj_count = len(result.conjugations) if result.conjugations else 0
-            asyncclick.echo(f"✅ {verb}: Downloaded {conj_count} conjugations")
+            # Display progress (only in non-JSON mode)
+            if not output_json:
+                conj_count = len(result.conjugations) if result.conjugations else 0
+                asyncclick.echo(f"✅ {verb}: Downloaded {conj_count} conjugations")
 
             results.append(result)
 
@@ -94,17 +98,17 @@ async def download(ctx, verbs, output_json: bool, output_format: str):
                     f"❌ Failed to download conjugations for '{verb}': {error}"
                 )
 
-    # Print full results if requested
-    if output_json or output_format:
+    # Output results
+    if output_json:
+        # Clean JSON output (no preamble text)
+        import json
+
         for result in results:
-            formatted_output = format_output(result, output_json, output_format)
-            asyncclick.echo(formatted_output)
-    elif results and not output_json:
-        # Pretty print with conjugations
-        asyncclick.echo("\n" + "=" * 70)
+            print(json.dumps(result.model_dump(mode="json"), indent=2, default=str))
+    elif results:
+        # Pretty print with conjugations (same format as 'get' command)
         for result in results:
             _print_verb_with_conjugations(result)
-            asyncclick.echo("=" * 70)
 
 
 def _print_verb_with_conjugations(verb_with_conj: VerbWithConjugations):
@@ -136,22 +140,36 @@ def _print_verb_with_conjugations(verb_with_conj: VerbWithConjugations):
 @asyncclick.argument("verb")
 @asyncclick.pass_context
 async def get(ctx, verb: str, output_json: bool, output_format: str):
-    """Get a specific verb by infinitive."""
-    asyncclick.echo(f"Fetching verb {verb}.")
-
+    """Get a specific verb by infinitive with all conjugations."""
     # Check if using HTTP mode
     service_url = ctx.obj.get("service_url") if ctx.obj else None
+
+    if not output_json:
+        asyncclick.echo(f"Fetching verb {verb}...")
 
     if service_url:
         # HTTP mode - make API call
         api_key = get_api_key()
-        result = await _get_verb_http(verb, service_url, api_key)
+        result = await _get_verb_with_conjugations_http(verb, service_url, api_key)
     else:
-        # Direct mode - use service layer
-        result = await get_verb(verb)
+        # Direct mode - use service layer to get verb with conjugations
+        from src.core.factories import create_verb_service
 
-    formatted_output = format_output(result, output_json, output_format)
-    asyncclick.echo(formatted_output)
+        service = await create_verb_service()
+        result = await service.get_verb_with_conjugations(infinitive=verb)
+
+        if not result:
+            asyncclick.echo(f"Verb '{verb}' not found.")
+            return
+
+    if output_json:
+        # Clean JSON output (no preamble text)
+        import json
+
+        print(json.dumps(result.model_dump(mode="json"), indent=2, default=str))
+    else:
+        # Pretty print with conjugations
+        _print_verb_with_conjugations(result)
 
 
 @asyncclick.command("random")

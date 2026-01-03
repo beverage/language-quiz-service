@@ -71,44 +71,40 @@ KEY PATTERNS:
         Used when verb properties already exist in database and we only need tenses.
         The verb's auxiliary and reflexive status are provided from the database.
         """
-        reflexive_note = " (reflexive verb)" if reflexive else ""
+        reflexive_note = (
+            " For this reflexive verb, include the reflexive pronoun (me/te/se/nous/vous/se) but NOT the subject pronoun."
+            if reflexive
+            else ""
+        )
 
         return f"""
-You are a French verb conjugation expert. Provide conjugations for the verb '{verb_infinitive}'{reflexive_note} with auxiliary '{auxiliary}'.
+Conjugate the French verb '{verb_infinitive}' (auxiliary: {auxiliary}, reflexive: {str(reflexive).lower()}) across all 7 tenses.
 
-Tenses must be named exactly as follows:
-- 'present'
-- 'passe_compose'
-- 'imparfait'
-- 'future_simple'
-- 'conditionnel'
-- 'subjonctif'
-- 'imperatif'
+CRITICAL: Return ONLY the verb form itself, never subject pronouns or connectors.
+- NO subject pronouns: "parle" not "je parle", "parlons" not "nous parlons"
+- NO "que" for subjonctif: "parle" not "que je parle"
+- For reflexive verbs: include reflexive pronoun only: "me lave" not "je me lave"{reflexive_note}
 
-Return ONLY this JSON array (no other text):
+Return a JSON array with exactly 7 objects. Example for "parler":
 [
-    {{
-        "infinitive": "{verb_infinitive}",
-        "auxiliary": "{auxiliary}",
-        "reflexive": {str(reflexive).lower()},
-        "tense": "present",
-        "first_person_singular": "",
-        "second_person_singular": "",
-        "third_person_singular": "",
-        "first_person_plural": "",
-        "second_person_plural": "",
-        "third_person_plural": ""
-    }},
-    ...repeat for all 7 tenses...
+    {{"infinitive": "parler", "auxiliary": "avoir", "reflexive": false, "tense": "present",
+      "first_person_singular": "parle", "second_person_singular": "parles", "third_person_singular": "parle",
+      "first_person_plural": "parlons", "second_person_plural": "parlez", "third_person_plural": "parlent"}},
+    {{"infinitive": "parler", "auxiliary": "avoir", "reflexive": false, "tense": "passe_compose",
+      "first_person_singular": "ai parlé", "second_person_singular": "as parlé", "third_person_singular": "a parlé",
+      "first_person_plural": "avons parlé", "second_person_plural": "avez parlé", "third_person_plural": "ont parlé"}},
+    ... (imparfait, future_simple, conditionnel, subjonctif, imperatif)
 ]
 
-CRITICAL RULES:
-- Provide conjugations for ALL 7 tenses listed above
-- Do NOT include the pronoun in the conjugations (e.g., "parle" not "je parle")
-- The `infinitive`, `auxiliary`, and `reflexive` fields MUST be repeated for each tense
-- Use EXACTLY the tense names listed above (no variations)
-- For reflexive verbs, include the reflexive pronoun in conjugations (e.g., "me lave", "te laves")
-- Return ONLY valid JSON array with no extra text, comments, or trailing commas
+TENSES: present, passe_compose, imparfait, future_simple, conditionnel, subjonctif, imperatif
+IMPERATIF: Only tu/nous/vous forms exist. Use "" for first_person_singular, third_person_singular, third_person_plural.
+
+FORMATTING:
+- Include proper French accents (e.g., "parlé" not "parle" for past participle)
+- NO leading or trailing whitespace
+- NO spaces within a single word (e.g., "naisses" not "n aisses")
+
+Return ONLY the JSON array for '{verb_infinitive}'.
 """
 
     def _get_objects_prompt(self, verb_infinitive: str, auxiliary: str) -> str:
