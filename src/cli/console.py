@@ -42,14 +42,13 @@ from src.cli.problems.create import (
     get_problem_statistics,
     get_random_problem,
     list_problems,
-    search_problems_by_focus,
-    search_problems_by_topic,
 )
 from src.cli.problems.delete import delete_problem
 from src.cli.problems.get import get_problem
 from src.cli.problems.purge import purge_problems
 from src.cli.sentences.create import create_random_sentence_batch, create_sentence
 from src.cli.sentences.purge import purge_orphaned_sentences
+from src.cli.utils.types import DateOrDurationParam
 from src.cli.verbs.commands import download, get, random
 from src.schemas.problems import GrammarProblemConstraints
 
@@ -286,50 +285,68 @@ async def problem_generate(
     help="Filter by problem type",
 )
 @click.option("--topic", multiple=True, help="Filter by topic tags")
-@click.option("--limit", default=10, help="Number of problems to show")
-@click.option("--verbose", "-v", is_flag=True, help="Show full problem details")
+@click.option(
+    "--focus", help="Filter by grammatical focus (e.g., direct_objects, negation)"
+)
+@click.option("--verb", help="Filter by verb infinitive")
+@click.option(
+    "--older-than",
+    type=DateOrDurationParam(),
+    help="Filter problems created before date/duration (e.g., '7d', '2w', '2025-01-01')",
+)
+@click.option(
+    "--newer-than",
+    type=DateOrDurationParam(),
+    help="Filter problems created after date/duration (e.g., '7d', '2w', '2025-01-01')",
+)
+@click.option("--limit", default=10, help="Number of problems to show (default: 10)")
+@click.option("--offset", default=0, help="Skip N results for pagination")
+@click.option("--all", "show_all", is_flag=True, help="Show all problems (up to 1000)")
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Show full problem details (includes metadata in JSON)",
+)
+@click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 @click.pass_context
-async def problem_list(ctx, problem_type: str, topic: tuple, limit: int, verbose: bool):
+async def problem_list(
+    ctx,
+    problem_type: str,
+    topic: tuple,
+    focus: str,
+    verb: str,
+    older_than,
+    newer_than,
+    limit: int,
+    offset: int,
+    show_all: bool,
+    verbose: bool,
+    output_json: bool,
+):
     """List existing problems with filtering."""
     try:
         # Get debug flag from parent context for detailed display mode
         detailed = ctx.find_root().params.get("detailed", False)
 
+        # --all overrides --limit
+        effective_limit = 1000 if show_all else limit
+
         await list_problems(
             problem_type=problem_type,
             topic_tags=list(topic) if topic else None,
-            limit=limit,
+            focus=focus,
+            verb=verb,
+            older_than=older_than,
+            newer_than=newer_than,
+            limit=effective_limit,
+            offset=offset,
             verbose=verbose,
             detailed=detailed,
+            output_json=output_json,
         )
     except Exception as ex:
         click.echo(f"❌ Error listing problems: {ex}")
-
-
-@problem.command("search")
-@click.option(
-    "--focus", help="Search by grammatical focus (e.g., direct_objects, negation)"
-)
-@click.option("--topic", multiple=True, help="Search by topic tags")
-@click.option("--limit", default=10, help="Number of results to show")
-@click.pass_context
-async def problem_search(ctx, focus: str, topic: tuple, limit: int):
-    """Search problems by various criteria."""
-    try:
-        # Get debug flag from parent context for detailed display mode
-        detailed = ctx.find_root().params.get("detailed", False)
-
-        if focus:
-            await search_problems_by_focus(focus, limit, detailed=detailed)
-        elif topic:
-            await search_problems_by_topic(list(topic), limit, detailed=detailed)
-        else:
-            click.echo(
-                "❌ Please specify at least one search criteria (--focus or --topic)"
-            )
-
-    except Exception as ex:
-        click.echo(f"❌ Error searching problems: {ex}")
 
 
 @problem.command("stats")
