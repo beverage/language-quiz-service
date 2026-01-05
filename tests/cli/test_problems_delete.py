@@ -1,6 +1,6 @@
 """Tests for CLI problem delete command."""
 
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID
 
@@ -8,11 +8,6 @@ import pytest
 from asyncclick.testing import CliRunner
 
 from src.cli.problems.delete import delete_problem
-from src.schemas.generation_requests import (
-    EntityType,
-    GenerationRequest,
-    GenerationStatus,
-)
 from src.schemas.problems import Problem, ProblemType
 
 
@@ -47,21 +42,6 @@ def sample_problem():
 
 
 @pytest.fixture
-def sample_generation_request():
-    """Fixture for a sample GenerationRequest."""
-    return GenerationRequest(
-        id=UUID("87654321-4321-8765-4321-876543218765"),
-        entity_type=EntityType.PROBLEM,
-        status=GenerationStatus.COMPLETED,
-        requested_count=5,
-        generated_count=5,
-        failed_count=0,
-        requested_at=datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC),
-        completed_at=datetime(2023, 1, 1, 12, 5, 0, tzinfo=UTC),
-    )
-
-
-@pytest.fixture
 def mock_cli_context():
     """Create a mock CLI context with remote=False."""
     mock_root = MagicMock()
@@ -74,29 +54,13 @@ def mock_cli_context():
 class TestDeleteProblemValidation:
     """Test validation for delete command options."""
 
-    async def test_delete_requires_id_or_generation_id(self):
-        """Test that delete requires either --id or --generation-id."""
+    async def test_delete_requires_problem_id(self):
+        """Test that delete requires a problem ID."""
         runner = CliRunner()
         result = await runner.invoke(delete_problem, [])
 
         assert result.exit_code != 0
-        assert "Must specify either --id or --generation-id" in result.output
-
-    async def test_delete_rejects_both_id_and_generation_id(self):
-        """Test that delete rejects both --id and --generation-id together."""
-        runner = CliRunner()
-        result = await runner.invoke(
-            delete_problem,
-            [
-                "--id",
-                "12345678-1234-5678-1234-567812345678",
-                "--generation-id",
-                "87654321-4321-8765-4321-876543218765",
-            ],
-        )
-
-        assert result.exit_code != 0
-        assert "Cannot specify both --id and --generation-id" in result.output
+        assert "Must specify a problem ID" in result.output
 
 
 @pytest.mark.unit
@@ -125,7 +89,7 @@ class TestDeleteProblemById:
         runner = CliRunner()
         result = await runner.invoke(
             delete_problem,
-            ["--id", "12345678-1234-5678-1234-567812345678"],
+            ["12345678-1234-5678-1234-567812345678"],
         )
 
         assert result.exit_code == 0
@@ -153,7 +117,7 @@ class TestDeleteProblemById:
         runner = CliRunner()
         result = await runner.invoke(
             delete_problem,
-            ["--id", "12345678-1234-5678-1234-567812345678"],
+            ["12345678-1234-5678-1234-567812345678"],
         )
 
         assert result.exit_code == 0
@@ -181,7 +145,7 @@ class TestDeleteProblemById:
         runner = CliRunner()
         result = await runner.invoke(
             delete_problem,
-            ["--id", "12345678-1234-5678-1234-567812345678", "--force"],
+            ["12345678-1234-5678-1234-567812345678", "--force"],
         )
 
         assert result.exit_code == 0
@@ -206,111 +170,10 @@ class TestDeleteProblemById:
         runner = CliRunner()
         result = await runner.invoke(
             delete_problem,
-            ["--id", "12345678-1234-5678-1234-567812345678"],
+            ["12345678-1234-5678-1234-567812345678"],
         )
 
         assert result.exit_code == 0  # Command doesn't fail, just shows error
-        assert "not found" in result.output
-
-
-@pytest.mark.unit
-class TestDeleteProblemByGenerationId:
-    """Test delete problems by generation request ID."""
-
-    @patch("src.core.factories.create_generation_request_service")
-    @patch("src.cli.problems.delete.create_problem_service")
-    @patch("src.cli.problems.delete.require_confirmation")
-    @patch("src.cli.problems.delete.get_remote_flag")
-    async def test_delete_by_generation_id_success(
-        self,
-        mock_get_remote,
-        mock_confirm,
-        mock_create_problem_service,
-        mock_create_gen_service,
-        sample_generation_request,
-        sample_problem,
-    ):
-        """Test successful deletion by generation request ID."""
-        mock_get_remote.return_value = False
-        mock_confirm.return_value = True
-
-        # Mock generation request service
-        mock_gen_service = AsyncMock()
-        mock_create_gen_service.return_value = mock_gen_service
-        mock_gen_service.get_generation_request_with_entities.return_value = (
-            sample_generation_request,
-            [sample_problem, sample_problem],  # Two problems
-        )
-
-        # Mock problem service
-        mock_problem_service = AsyncMock()
-        mock_create_problem_service.return_value = mock_problem_service
-        mock_problem_service.delete_problems_by_generation_id.return_value = 2
-
-        runner = CliRunner()
-        result = await runner.invoke(
-            delete_problem,
-            ["--generation-id", "87654321-4321-8765-4321-876543218765"],
-        )
-
-        assert result.exit_code == 0
-        assert "Deleted 2 problem(s)" in result.output
-        mock_problem_service.delete_problems_by_generation_id.assert_called_once()
-
-    @patch("src.core.factories.create_generation_request_service")
-    @patch("src.cli.problems.delete.create_problem_service")
-    @patch("src.cli.problems.delete.get_remote_flag")
-    async def test_delete_by_generation_id_no_problems(
-        self,
-        mock_get_remote,
-        mock_create_problem_service,
-        mock_create_gen_service,
-        sample_generation_request,
-    ):
-        """Test deletion when generation request has no problems."""
-        mock_get_remote.return_value = False
-
-        mock_gen_service = AsyncMock()
-        mock_create_gen_service.return_value = mock_gen_service
-        mock_gen_service.get_generation_request_with_entities.return_value = (
-            sample_generation_request,
-            [],  # No problems
-        )
-
-        runner = CliRunner()
-        result = await runner.invoke(
-            delete_problem,
-            ["--generation-id", "87654321-4321-8765-4321-876543218765"],
-        )
-
-        assert result.exit_code == 0
-        assert "No problems to delete" in result.output
-
-    @patch("src.core.factories.create_generation_request_service")
-    @patch("src.cli.problems.delete.create_problem_service")
-    @patch("src.cli.problems.delete.get_remote_flag")
-    async def test_delete_by_generation_id_not_found(
-        self,
-        mock_get_remote,
-        mock_create_problem_service,
-        mock_create_gen_service,
-    ):
-        """Test deletion when generation request is not found."""
-        mock_get_remote.return_value = False
-
-        mock_gen_service = AsyncMock()
-        mock_create_gen_service.return_value = mock_gen_service
-        mock_gen_service.get_generation_request_with_entities.side_effect = Exception(
-            "Not found"
-        )
-
-        runner = CliRunner()
-        result = await runner.invoke(
-            delete_problem,
-            ["--generation-id", "87654321-4321-8765-4321-876543218765"],
-        )
-
-        assert result.exit_code == 0
         assert "not found" in result.output
 
 
@@ -340,9 +203,151 @@ class TestDeleteProblemRemoteConfirmation:
         runner = CliRunner()
         await runner.invoke(
             delete_problem,
-            ["--id", "12345678-1234-5678-1234-567812345678"],
+            ["12345678-1234-5678-1234-567812345678"],
         )
 
         # Verify confirmation was called with is_remote=True
         mock_confirm.assert_called_once()
         assert mock_confirm.call_args.kwargs.get("is_remote") is True
+
+
+@pytest.mark.unit
+class TestDeleteProblemStdinPiping:
+    """Test stdin piping for delete problem command."""
+
+    @patch("src.cli.problems.delete.create_problem_service")
+    @patch("src.cli.problems.delete.require_confirmation")
+    @patch("src.cli.problems.delete.get_remote_flag")
+    async def test_delete_by_id_from_stdin(
+        self,
+        mock_get_remote,
+        mock_confirm,
+        mock_create_service,
+        sample_problem,
+    ):
+        """Test deleting a problem by ID piped from stdin."""
+        mock_get_remote.return_value = False
+        mock_confirm.return_value = True
+
+        mock_service = AsyncMock()
+        mock_create_service.return_value = mock_service
+        mock_service.get_problem_by_id.return_value = sample_problem
+        mock_service.delete_problem.return_value = True
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            delete_problem,
+            ["--force"],
+            input="12345678-1234-5678-1234-567812345678\n",
+        )
+
+        assert result.exit_code == 0
+        assert "deleted successfully" in result.output
+        mock_service.delete_problem.assert_called_once_with(
+            UUID("12345678-1234-5678-1234-567812345678")
+        )
+
+    @patch("src.cli.problems.delete.create_problem_service")
+    @patch("src.cli.problems.delete.get_remote_flag")
+    async def test_delete_multiple_ids_requires_force(
+        self,
+        mock_get_remote,
+        mock_create_service,
+    ):
+        """Test that multiple IDs require --force flag."""
+        mock_get_remote.return_value = False
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            delete_problem,
+            [],  # No --force
+            input="12345678-1234-5678-1234-567812345678\nabcdef12-3456-7890-abcd-ef1234567890\n",
+        )
+
+        assert result.exit_code != 0
+        assert "Multiple IDs detected" in result.output
+        assert "--force" in result.output
+
+    @patch("src.cli.problems.delete.create_problem_service")
+    @patch("src.cli.problems.delete.get_remote_flag")
+    async def test_delete_multiple_ids_with_force(
+        self,
+        mock_get_remote,
+        mock_create_service,
+        sample_problem,
+    ):
+        """Test deleting multiple problems with --force."""
+        mock_get_remote.return_value = False
+
+        mock_service = AsyncMock()
+        mock_create_service.return_value = mock_service
+        mock_service.get_problem_by_id.return_value = sample_problem
+        mock_service.delete_problem.return_value = True
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            delete_problem,
+            ["--force"],
+            input="12345678-1234-5678-1234-567812345678\nabcdef12-3456-7890-abcd-ef1234567890\n",
+        )
+
+        assert result.exit_code == 0
+        assert mock_service.delete_problem.call_count == 2
+        assert "Deleted 2 problem(s)" in result.output
+
+    @patch("src.cli.problems.delete.create_problem_service")
+    @patch("src.cli.problems.delete.require_confirmation")
+    @patch("src.cli.problems.delete.get_remote_flag")
+    async def test_delete_option_takes_precedence_over_stdin(
+        self,
+        mock_get_remote,
+        mock_confirm,
+        mock_create_service,
+        sample_problem,
+    ):
+        """Test that --id option takes precedence over stdin."""
+        mock_get_remote.return_value = False
+        mock_confirm.return_value = True
+
+        mock_service = AsyncMock()
+        mock_create_service.return_value = mock_service
+        mock_service.get_problem_by_id.return_value = sample_problem
+        mock_service.delete_problem.return_value = True
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            delete_problem,
+            ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "--force"],
+            input="12345678-1234-5678-1234-567812345678\n",
+        )
+
+        assert result.exit_code == 0
+        # Should use the option value, not stdin
+        mock_service.delete_problem.assert_called_once_with(
+            UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+        )
+
+    async def test_delete_invalid_uuid_from_stdin(self):
+        """Test that invalid UUID from stdin raises proper error."""
+        runner = CliRunner()
+        result = await runner.invoke(
+            delete_problem,
+            ["--force"],
+            input="not-a-valid-uuid\n",
+        )
+
+        assert result.exit_code != 0
+        assert "Invalid UUID" in result.output
+
+    async def test_delete_json_input_gives_helpful_error(self):
+        """Test that JSON input gives a helpful error suggesting jq."""
+        runner = CliRunner()
+        result = await runner.invoke(
+            delete_problem,
+            ["--force"],
+            input='{"problems": [{"id": "12345678-1234-5678-1234-567812345678"}]}\n',
+        )
+
+        assert result.exit_code != 0
+        assert "Input looks like JSON" in result.output
+        assert "jq" in result.output

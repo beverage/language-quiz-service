@@ -94,6 +94,7 @@ async def generate_random_problem_with_delay(
     service_url: str | None = None,
     output_json: bool = False,
     count: int = 1,
+    show_trace: bool = False,
 ) -> Problem | ProblemGenerationEnqueuedResponse:
     """Generate random problems (wrapper for batch operations with optional delay)."""
     result = await generate_random_problem(
@@ -104,6 +105,7 @@ async def generate_random_problem_with_delay(
         service_url=service_url,
         output_json=output_json,
         count=count,
+        show_trace=show_trace,
     )
     return result
 
@@ -116,6 +118,7 @@ async def generate_random_problem(
     service_url: str | None = None,
     output_json: bool = False,
     count: int = 1,
+    show_trace: bool = False,
 ) -> Problem | ProblemGenerationEnqueuedResponse:
     """
     Generate random grammar problems.
@@ -164,7 +167,7 @@ async def generate_random_problem(
                     json.dumps(problem.model_dump(mode="json"), indent=2, default=str)
                 )
             elif display:
-                display_problem(problem, detailed=detailed)
+                display_problem(problem, detailed=detailed, show_trace=show_trace)
 
             logger.debug(f"✅ Generated problem {problem.id}")
             return problem
@@ -180,12 +183,16 @@ async def get_random_problem(
     detailed: bool = False,
     service_url: str | None = None,
     output_json: bool = False,
+    show_trace: bool = False,
 ) -> Problem:
     """Get a random problem from the database using the ProblemsService or HTTP API."""
     try:
         logger.debug(
             f"🎯 Fetching random problem from database (service_url={service_url})"
         )
+
+        # Request metadata when JSON output or when trace is requested
+        include_metadata = output_json or show_trace
 
         if service_url:
             # HTTP mode - make API call
@@ -194,7 +201,7 @@ async def get_random_problem(
             problem = await _get_random_problem_http(
                 service_url=service_url,
                 api_key=api_key,
-                include_metadata=output_json,  # Request metadata when JSON output
+                include_metadata=include_metadata,
             )
         else:
             # Direct mode - use service layer
@@ -213,7 +220,7 @@ async def get_random_problem(
 
             print(json.dumps(problem.model_dump(mode="json"), indent=2, default=str))
         elif display:
-            display_problem(problem, detailed=detailed)
+            display_problem(problem, detailed=detailed, show_trace=show_trace)
 
         logger.debug(f"✅ Retrieved problem {problem.id}")
         return problem
@@ -233,6 +240,7 @@ async def generate_random_problems_batch(
     detailed: bool = False,
     service_url: str | None = None,
     output_json: bool = False,
+    show_trace: bool = False,
 ) -> list[Problem] | ProblemGenerationEnqueuedResponse:
     """
     Generate multiple random problems.
@@ -251,6 +259,7 @@ async def generate_random_problems_batch(
             service_url=service_url,
             output_json=output_json,
             count=quantity,
+            show_trace=show_trace,
         )
         return result
 
@@ -269,6 +278,7 @@ async def generate_random_problems_batch(
             service_url=None,  # Force service call
             output_json=False,  # Don't output JSON for individual items in batch
             count=1,
+            show_trace=show_trace,
         )
         for _ in range(quantity)
     ]

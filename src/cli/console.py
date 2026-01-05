@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import logging
 import os
-import traceback
 
 import asyncclick as click
 from dotenv import load_dotenv
@@ -29,6 +28,9 @@ from src.cli.database.init import init_verbs
 from src.cli.database.wipe import wipe_database
 from src.cli.generation_requests.commands import (
     clean_requests as genreq_clean,
+)
+from src.cli.generation_requests.commands import (
+    get_request as genreq_get,
 )
 from src.cli.generation_requests.commands import (
     get_status as genreq_status,
@@ -67,11 +69,11 @@ from src.schemas.problems import GrammarProblemConstraints
     help="Target remote service from SERVICE_URL (requires confirmation for dangerous ops)",
 )
 @click.option(
-    "-q",
-    "--quiet",
+    "-v",
+    "--verbose",
     default=False,
     is_flag=True,
-    help="Suppress startup messages (use with --json for clean output)",
+    help="Show startup messages and connection details",
 )
 @click.pass_context
 async def cli(
@@ -81,28 +83,21 @@ async def cli(
     debug_recovery=True,
     detailed=False,
     remote=False,
-    quiet=False,
+    verbose=False,
 ):
     # Load environment variables from .env file
     load_dotenv()
-
-    # Auto-enable quiet mode if --json is anywhere in the command line
-    # This allows `lqs problem random --json` to work without needing -q
-    import sys
-
-    if "--json" in sys.argv:
-        quiet = True
 
     # Default behavior: use local Supabase (unless --remote is set)
     if not remote:
         from src.cli.utils.local_supabase import get_local_supabase_config
         from src.core.config import reset_settings
 
-        if not quiet:
+        if verbose:
             click.echo("🔧 Using local Supabase connection (default)...")
         local_config = get_local_supabase_config()
 
-        if not quiet:
+        if verbose:
             click.echo(f"   Setting SUPABASE_URL to {local_config['SUPABASE_URL']}")
         for key, value in local_config.items():
             if value:  # Only set if value is non-empty
@@ -114,7 +109,7 @@ async def cli(
         # Verify the override worked
         from src.core.config import settings
 
-        if not quiet:
+        if verbose:
             click.echo(f"   ✅ Settings now use: {settings.supabase_url}")
 
     logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
@@ -134,9 +129,7 @@ async def cli(
     ctx.ensure_object(dict)
     ctx.obj["service_url"] = get_service_url_from_flag(remote)
     ctx.obj["remote"] = remote
-    ctx.obj["quiet"] = quiet
-
-    # Removed: await reflect_tables()  # SQLAlchemy dependency removed
+    ctx.obj["verbose"] = verbose
 
 
 @cli.group()
@@ -183,10 +176,14 @@ async def problem():
 @click.option(
     "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
 )
+@click.option(
+    "--llm-trace", "llm_trace", is_flag=True, help="Include LLM generation trace"
+)
 @click.pass_context
 async def problem_random(
     ctx,
     output_json: bool,
+    llm_trace: bool,
 ):
     """Get a random problem from the database."""
     try:
@@ -200,6 +197,7 @@ async def problem_random(
             detailed=detailed,
             service_url=service_url,
             output_json=output_json,
+            show_trace=llm_trace,
         )
 
     except Exception as ex:
@@ -218,6 +216,9 @@ async def problem_random(
 @click.option(
     "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
 )
+@click.option(
+    "--llm-trace", "llm_trace", is_flag=True, help="Include LLM generation trace"
+)
 @click.pass_context
 async def problem_generate(
     ctx,
@@ -228,6 +229,7 @@ async def problem_generate(
     include_negation: bool,
     tense: tuple,
     output_json: bool,
+    llm_trace: bool,
 ):
     """Generate random grammar problems using AI."""
     try:
@@ -260,6 +262,7 @@ async def problem_generate(
                 service_url=service_url,
                 output_json=output_json,
                 count=count,
+                show_trace=llm_trace,
             )
         else:
             # Batch generation
@@ -271,6 +274,7 @@ async def problem_generate(
                 detailed=detailed,
                 service_url=service_url,
                 output_json=output_json,
+                show_trace=llm_trace,
             )
 
     except Exception as ex:
@@ -364,35 +368,6 @@ problem.add_command(delete_problem)
 problem.add_command(purge_problems)
 
 
-# Keep the existing batch command but update it to use new system
-@problem.command("batch")
-@click.argument("quantity", default=10, type=click.INT)
-@click.option("--workers", default=10, type=click.INT)
-@click.option("--statements", "-s", default=4, help="Number of statements per problem")
-@click.pass_context
-async def batch(ctx, quantity: int, workers: int, statements: int):
-    """Generate multiple problems in parallel."""
-
-    try:
-        # Get service_url and detailed from root context
-        root_ctx = ctx.find_root()
-        service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
-        detailed = root_ctx.params.get("detailed", False)
-
-        await generate_random_problems_batch(
-            quantity=quantity,
-            statement_count=statements,
-            constraints=None,
-            workers=workers,
-            display=True,
-            detailed=detailed,
-            service_url=service_url,
-            output_json=False,
-        )
-    except Exception as ex:
-        print(f"str({ex}): {traceback.format_exc()}")
-
-
 @cli.group()
 async def sentence():
     pass
@@ -435,6 +410,7 @@ async def generation_request():
 
 # Add generation request commands to the group
 generation_request.add_command(genreq_list, name="list")
+generation_request.add_command(genreq_get, name="get")
 generation_request.add_command(genreq_status, name="status")
 generation_request.add_command(genreq_clean, name="clean")
 

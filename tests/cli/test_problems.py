@@ -183,6 +183,7 @@ class TestCLIProblemsCreation:
             service_url=None,
             output_json=False,
             count=1,
+            show_trace=False,
         )
 
     @patch("src.cli.utils.queues.parallel_execute")

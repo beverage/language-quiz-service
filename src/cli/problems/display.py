@@ -1,8 +1,71 @@
+import json
+from typing import Any
+
 from src.schemas.problems import Problem
 
 
+def _format_generation_trace(trace: dict[str, Any]) -> str:
+    """Format generation trace for display."""
+    lines = []
+
+    # Token usage
+    if "token_usage" in trace:
+        usage = trace["token_usage"]
+        lines.append("Token Usage:")
+        if isinstance(usage, dict):
+            lines.append(f"  Input:  {usage.get('input_tokens', 'N/A')}")
+            lines.append(f"  Output: {usage.get('output_tokens', 'N/A')}")
+            lines.append(f"  Total:  {usage.get('total_tokens', 'N/A')}")
+        else:
+            lines.append(f"  {usage}")
+
+    # Model info
+    if "model" in trace:
+        lines.append(f"\nModel: {trace['model']}")
+
+    # Prompt summary (truncated if too long)
+    if "prompts" in trace:
+        prompts = trace["prompts"]
+        if isinstance(prompts, list) and prompts:
+            lines.append(f"\nPrompts: {len(prompts)} step(s)")
+            for i, prompt in enumerate(prompts, 1):
+                if isinstance(prompt, dict):
+                    prompt_type = prompt.get("type", "unknown")
+                    lines.append(f"  {i}. {prompt_type}")
+                else:
+                    # Truncate long prompts
+                    text = (
+                        str(prompt)[:100] + "..."
+                        if len(str(prompt)) > 100
+                        else str(prompt)
+                    )
+                    lines.append(f"  {i}. {text}")
+
+    # Reasoning summary
+    if "reasoning" in trace:
+        reasoning = trace["reasoning"]
+        if isinstance(reasoning, str):
+            # Truncate if too long
+            text = reasoning[:500] + "..." if len(reasoning) > 500 else reasoning
+            lines.append(f"\nReasoning:\n  {text}")
+        elif isinstance(reasoning, dict):
+            lines.append("\nReasoning:")
+            for key, value in reasoning.items():
+                lines.append(f"  {key}: {value}")
+
+    # Timing
+    if "duration_ms" in trace:
+        lines.append(f"\nDuration: {trace['duration_ms']}ms")
+
+    # If no specific fields found, show raw JSON
+    if not lines:
+        lines.append(json.dumps(trace, indent=2, default=str))
+
+    return "\n".join(lines)
+
+
 # Display functions
-def display_problem(problem: Problem, detailed: bool = False):
+def display_problem(problem: Problem, detailed: bool = False, show_trace: bool = False):
     """Display a complete problem in formatted output using Rich."""
     from rich import box
     from rich.console import Console
@@ -91,6 +154,19 @@ def display_problem(problem: Problem, detailed: bool = False):
     if detailed:
         footer_text = f"🆔 ID: {problem.id}\n📅 Created: {problem.created_at.strftime('%Y-%m-%d %H:%M')}"
         console.print(Panel(footer_text, border_style="dim", padding=(0, 2)))
+
+    # Show generation trace if requested
+    if show_trace and problem.generation_trace:
+        trace_content = _format_generation_trace(problem.generation_trace)
+        console.print()
+        console.print(
+            Panel(
+                trace_content,
+                title="LLM Generation Trace",
+                border_style="yellow",
+                padding=(1, 2),
+            )
+        )
 
 
 def display_problem_summary(summary):
