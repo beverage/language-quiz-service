@@ -12,8 +12,6 @@ from src.cli.problems.create import (
     generate_random_problems_batch,
     get_problem_statistics,
     list_problems,
-    search_problems_by_focus,
-    search_problems_by_topic,
 )
 from src.schemas.problems import (
     GrammarProblemConstraints,
@@ -337,40 +335,6 @@ class TestCLIProblemsListing:
         assert filters.problem_type == expected_type
 
     @patch("src.cli.problems.create.create_problem_service")
-    async def test_search_problems_by_focus(
-        self, mock_create_problem_service: MagicMock, sample_problem: Problem
-    ):
-        """Test searching problems by grammatical focus."""
-        mock_service = AsyncMock()
-        mock_create_problem_service.return_value = mock_service
-        mock_service.get_problems_by_grammatical_focus.return_value = [sample_problem]
-
-        with patch("builtins.print"):
-            result = await search_problems_by_focus("verb_conjugation", 15)
-
-        assert result == [sample_problem]
-        mock_service.get_problems_by_grammatical_focus.assert_called_once_with(
-            "verb_conjugation", 15
-        )
-
-    @patch("src.cli.problems.create.create_problem_service")
-    async def test_search_problems_by_topic(
-        self, mock_create_problem_service: MagicMock, sample_problem: Problem
-    ):
-        """Test searching problems by topic tags."""
-        mock_service = AsyncMock()
-        mock_create_problem_service.return_value = mock_service
-        mock_service.get_problems_by_topic.return_value = [sample_problem]
-
-        with patch("builtins.print"):
-            result = await search_problems_by_topic(["grammar", "verbs"], 20)
-
-        assert result == [sample_problem]
-        mock_service.get_problems_by_topic.assert_called_once_with(
-            ["grammar", "verbs"], 20
-        )
-
-    @patch("src.cli.problems.create.create_problem_service")
     async def test_get_problem_statistics(self, mock_create_problem_service: MagicMock):
         """Test getting problem statistics."""
         mock_service = AsyncMock()
@@ -438,20 +402,3 @@ class TestCLIProblemsEdgeCases:
 
         assert problems == []
         assert total == 0
-
-    @patch("src.cli.problems.create.create_problem_service")
-    async def test_search_functions_empty_results(
-        self, mock_create_problem_service: MagicMock
-    ):
-        """Test search functions when no results are found."""
-        mock_service = AsyncMock()
-        mock_create_problem_service.return_value = mock_service
-        mock_service.get_problems_by_topic.return_value = []
-        mock_service.get_problems_by_grammatical_focus.return_value = []
-
-        with patch("builtins.print"):
-            topic_result = await search_problems_by_topic(["nonexistent"])
-            focus_result = await search_problems_by_focus("nonexistent")
-
-        assert topic_result == []
-        assert focus_result == []

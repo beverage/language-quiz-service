@@ -476,21 +476,13 @@ class ProblemService:
     ) -> dict[str, Any]:
         """Derive searchable metadata from sentence generation parameters."""
 
-        # Analyze what grammatical features are present
+        # Track grammatical features present (for informational purposes)
         has_cod = any(s.direct_object != DirectObject.NONE for s in sentences)
         has_coi = any(s.indirect_object != IndirectObject.NONE for s in sentences)
         has_negation = any(s.negation != Negation.NONE for s in sentences)
 
-        # Determine grammatical focus
-        grammatical_focus = []
-        if has_cod:
-            grammatical_focus.append("direct_objects")
-        if has_coi:
-            grammatical_focus.append("indirect_objects")
-        if has_negation:
-            grammatical_focus.append("negation")
-        if not grammatical_focus:
-            grammatical_focus.append("basic_conjugation")
+        # Focus is the problem type - just conjugation for grammar problems
+        grammatical_focus = ["conjugation"]
 
         # Collect unique tenses and pronouns used
         tenses_used = list(set(s.tense.value for s in sentences))
@@ -506,7 +498,7 @@ class ProblemService:
             "includes_cod": has_cod,
             "includes_coi": has_coi,
             "estimated_time_minutes": 2,
-            "learning_objective": f"Practice {', '.join(grammatical_focus)} with {verb.infinitive}",
+            "learning_objective": f"Practice conjugation with {verb.infinitive}",
             "verb_classification": verb.classification.value
             if verb.classification
             else None,
@@ -535,13 +527,11 @@ class ProblemService:
         elif verb_infinitive in ["être", "avoir", "devenir"]:
             tags.append("essential_verbs")
 
-        # Add grammatical focus tags
+        # Add grammatical focus tags (currently just "conjugation")
         tags.extend(metadata["grammatical_focus"])
 
-        # Add difficulty-based tags
-        if metadata.get("includes_cod") and metadata.get("includes_coi"):
-            tags.append("complex_grammar")
-        elif metadata.get("includes_negation"):
+        # Add complexity tag based on negation presence
+        if metadata.get("includes_negation"):
             tags.append("negation")
         else:
             tags.append("basic_grammar")

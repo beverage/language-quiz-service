@@ -550,23 +550,22 @@ class TestProblemServiceParameterGeneration:
             tags = service._derive_topic_tags(sample_verb, constraints, metadata)
             assert expected_tag in tags
 
-    def test_derive_topic_tags_with_complex_grammar(self, sample_verb):
-        """Test topic tag derivation with complex grammar features."""
+    def test_derive_topic_tags_with_basic_grammar(self, sample_verb):
+        """Test topic tag derivation with basic grammar (no negation)."""
         service = ProblemService()
         constraints = GrammarProblemConstraints()
 
-        # Test complex grammar (both COD and COI)
+        # Test basic grammar - focus is always "conjugation" now
         metadata = {
-            "grammatical_focus": ["direct_objects", "indirect_objects"],
-            "includes_cod": True,
-            "includes_coi": True,
+            "grammatical_focus": ["conjugation"],
+            "includes_cod": True,  # Present but not tracked in tags
+            "includes_coi": True,  # Present but not tracked in tags
             "includes_negation": False,
         }
 
         tags = service._derive_topic_tags(sample_verb, constraints, metadata)
-        assert "complex_grammar" in tags
-        assert "direct_objects" in tags
-        assert "indirect_objects" in tags
+        assert "basic_grammar" in tags
+        assert "conjugation" in tags
 
     def test_derive_topic_tags_with_negation(self, sample_verb):
         """Test topic tag derivation with negation."""
@@ -664,9 +663,8 @@ class TestProblemServiceParameterGeneration:
         assert metadata["includes_cod"] is True
         assert metadata["includes_coi"] is True
         assert metadata["includes_negation"] is True
-        assert "direct_objects" in metadata["grammatical_focus"]
-        assert "indirect_objects" in metadata["grammatical_focus"]
-        assert "negation" in metadata["grammatical_focus"]
+        # Focus is always "conjugation" - object/negation presence tracked separately
+        assert metadata["grammatical_focus"] == ["conjugation"]
 
     def test_derive_grammar_metadata_basic_conjugation_only(self, sample_verb):
         """Test metadata derivation for basic conjugation only."""
@@ -698,7 +696,7 @@ class TestProblemServiceParameterGeneration:
         assert metadata["includes_cod"] is False
         assert metadata["includes_coi"] is False
         assert metadata["includes_negation"] is False
-        assert metadata["grammatical_focus"] == ["basic_conjugation"]
+        assert metadata["grammatical_focus"] == ["conjugation"]
 
     def test_package_grammar_problem(self, sample_verb):
         """Test packaging sentences into problem format."""
