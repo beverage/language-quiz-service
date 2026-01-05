@@ -29,28 +29,26 @@ def create_mock_supabase_client(count: int = 0, delete_count: int | None = None)
     mock_delete_result = MagicMock()
     mock_delete_result.data = [{"id": str(i)} for i in range(delete_count)]
 
-    # Setup the query chain for count (no filter)
+    # Create a chainable mock that supports all filter methods
+    def create_chainable_mock(final_result):
+        """Create a mock that returns itself for any filter method call."""
+        mock = MagicMock()
+        mock.execute = AsyncMock(return_value=final_result)
+        # Each filter method returns the same mock (chainable)
+        mock.contains.return_value = mock
+        mock.lte.return_value = mock
+        mock.gte.return_value = mock
+        mock.neq.return_value = mock
+        return mock
+
+    # Setup the query chain for count
     mock_table = MagicMock()
-    mock_select = MagicMock()
-    mock_select.execute = AsyncMock(return_value=mock_count_result)
+    mock_select = create_chainable_mock(mock_count_result)
     mock_table.select.return_value = mock_select
 
-    # Setup the query chain for count with filter
-    mock_select_filtered = MagicMock()
-    mock_select_filtered.execute = AsyncMock(return_value=mock_count_result)
-    mock_select.contains.return_value = mock_select_filtered
-
-    # Setup the query chain for delete (no filter)
-    mock_delete = MagicMock()
-    mock_delete_neq = MagicMock()
-    mock_delete_neq.execute = AsyncMock(return_value=mock_delete_result)
-    mock_delete.neq.return_value = mock_delete_neq
+    # Setup the query chain for delete
+    mock_delete = create_chainable_mock(mock_delete_result)
     mock_table.delete.return_value = mock_delete
-
-    # Setup delete with filter
-    mock_delete_filtered = MagicMock()
-    mock_delete_filtered.execute = AsyncMock(return_value=mock_delete_result)
-    mock_delete.contains.return_value = mock_delete_filtered
 
     mock_client.table.return_value = mock_table
 
@@ -252,3 +250,166 @@ class TestPurgeProblemsErrorHandling:
 
         assert result.exit_code == 0  # Command doesn't crash
         assert "Error" in result.output
+
+
+@pytest.mark.unit
+class TestPurgeProblemsDateFilters:
+    """Test purge with date filters."""
+
+    @patch("src.cli.problems.purge.get_supabase_client")
+    @patch("src.cli.problems.purge.require_confirmation")
+    @patch("src.cli.problems.purge.get_remote_flag")
+    async def test_purge_with_older_than_duration(
+        self,
+        mock_get_remote,
+        mock_confirm,
+        mock_get_client,
+    ):
+        """Test purge with --older-than using duration string."""
+        mock_get_remote.return_value = False
+        mock_confirm.return_value = True
+        mock_client = create_mock_supabase_client(count=20)
+        mock_get_client.return_value = mock_client
+
+        runner = CliRunner()
+        result = await runner.invoke(purge_problems, ["--older-than", "7d", "--force"])
+
+        assert result.exit_code == 0
+        assert "Deleted 20 problems" in result.output
+        assert "created before" in result.output
+
+        # Verify lte was called on the query chain
+        mock_table = mock_client.table.return_value
+        mock_select = mock_table.select.return_value
+        mock_select.lte.assert_called()
+
+    @patch("src.cli.problems.purge.get_supabase_client")
+    @patch("src.cli.problems.purge.require_confirmation")
+    @patch("src.cli.problems.purge.get_remote_flag")
+    async def test_purge_with_newer_than_duration(
+        self,
+        mock_get_remote,
+        mock_confirm,
+        mock_get_client,
+    ):
+        """Test purge with --newer-than using duration string."""
+        mock_get_remote.return_value = False
+        mock_confirm.return_value = True
+        mock_client = create_mock_supabase_client(count=10)
+        mock_get_client.return_value = mock_client
+
+        runner = CliRunner()
+        result = await runner.invoke(purge_problems, ["--newer-than", "1d", "--force"])
+
+        assert result.exit_code == 0
+        assert "Deleted 10 problems" in result.output
+        assert "created after" in result.output
+
+        # Verify gte was called on the query chain
+        mock_table = mock_client.table.return_value
+        mock_select = mock_table.select.return_value
+        mock_select.gte.assert_called()
+
+    @patch("src.cli.problems.purge.get_supabase_client")
+    @patch("src.cli.problems.purge.require_confirmation")
+    @patch("src.cli.problems.purge.get_remote_flag")
+    async def test_purge_with_date_range(
+        self,
+        mock_get_remote,
+        mock_confirm,
+        mock_get_client,
+    ):
+        """Test purge with both --older-than and --newer-than for date range."""
+        mock_get_remote.return_value = False
+        mock_confirm.return_value = True
+        mock_client = create_mock_supabase_client(count=5)
+        mock_get_client.return_value = mock_client
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            purge_problems, ["--newer-than", "7d", "--older-than", "1d", "--force"]
+        )
+
+        assert result.exit_code == 0
+        assert "Deleted 5 problems" in result.output
+        assert "created before" in result.output
+        assert "created after" in result.output
+
+        # Verify both lte and gte were called
+        mock_table = mock_client.table.return_value
+        mock_select = mock_table.select.return_value
+        mock_select.lte.assert_called()
+        mock_select.gte.assert_called()
+
+    @patch("src.cli.problems.purge.get_supabase_client")
+    @patch("src.cli.problems.purge.require_confirmation")
+    @patch("src.cli.problems.purge.get_remote_flag")
+    async def test_purge_with_older_than_and_topic(
+        self,
+        mock_get_remote,
+        mock_confirm,
+        mock_get_client,
+    ):
+        """Test purge combining --older-than with --topic filters."""
+        mock_get_remote.return_value = False
+        mock_confirm.return_value = True
+        mock_client = create_mock_supabase_client(count=8)
+        mock_get_client.return_value = mock_client
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            purge_problems,
+            ["--older-than", "2d", "--topic", "test_data", "--force"],
+        )
+
+        assert result.exit_code == 0
+        assert "Deleted 8 problems" in result.output
+        assert "created before" in result.output
+        assert "test_data" in result.output
+
+        # Verify both contains (topic) and lte (date) were called
+        mock_table = mock_client.table.return_value
+        mock_select = mock_table.select.return_value
+        mock_select.contains.assert_called()
+        mock_select.lte.assert_called()
+
+    @patch("src.cli.problems.purge.get_supabase_client")
+    @patch("src.cli.problems.purge.get_remote_flag")
+    async def test_purge_with_older_than_no_matches(
+        self,
+        mock_get_remote,
+        mock_get_client,
+    ):
+        """Test purge with --older-than when no problems match."""
+        mock_get_remote.return_value = False
+        mock_get_client.return_value = create_mock_supabase_client(count=0)
+
+        runner = CliRunner()
+        result = await runner.invoke(purge_problems, ["--older-than", "30d"])
+
+        assert result.exit_code == 0
+        assert "No problems found" in result.output
+
+    @patch("src.cli.problems.purge.get_supabase_client")
+    @patch("src.cli.problems.purge.require_confirmation")
+    @patch("src.cli.problems.purge.get_remote_flag")
+    async def test_purge_with_absolute_date(
+        self,
+        mock_get_remote,
+        mock_confirm,
+        mock_get_client,
+    ):
+        """Test purge with --older-than using absolute date."""
+        mock_get_remote.return_value = False
+        mock_confirm.return_value = True
+        mock_client = create_mock_supabase_client(count=15)
+        mock_get_client.return_value = mock_client
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            purge_problems, ["--older-than", "2025-01-01", "--force"]
+        )
+
+        assert result.exit_code == 0
+        assert "Deleted 15 problems" in result.output
+        assert "created before" in result.output

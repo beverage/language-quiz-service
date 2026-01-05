@@ -3,13 +3,31 @@ CLI command to purge (delete all) problems from the database.
 """
 
 import logging
+from datetime import datetime
 
 import asyncclick as click
 
 from src.cli.utils.safety import forbid_remote, get_remote_flag, require_confirmation
+from src.cli.utils.types import DateOrDurationParam
 from src.clients.supabase import get_supabase_client
 
 logger = logging.getLogger(__name__)
+
+
+def _apply_filters(
+    query,
+    topic_list: list | None,
+    older_than: datetime | None,
+    newer_than: datetime | None,
+):
+    """Apply all filters to a query."""
+    if topic_list:
+        query = query.contains("topic_tags", topic_list)
+    if older_than:
+        query = query.lte("created_at", older_than.isoformat())
+    if newer_than:
+        query = query.gte("created_at", newer_than.isoformat())
+    return query
 
 
 @click.command("purge")
@@ -18,18 +36,38 @@ logger = logging.getLogger(__name__)
     multiple=True,
     help="Only delete problems with these topic tags (can specify multiple)",
 )
+@click.option(
+    "--older-than",
+    type=DateOrDurationParam(),
+    help="Delete problems created before date/duration (e.g., '7d', '2w', '2025-01-01')",
+)
+@click.option(
+    "--newer-than",
+    type=DateOrDurationParam(),
+    help="Delete problems created after date/duration (e.g., '1d', '2025-01-01')",
+)
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
 @click.pass_context
-async def purge_problems(ctx, topic: tuple, force: bool):
+async def purge_problems(
+    ctx,
+    topic: tuple,
+    older_than: datetime | None,
+    newer_than: datetime | None,
+    force: bool,
+):
     """
     Delete all problems (or a filtered subset) from the database.
 
-    By default, deletes ALL problems. Use --topic to filter.
+    By default, deletes ALL problems. Use filters to narrow the scope.
 
     Examples:
-        lqs problem purge                    # Delete all problems
-        lqs problem purge --topic test_data  # Delete only test problems
-        lqs problem purge -f                 # Skip confirmation
+        lqs problem purge                          # Delete all problems
+        lqs problem purge --topic test_data        # Delete only test problems
+        lqs problem purge --older-than 7d          # Delete problems older than 7 days
+        lqs problem purge --older-than 2025-01-01  # Delete problems before a date
+        lqs problem purge --newer-than 1d --older-than 1h  # Date range
+        lqs problem purge --older-than 2d --topic test_data  # Combined filters
+        lqs problem purge -f                       # Skip confirmation
 
     WARNING: Remote purge is FORBIDDEN for safety.
     """
@@ -42,23 +80,27 @@ async def purge_problems(ctx, topic: tuple, force: bool):
     try:
         client = await get_supabase_client()
 
-        # Build query to count affected problems
-        if topic:
-            # Filter by topic tags
-            topic_list = list(topic)
-            count_result = (
-                await client.table("problems")
-                .select("id", count="exact")
-                .contains("topic_tags", topic_list)
-                .execute()
+        # Build filter description parts
+        filter_parts = []
+        topic_list = list(topic) if topic else None
+
+        if topic_list:
+            filter_parts.append(f"topics {topic_list}")
+        if older_than:
+            filter_parts.append(
+                f"created before {older_than.strftime('%Y-%m-%d %H:%M')}"
             )
-            filter_desc = f"with topics {topic_list}"
-        else:
-            # All problems
-            count_result = (
-                await client.table("problems").select("id", count="exact").execute()
+        if newer_than:
+            filter_parts.append(
+                f"created after {newer_than.strftime('%Y-%m-%d %H:%M')}"
             )
-            filter_desc = "(ALL)"
+
+        filter_desc = f"with {', '.join(filter_parts)}" if filter_parts else "(ALL)"
+
+        # Build count query with all filters
+        count_query = client.table("problems").select("id", count="exact")
+        count_query = _apply_filters(count_query, topic_list, older_than, newer_than)
+        count_result = await count_query.execute()
 
         problem_count = (
             count_result.count
@@ -84,26 +126,19 @@ async def purge_problems(ctx, topic: tuple, force: bool):
             click.echo("❌ Aborted.")
             return
 
-        # Perform deletion
+        # Perform deletion with same filters
         click.echo(f"🗑️  Deleting {problem_count} problems...")
 
-        if topic:
-            # Delete filtered problems
-            topic_list = list(topic)
-            delete_result = (
-                await client.table("problems")
-                .delete()
-                .contains("topic_tags", topic_list)
-                .execute()
+        delete_query = client.table("problems").delete()
+        delete_query = _apply_filters(delete_query, topic_list, older_than, newer_than)
+
+        # Supabase requires at least one filter for delete operations
+        if not topic_list and not older_than and not newer_than:
+            delete_query = delete_query.neq(
+                "id", "00000000-0000-0000-0000-000000000000"
             )
-        else:
-            # Delete all problems (use a condition that matches everything)
-            delete_result = (
-                await client.table("problems")
-                .delete()
-                .neq("id", "00000000-0000-0000-0000-000000000000")
-                .execute()
-            )
+
+        delete_result = await delete_query.execute()
 
         deleted_count = len(delete_result.data) if delete_result.data else 0
 
