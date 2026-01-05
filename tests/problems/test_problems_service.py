@@ -406,9 +406,11 @@ class TestProblemServiceParameterGeneration:
         constraints = GrammarProblemConstraints()
         params = service._generate_grammatical_parameters(sample_verb, constraints)
 
-        # Should still generate valid parameters
-        assert params["direct_object"] == DirectObject.NONE
-        assert params["indirect_object"] == IndirectObject.NONE
+        # Should use ANY for optional dimensions (LLM chooses naturally)
+        # This avoids contradictory constraints that cause reasoning loops
+        assert params["direct_object"] == DirectObject.ANY
+        assert params["indirect_object"] == IndirectObject.ANY
+        assert params["negation"] == Negation.ANY
 
     # def test_vary_parameters_for_correct_statement(self, sample_verb):
     #     """Test parameter variation for correct statements."""
@@ -548,23 +550,22 @@ class TestProblemServiceParameterGeneration:
             tags = service._derive_topic_tags(sample_verb, constraints, metadata)
             assert expected_tag in tags
 
-    def test_derive_topic_tags_with_complex_grammar(self, sample_verb):
-        """Test topic tag derivation with complex grammar features."""
+    def test_derive_topic_tags_with_basic_grammar(self, sample_verb):
+        """Test topic tag derivation with basic grammar (no negation)."""
         service = ProblemService()
         constraints = GrammarProblemConstraints()
 
-        # Test complex grammar (both COD and COI)
+        # Test basic grammar - focus is always "conjugation" now
         metadata = {
-            "grammatical_focus": ["direct_objects", "indirect_objects"],
-            "includes_cod": True,
-            "includes_coi": True,
+            "grammatical_focus": ["conjugation"],
+            "includes_cod": True,  # Present but not tracked in tags
+            "includes_coi": True,  # Present but not tracked in tags
             "includes_negation": False,
         }
 
         tags = service._derive_topic_tags(sample_verb, constraints, metadata)
-        assert "complex_grammar" in tags
-        assert "direct_objects" in tags
-        assert "indirect_objects" in tags
+        assert "basic_grammar" in tags
+        assert "conjugation" in tags
 
     def test_derive_topic_tags_with_negation(self, sample_verb):
         """Test topic tag derivation with negation."""
@@ -662,9 +663,8 @@ class TestProblemServiceParameterGeneration:
         assert metadata["includes_cod"] is True
         assert metadata["includes_coi"] is True
         assert metadata["includes_negation"] is True
-        assert "direct_objects" in metadata["grammatical_focus"]
-        assert "indirect_objects" in metadata["grammatical_focus"]
-        assert "negation" in metadata["grammatical_focus"]
+        # Focus is always "conjugation" - object/negation presence tracked separately
+        assert metadata["grammatical_focus"] == ["conjugation"]
 
     def test_derive_grammar_metadata_basic_conjugation_only(self, sample_verb):
         """Test metadata derivation for basic conjugation only."""
@@ -696,7 +696,7 @@ class TestProblemServiceParameterGeneration:
         assert metadata["includes_cod"] is False
         assert metadata["includes_coi"] is False
         assert metadata["includes_negation"] is False
-        assert metadata["grammatical_focus"] == ["basic_conjugation"]
+        assert metadata["grammatical_focus"] == ["conjugation"]
 
     def test_package_grammar_problem(self, sample_verb):
         """Test packaging sentences into problem format."""
@@ -769,29 +769,31 @@ class TestProblemServiceIntegration:
         """Test service initialization with injected dependencies."""
         service = ProblemService(problem_repository=problem_repository)
 
+        # With explicit DI, only provided dependencies are set
         assert service.problem_repository == problem_repository
-        assert service.sentence_service is not None
-        assert service.verb_service is not None
+        # These are None until explicitly set (no sneaky fallback)
+        assert service.sentence_service is None
+        assert service.verb_service is None
 
     def test_service_initialization_without_dependencies(self):
         """Test service initialization without injected dependencies."""
         service = ProblemService()
 
+        # All dependencies are None when not provided (no sneaky fallback)
         assert service.problem_repository is None
-        assert service.sentence_service is not None
-        assert service.verb_service is not None
+        assert service.sentence_service is None
+        assert service.verb_service is None
 
-    @pytest.mark.asyncio
-    async def test_lazy_repository_initialization(self):
-        """Test that repository is lazily initialized when needed."""
-        service = ProblemService()  # No repository injected
+    def test_getter_raises_when_dependency_not_set(self):
+        """Test that getters raise RuntimeError when dependencies not set."""
+        service = ProblemService()
 
-        # This should trigger lazy initialization
-        # Note: This test might fail if Supabase isn't running, which is expected
-        try:
-            repo = await service._get_problem_repository()
-            assert repo is not None
-            assert service.problem_repository == repo
-        except Exception:
-            # Expected if Supabase isn't running in this test context
-            pytest.skip("Supabase not available for lazy initialization test")
+        # Attempting to get unset dependencies should raise RuntimeError
+        with pytest.raises(RuntimeError, match="ProblemRepository not set"):
+            service._get_problem_repository()
+
+        with pytest.raises(RuntimeError, match="SentenceService not set"):
+            service._get_sentence_service()
+
+        with pytest.raises(RuntimeError, match="VerbService not set"):
+            service._get_verb_service()

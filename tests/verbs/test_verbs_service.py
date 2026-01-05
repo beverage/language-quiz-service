@@ -19,6 +19,7 @@ from src.schemas.verbs import (
     VerbUpdate,
 )
 from src.services.verb_service import VerbService
+from tests.conftest import mock_llm_response
 from tests.verbs.fixtures import (
     generate_random_conjugation_data,
     generate_random_verb_data,
@@ -257,20 +258,18 @@ async def test_get_conjugations_with_filters(verb_service):
 
 
 @pytest.mark.asyncio
-async def test_service_initialization_without_client(verb_service):
-    """Test service can initialize repository when no client is injected."""
-    # Create a fresh service without injected client
-    fresh_service = VerbService()
+async def test_service_initialization_requires_llm_client():
+    """Test service requires llm_client to be provided."""
+    # Service should raise an error when trying to access repository without one set
+    mock_client = AsyncMock()
+    fresh_service = VerbService(llm_client=mock_client)
 
-    # This should trigger lazy initialization
-    # Note: This might fail if Supabase isn't running locally
-    try:
-        repo = await fresh_service._get_verb_repository()
-        assert repo is not None
-        assert fresh_service.verb_repository == repo
-    except Exception:
-        # Expected if local Supabase isn't running
-        pytest.skip("Local Supabase not available for lazy initialization test")
+    # Repository should be None since none was provided
+    assert fresh_service.verb_repository is None
+
+    # Attempting to get repository should raise RuntimeError
+    with pytest.raises(RuntimeError, match="VerbRepository not set"):
+        fresh_service._get_verb_repository()
 
 
 @pytest.mark.asyncio
@@ -387,6 +386,8 @@ async def test_search_verbs(verb_service):
 @pytest.mark.asyncio
 async def test_download_verb_success(verb_service):
     """Test successful verb download with mocked AI responses."""
+    from unittest.mock import MagicMock
+
     # Mock the repository to simulate the verb not existing
     mock_repo = AsyncMock()
     mock_repo.get_verb_by_infinitive.return_value = None
@@ -405,7 +406,8 @@ async def test_download_verb_success(verb_service):
         created_at="2024-01-01T00:00:00Z",
         updated_at="2024-01-01T00:00:00Z",
     )
-    verb_service._get_verb_repository = AsyncMock(return_value=mock_repo)
+    # Use MagicMock for the sync method _get_verb_repository
+    verb_service._get_verb_repository = MagicMock(return_value=mock_repo)
 
     # Create async mock for the client
     mock_client = AsyncMock()
@@ -415,14 +417,16 @@ async def test_download_verb_success(verb_service):
     mock_prompt_gen.generate_verb_prompt.return_value = "verb prompt"
     mock_prompt_gen.generate_objects_prompt.return_value = "objects prompt"
 
-    # Mock AI responses with all required fields and correct enum format
+    # Mock AI responses with all required fields and correct enum format - returns LLMResponse
     mock_client.handle_request.side_effect = [
-        '{"infinitive": "parler", "translation": "to speak", "auxiliary": "avoir", "reflexive": false, "target_language_code": "eng", "classification": "first_group", "past_participle": "parlé", "present_participle": "parlant", "tenses": []}',
-        '{"can_have_cod": true, "can_have_coi": false}',
+        mock_llm_response(
+            '{"infinitive": "parler", "translation": "to speak", "auxiliary": "avoir", "reflexive": false, "target_language_code": "eng", "classification": "first_group", "past_participle": "parlé", "present_participle": "parlant", "tenses": []}'
+        ),
+        mock_llm_response('{"can_have_cod": true, "can_have_coi": false}'),
     ]
 
     # Inject mocks
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     result = await verb_service.download_verb("parler", "eng")
@@ -443,10 +447,10 @@ async def test_download_verb_invalid_json(verb_service):
     mock_prompt_gen = AsyncMock()
 
     mock_prompt_gen.generate_verb_prompt.return_value = "verb prompt"
-    mock_client.handle_request.return_value = "invalid json"
+    mock_client.handle_request.return_value = mock_llm_response("invalid json")
 
     # Inject mocks
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     with pytest.raises(ContentGenerationError, match="Failed to parse verb data"):
@@ -462,10 +466,12 @@ async def test_download_verb_validation_error(verb_service):
 
     mock_prompt_gen.generate_verb_prompt.return_value = "verb prompt"
     # Missing required fields
-    mock_client.handle_request.return_value = '{"infinitive": "parler"}'
+    mock_client.handle_request.return_value = mock_llm_response(
+        '{"infinitive": "parler"}'
+    )
 
     # Inject mocks
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     with pytest.raises(ContentGenerationError, match="Failed to parse verb data"):
@@ -506,9 +512,11 @@ async def test_download_conjugations_empty_response_logs_warning(verb_service, c
     mock_prompt_gen = AsyncMock()
 
     mock_prompt_gen.generate_conjugation_prompt.return_value = "conjugation prompt"
-    mock_client.handle_request.return_value = json.dumps([])  # Empty!
+    mock_client.handle_request.return_value = mock_llm_response(
+        json.dumps([])
+    )  # Empty!
 
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     result = await verb_service.download_conjugations(created_verb.infinitive, "eng")
@@ -535,36 +543,38 @@ async def test_download_conjugations_success(verb_service):
     mock_prompt_gen = AsyncMock()
 
     mock_prompt_gen.generate_conjugation_prompt.return_value = "conjugation prompt"
-    mock_client.handle_request.return_value = json.dumps(
-        [
-            {
-                "tense": "present",
-                "infinitive": created_verb.infinitive,
-                "auxiliary": created_verb.auxiliary.value,
-                "reflexive": created_verb.reflexive,
-                "first_person_singular": "parle",
-                "second_person_singular": "parles",
-                "third_person_singular": "parle",
-                "first_person_plural": "parlons",
-                "second_person_plural": "parlez",
-                "third_person_plural": "parlent",
-            },
-            {
-                "tense": "imparfait",
-                "infinitive": created_verb.infinitive,
-                "auxiliary": created_verb.auxiliary.value,
-                "reflexive": created_verb.reflexive,
-                "first_person_singular": "parlais",
-                "second_person_singular": "parlais",
-                "third_person_singular": "parlait",
-                "first_person_plural": "parlions",
-                "second_person_plural": "parliez",
-                "third_person_plural": "parlaient",
-            },
-        ]
+    mock_client.handle_request.return_value = mock_llm_response(
+        json.dumps(
+            [
+                {
+                    "tense": "present",
+                    "infinitive": created_verb.infinitive,
+                    "auxiliary": created_verb.auxiliary.value,
+                    "reflexive": created_verb.reflexive,
+                    "first_person_singular": "parle",
+                    "second_person_singular": "parles",
+                    "third_person_singular": "parle",
+                    "first_person_plural": "parlons",
+                    "second_person_plural": "parlez",
+                    "third_person_plural": "parlent",
+                },
+                {
+                    "tense": "imparfait",
+                    "infinitive": created_verb.infinitive,
+                    "auxiliary": created_verb.auxiliary.value,
+                    "reflexive": created_verb.reflexive,
+                    "first_person_singular": "parlais",
+                    "second_person_singular": "parlais",
+                    "third_person_singular": "parlait",
+                    "first_person_plural": "parlions",
+                    "second_person_plural": "parliez",
+                    "third_person_plural": "parlaient",
+                },
+            ]
+        )
     )
 
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     result = await verb_service.download_conjugations(created_verb.infinitive, "eng")
@@ -590,9 +600,9 @@ async def test_download_conjugations_invalid_json(verb_service):
     mock_prompt_gen = AsyncMock()
 
     mock_prompt_gen.generate_conjugation_prompt.return_value = "conjugation prompt"
-    mock_client.handle_request.return_value = "not valid json"
+    mock_client.handle_request.return_value = mock_llm_response("not valid json")
 
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     with pytest.raises(
@@ -617,11 +627,11 @@ async def test_download_conjugations_returns_object_not_array(verb_service):
     mock_prompt_gen = AsyncMock()
 
     mock_prompt_gen.generate_conjugation_prompt.return_value = "conjugation prompt"
-    mock_client.handle_request.return_value = json.dumps(
-        {"tense": "present"}
+    mock_client.handle_request.return_value = mock_llm_response(
+        json.dumps({"tense": "present"})
     )  # Object not array!
 
-    verb_service.openai_client = mock_client
+    verb_service.llm_client = mock_client
     verb_service.verb_prompt_generator = mock_prompt_gen
 
     with pytest.raises(

@@ -12,8 +12,6 @@ from src.cli.problems.create import (
     generate_random_problems_batch,
     get_problem_statistics,
     list_problems,
-    search_problems_by_focus,
-    search_problems_by_topic,
 )
 from src.schemas.problems import (
     GrammarProblemConstraints,
@@ -108,16 +106,16 @@ def mock_problem_service():
 class TestCLIProblemsCreation:
     """Test cases for CLI problem creation functions."""
 
-    @patch("src.cli.problems.create.ProblemService")
+    @patch("src.cli.problems.create.create_problem_service")
     async def test_generate_random_problem_success_no_display(
         self,
-        mock_problem_service_class: MagicMock,
+        mock_create_problem_service: MagicMock,
         sample_problem: Problem,
         sample_constraints: GrammarProblemConstraints,
     ):
         """Test successful problem generation without display."""
         mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
+        mock_create_problem_service.return_value = mock_service
         mock_service.create_random_grammar_problem.return_value = sample_problem
 
         result = await generate_random_problem(
@@ -129,13 +127,13 @@ class TestCLIProblemsCreation:
             constraints=sample_constraints, statement_count=4
         )
 
-    @patch("src.cli.problems.create.ProblemService")
+    @patch("src.cli.problems.create.create_problem_service")
     async def test_generate_random_problem_success_with_display(
-        self, mock_problem_service_class: MagicMock, sample_problem: Problem
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
     ):
         """Test successful problem generation with display."""
         mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
+        mock_create_problem_service.return_value = mock_service
         mock_service.create_random_grammar_problem.return_value = sample_problem
 
         with patch("builtins.print"):  # Mock print to avoid display output
@@ -148,13 +146,13 @@ class TestCLIProblemsCreation:
             constraints=None, statement_count=3
         )
 
-    @patch("src.cli.problems.create.ProblemService")
+    @patch("src.cli.problems.create.create_problem_service")
     async def test_generate_random_problem_service_failure(
-        self, mock_problem_service_class: MagicMock
+        self, mock_create_problem_service: MagicMock
     ):
         """Test problem generation when service raises exception."""
         mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
+        mock_create_problem_service.return_value = mock_service
         mock_service.create_random_grammar_problem.side_effect = ValueError(
             "Service error"
         )
@@ -185,6 +183,7 @@ class TestCLIProblemsCreation:
             service_url=None,
             output_json=False,
             count=1,
+            show_trace=False,
         )
 
     @patch("src.cli.utils.queues.parallel_execute")
@@ -263,13 +262,13 @@ class TestCLIProblemsCreation:
 class TestCLIProblemsListing:
     """Test cases for CLI problem listing and search functions."""
 
-    @patch("src.cli.problems.create.ProblemService")
+    @patch("src.cli.problems.create.create_problem_service")
     async def test_list_problems_verbose_mode(
-        self, mock_problem_service_class: MagicMock, sample_problem: Problem
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
     ):
         """Test listing problems in verbose mode."""
         mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
+        mock_create_problem_service.return_value = mock_service
         mock_service.get_problems.return_value = ([sample_problem], 1)
 
         with patch("builtins.print"):
@@ -287,15 +286,15 @@ class TestCLIProblemsListing:
         assert filters.topic_tags == ["test"]
         assert filters.limit == 5
 
-    @patch("src.cli.problems.create.ProblemService")
+    @patch("src.cli.problems.create.create_problem_service")
     async def test_list_problems_summary_mode(
         self,
-        mock_problem_service_class: MagicMock,
+        mock_create_problem_service: MagicMock,
         sample_problem_summary: ProblemSummary,
     ):
         """Test listing problems in summary mode."""
         mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
+        mock_create_problem_service.return_value = mock_service
         mock_service.get_problem_summaries.return_value = ([sample_problem_summary], 1)
 
         with patch("builtins.print"):
@@ -316,17 +315,17 @@ class TestCLIProblemsListing:
             (None, None),
         ],
     )
-    @patch("src.cli.problems.create.ProblemService")
+    @patch("src.cli.problems.create.create_problem_service")
     async def test_list_problems_type_filtering(
         self,
-        mock_problem_service_class: MagicMock,
+        mock_create_problem_service: MagicMock,
         problem_type: str,
         expected_type: ProblemType,
         sample_problem_summary: ProblemSummary,
     ):
         """Test problem type filtering in list function."""
         mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
+        mock_create_problem_service.return_value = mock_service
         mock_service.get_problem_summaries.return_value = ([sample_problem_summary], 1)
 
         with patch("builtins.print"):
@@ -336,45 +335,11 @@ class TestCLIProblemsListing:
         filters = call_args[0][0]
         assert filters.problem_type == expected_type
 
-    @patch("src.cli.problems.create.ProblemService")
-    async def test_search_problems_by_focus(
-        self, mock_problem_service_class: MagicMock, sample_problem: Problem
-    ):
-        """Test searching problems by grammatical focus."""
-        mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
-        mock_service.get_problems_by_grammatical_focus.return_value = [sample_problem]
-
-        with patch("builtins.print"):
-            result = await search_problems_by_focus("verb_conjugation", 15)
-
-        assert result == [sample_problem]
-        mock_service.get_problems_by_grammatical_focus.assert_called_once_with(
-            "verb_conjugation", 15
-        )
-
-    @patch("src.cli.problems.create.ProblemService")
-    async def test_search_problems_by_topic(
-        self, mock_problem_service_class: MagicMock, sample_problem: Problem
-    ):
-        """Test searching problems by topic tags."""
-        mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
-        mock_service.get_problems_by_topic.return_value = [sample_problem]
-
-        with patch("builtins.print"):
-            result = await search_problems_by_topic(["grammar", "verbs"], 20)
-
-        assert result == [sample_problem]
-        mock_service.get_problems_by_topic.assert_called_once_with(
-            ["grammar", "verbs"], 20
-        )
-
-    @patch("src.cli.problems.create.ProblemService")
-    async def test_get_problem_statistics(self, mock_problem_service_class: MagicMock):
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_get_problem_statistics(self, mock_create_problem_service: MagicMock):
         """Test getting problem statistics."""
         mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
+        mock_create_problem_service.return_value = mock_service
 
         expected_stats = {
             "total_problems": 42,
@@ -424,13 +389,13 @@ class TestCLIProblemsEdgeCases:
             assert len(result) == statement_count
             mock_parallel_execute.assert_called_once()
 
-    @patch("src.cli.problems.create.ProblemService")
+    @patch("src.cli.problems.create.create_problem_service")
     async def test_list_problems_empty_results(
-        self, mock_problem_service_class: MagicMock
+        self, mock_create_problem_service: MagicMock
     ):
         """Test listing when no problems are found."""
         mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
+        mock_create_problem_service.return_value = mock_service
         mock_service.get_problem_summaries.return_value = ([], 0)
 
         with patch("builtins.print"):
@@ -438,20 +403,3 @@ class TestCLIProblemsEdgeCases:
 
         assert problems == []
         assert total == 0
-
-    @patch("src.cli.problems.create.ProblemService")
-    async def test_search_functions_empty_results(
-        self, mock_problem_service_class: MagicMock
-    ):
-        """Test search functions when no results are found."""
-        mock_service = AsyncMock()
-        mock_problem_service_class.return_value = mock_service
-        mock_service.get_problems_by_topic.return_value = []
-        mock_service.get_problems_by_grammatical_focus.return_value = []
-
-        with patch("builtins.print"):
-            topic_result = await search_problems_by_topic(["nonexistent"])
-            focus_result = await search_problems_by_focus("nonexistent")
-
-        assert topic_result == []
-        assert focus_result == []

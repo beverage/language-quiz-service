@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import logging
 import os
-import traceback
 
 import asyncclick as click
 from dotenv import load_dotenv
@@ -15,6 +14,10 @@ from src.cli.api_keys.commands import (
 from src.cli.api_keys.commands import (
     revoke as api_keys_revoke,
 )
+from src.cli.cache.commands import (
+    cache_stats,
+    reload_cache,
+)
 from src.cli.cloud.database import (
     status as database_status,
 )
@@ -23,17 +26,31 @@ from src.cli.cloud.service import up as service_up
 from src.cli.database.clear import clear_database
 from src.cli.database.init import init_verbs
 from src.cli.database.wipe import wipe_database
+from src.cli.generation_requests.commands import (
+    clean_requests as genreq_clean,
+)
+from src.cli.generation_requests.commands import (
+    get_request as genreq_get,
+)
+from src.cli.generation_requests.commands import (
+    get_status as genreq_status,
+)
+from src.cli.generation_requests.commands import (
+    list_requests as genreq_list,
+)
 from src.cli.problems.create import (
     generate_random_problem,
     generate_random_problems_batch,
     get_problem_statistics,
     get_random_problem,
     list_problems,
-    search_problems_by_focus,
-    search_problems_by_topic,
 )
+from src.cli.problems.delete import delete_problem
 from src.cli.problems.get import get_problem
+from src.cli.problems.purge import purge_problems
 from src.cli.sentences.create import create_random_sentence_batch, create_sentence
+from src.cli.sentences.purge import purge_orphaned_sentences
+from src.cli.utils.types import DateOrDurationParam
 from src.cli.verbs.commands import download, get, random
 from src.schemas.problems import GrammarProblemConstraints
 
@@ -46,16 +63,17 @@ from src.schemas.problems import GrammarProblemConstraints
     "--detailed", default=False, is_flag=True, help="Show detailed problem information"
 )
 @click.option(
-    "--local",
-    default=False,
-    is_flag=True,
-    help="Target local service at http://localhost:8000",
-)
-@click.option(
     "--remote",
     default=False,
     is_flag=True,
-    help="Target remote service from SERVICE_URL",
+    help="Target remote service from SERVICE_URL (requires confirmation for dangerous ops)",
+)
+@click.option(
+    "-v",
+    "--verbose",
+    default=False,
+    is_flag=True,
+    help="Show startup messages and connection details",
 )
 @click.pass_context
 async def cli(
@@ -64,21 +82,23 @@ async def cli(
     debug_openai=False,
     debug_recovery=True,
     detailed=False,
-    local=False,
     remote=False,
+    verbose=False,
 ):
     # Load environment variables from .env file
     load_dotenv()
 
-    # If --local flag is set, override Supabase credentials to use local instance
-    if local:
+    # Default behavior: use local Supabase (unless --remote is set)
+    if not remote:
         from src.cli.utils.local_supabase import get_local_supabase_config
         from src.core.config import reset_settings
 
-        click.echo("🔧 Configuring local Supabase connection...")
+        if verbose:
+            click.echo("🔧 Using local Supabase connection (default)...")
         local_config = get_local_supabase_config()
 
-        click.echo(f"   Setting SUPABASE_URL to {local_config['SUPABASE_URL']}")
+        if verbose:
+            click.echo(f"   Setting SUPABASE_URL to {local_config['SUPABASE_URL']}")
         for key, value in local_config.items():
             if value:  # Only set if value is non-empty
                 os.environ[key] = value
@@ -89,7 +109,8 @@ async def cli(
         # Verify the override worked
         from src.core.config import settings
 
-        click.echo(f"   ✅ Settings now use: {settings.supabase_url}")
+        if verbose:
+            click.echo(f"   ✅ Settings now use: {settings.supabase_url}")
 
     logging.basicConfig(level=logging.DEBUG if debug else logging.INFO)
 
@@ -106,11 +127,9 @@ async def cli(
     from src.cli.utils.http_client import get_service_url_from_flag
 
     ctx.ensure_object(dict)
-    ctx.obj["service_url"] = get_service_url_from_flag(local, remote)
-    ctx.obj["local"] = local
+    ctx.obj["service_url"] = get_service_url_from_flag(remote)
     ctx.obj["remote"] = remote
-
-    # Removed: await reflect_tables()  # SQLAlchemy dependency removed
+    ctx.obj["verbose"] = verbose
 
 
 @cli.group()
@@ -157,10 +176,14 @@ async def problem():
 @click.option(
     "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
 )
+@click.option(
+    "--llm-trace", "llm_trace", is_flag=True, help="Include LLM generation trace"
+)
 @click.pass_context
 async def problem_random(
     ctx,
     output_json: bool,
+    llm_trace: bool,
 ):
     """Get a random problem from the database."""
     try:
@@ -174,6 +197,7 @@ async def problem_random(
             detailed=detailed,
             service_url=service_url,
             output_json=output_json,
+            show_trace=llm_trace,
         )
 
     except Exception as ex:
@@ -192,6 +216,9 @@ async def problem_random(
 @click.option(
     "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
 )
+@click.option(
+    "--llm-trace", "llm_trace", is_flag=True, help="Include LLM generation trace"
+)
 @click.pass_context
 async def problem_generate(
     ctx,
@@ -202,6 +229,7 @@ async def problem_generate(
     include_negation: bool,
     tense: tuple,
     output_json: bool,
+    llm_trace: bool,
 ):
     """Generate random grammar problems using AI."""
     try:
@@ -234,6 +262,7 @@ async def problem_generate(
                 service_url=service_url,
                 output_json=output_json,
                 count=count,
+                show_trace=llm_trace,
             )
         else:
             # Batch generation
@@ -245,6 +274,7 @@ async def problem_generate(
                 detailed=detailed,
                 service_url=service_url,
                 output_json=output_json,
+                show_trace=llm_trace,
             )
 
     except Exception as ex:
@@ -259,50 +289,68 @@ async def problem_generate(
     help="Filter by problem type",
 )
 @click.option("--topic", multiple=True, help="Filter by topic tags")
-@click.option("--limit", default=10, help="Number of problems to show")
-@click.option("--verbose", "-v", is_flag=True, help="Show full problem details")
+@click.option(
+    "--focus", help="Filter by grammatical focus (e.g., direct_objects, negation)"
+)
+@click.option("--verb", help="Filter by verb infinitive")
+@click.option(
+    "--older-than",
+    type=DateOrDurationParam(),
+    help="Filter problems created before date/duration (e.g., '7d', '2w', '2025-01-01')",
+)
+@click.option(
+    "--newer-than",
+    type=DateOrDurationParam(),
+    help="Filter problems created after date/duration (e.g., '7d', '2w', '2025-01-01')",
+)
+@click.option("--limit", default=10, help="Number of problems to show (default: 10)")
+@click.option("--offset", default=0, help="Skip N results for pagination")
+@click.option("--all", "show_all", is_flag=True, help="Show all problems (up to 1000)")
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Show full problem details (includes metadata in JSON)",
+)
+@click.option("--json", "output_json", is_flag=True, help="Output as JSON")
 @click.pass_context
-async def problem_list(ctx, problem_type: str, topic: tuple, limit: int, verbose: bool):
+async def problem_list(
+    ctx,
+    problem_type: str,
+    topic: tuple,
+    focus: str,
+    verb: str,
+    older_than,
+    newer_than,
+    limit: int,
+    offset: int,
+    show_all: bool,
+    verbose: bool,
+    output_json: bool,
+):
     """List existing problems with filtering."""
     try:
         # Get debug flag from parent context for detailed display mode
         detailed = ctx.find_root().params.get("detailed", False)
 
+        # --all overrides --limit
+        effective_limit = 1000 if show_all else limit
+
         await list_problems(
             problem_type=problem_type,
             topic_tags=list(topic) if topic else None,
-            limit=limit,
+            focus=focus,
+            verb=verb,
+            older_than=older_than,
+            newer_than=newer_than,
+            limit=effective_limit,
+            offset=offset,
             verbose=verbose,
             detailed=detailed,
+            output_json=output_json,
         )
     except Exception as ex:
         click.echo(f"❌ Error listing problems: {ex}")
-
-
-@problem.command("search")
-@click.option(
-    "--focus", help="Search by grammatical focus (e.g., direct_objects, negation)"
-)
-@click.option("--topic", multiple=True, help="Search by topic tags")
-@click.option("--limit", default=10, help="Number of results to show")
-@click.pass_context
-async def problem_search(ctx, focus: str, topic: tuple, limit: int):
-    """Search problems by various criteria."""
-    try:
-        # Get debug flag from parent context for detailed display mode
-        detailed = ctx.find_root().params.get("detailed", False)
-
-        if focus:
-            await search_problems_by_focus(focus, limit, detailed=detailed)
-        elif topic:
-            await search_problems_by_topic(list(topic), limit, detailed=detailed)
-        else:
-            click.echo(
-                "❌ Please specify at least one search criteria (--focus or --topic)"
-            )
-
-    except Exception as ex:
-        click.echo(f"❌ Error searching problems: {ex}")
 
 
 @problem.command("stats")
@@ -314,37 +362,10 @@ async def problem_stats():
         click.echo(f"❌ Error getting statistics: {ex}")
 
 
-# Add get command to problem group
+# Add get, delete, and purge commands to problem group
 problem.add_command(get_problem)
-
-
-# Keep the existing batch command but update it to use new system
-@problem.command("batch")
-@click.argument("quantity", default=10, type=click.INT)
-@click.option("--workers", default=10, type=click.INT)
-@click.option("--statements", "-s", default=4, help="Number of statements per problem")
-@click.pass_context
-async def batch(ctx, quantity: int, workers: int, statements: int):
-    """Generate multiple problems in parallel."""
-
-    try:
-        # Get service_url and detailed from root context
-        root_ctx = ctx.find_root()
-        service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
-        detailed = root_ctx.params.get("detailed", False)
-
-        await generate_random_problems_batch(
-            quantity=quantity,
-            statement_count=statements,
-            constraints=None,
-            workers=workers,
-            display=True,
-            detailed=detailed,
-            service_url=service_url,
-            output_json=False,
-        )
-    except Exception as ex:
-        print(f"str({ex}): {traceback.format_exc()}")
+problem.add_command(delete_problem)
+problem.add_command(purge_problems)
 
 
 @cli.group()
@@ -354,6 +375,7 @@ async def sentence():
 
 sentence.add_command(create_sentence, name="new")
 sentence.add_command(create_random_sentence_batch, name="random")
+sentence.add_command(purge_orphaned_sentences, name="purge")
 
 
 # Create the verb group
@@ -378,6 +400,30 @@ async def api_keys():
 api_keys.add_command(api_keys_create, name="create")
 api_keys.add_command(api_keys_list, name="list")
 api_keys.add_command(api_keys_revoke, name="revoke")
+
+
+@cli.group("generation-request")
+async def generation_request():
+    """Generation request management commands."""
+    pass
+
+
+# Add generation request commands to the group
+generation_request.add_command(genreq_list, name="list")
+generation_request.add_command(genreq_get, name="get")
+generation_request.add_command(genreq_status, name="status")
+generation_request.add_command(genreq_clean, name="clean")
+
+
+@cli.group()
+async def cache():
+    """Cache management commands."""
+    pass
+
+
+# Add cache commands to the group
+cache.add_command(cache_stats, name="stats")
+cache.add_command(reload_cache, name="reload")
 
 
 def main():

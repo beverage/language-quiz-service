@@ -66,12 +66,12 @@ def sample_sentence():
 class TestCLISentences:
     """Test class for CLI sentence functionality."""
 
-    @patch("src.cli.sentences.create.SentenceService")
-    @patch("src.cli.sentences.create.VerbService")
+    @patch("src.cli.sentences.create.create_sentence_service")
+    @patch("src.cli.sentences.create.create_verb_service")
     async def test_create_sentence_basic_flow(
         self,
-        mock_verb_service_class: MagicMock,
-        mock_sentence_service_class: MagicMock,
+        mock_create_verb_service: MagicMock,
+        mock_create_sentence_service: MagicMock,
         sample_verb: Verb,
         sample_sentence: Sentence,
     ):
@@ -79,8 +79,8 @@ class TestCLISentences:
         # Setup mocks
         mock_verb_service = AsyncMock()
         mock_sentence_service = AsyncMock()
-        mock_verb_service_class.return_value = mock_verb_service
-        mock_sentence_service_class.return_value = mock_sentence_service
+        mock_create_verb_service.return_value = mock_verb_service
+        mock_create_sentence_service.return_value = mock_sentence_service
 
         mock_verb_service.get_verb_by_infinitive.return_value = sample_verb
         mock_sentence_service.generate_sentence.return_value = sample_sentence

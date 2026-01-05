@@ -6,7 +6,7 @@ from slowapi.util import get_remote_address
 
 from ..core.config import Settings, get_settings
 
-router = APIRouter(tags=["health"])
+router = APIRouter(tags=["Health"])
 
 # Get limiter instance
 limiter = Limiter(key_func=get_remote_address)

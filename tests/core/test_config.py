@@ -49,6 +49,10 @@ class TestSettings:
             "SUPABASE_SERVICE_ROLE_KEY": "custom_service_key",
             "SUPABASE_ANON_KEY": "custom_anon_key",
             "SUPABASE_PROJECT_REF": "custom_ref",
+            # LLM configuration (required)
+            "LLM_PROVIDER": "openai",
+            "STANDARD_MODEL": "gpt-4o-mini",
+            "REASONING_MODEL": "gpt-4o",
         }
 
         with patch.dict(os.environ, env_vars, clear=True):
@@ -65,6 +69,10 @@ class TestSettings:
             assert settings.supabase_key == "custom_service_key"
             assert settings.supabase_anon_key == "custom_anon_key"
             assert settings.supabase_project_ref == "custom_ref"
+            # LLM config overrides
+            assert settings.llm_provider == "openai"
+            assert settings.standard_model == "gpt-4o-mini"
+            assert settings.reasoning_model == "gpt-4o"
 
     def test_is_production_property(self):
         """Test the is_production property."""

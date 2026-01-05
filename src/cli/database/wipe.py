@@ -22,8 +22,8 @@ async def wipe_database(ctx):
 
     This command truncates all tables, removing all data but keeping the schema.
 
-    SAFETY: This command ONLY works with --local flag. It is forbidden on remote
-    databases to prevent accidental data loss.
+    By default, operates on local Supabase. Use --remote to target remote database.
+    Remote wipe operations are FORBIDDEN for safety.
 
     Tables wiped (in order to respect foreign keys):
     1. sentences
@@ -34,19 +34,13 @@ async def wipe_database(ctx):
     """
     # Get flags from root context
     root_ctx = ctx.find_root()
-    is_local = root_ctx.obj.get("local", False) if root_ctx.obj else False
     is_remote = root_ctx.obj.get("remote", False) if root_ctx.obj else False
 
-    # Safety check: MUST be --local
-    if not is_local:
-        click.echo("❌ ERROR: 'lqs database wipe' can ONLY be used with --local flag")
-        click.echo("   This is a safety measure to prevent accidental data loss.")
-        click.echo("   Usage: lqs --local database wipe")
-        return
-
+    # Safety check: FORBID remote wipe
     if is_remote:
         click.echo("❌ ERROR: 'lqs database wipe' is FORBIDDEN with --remote flag")
         click.echo("   This command can only target local databases.")
+        click.echo("   This is a safety measure to prevent accidental data loss.")
         return
 
     # Confirm with user

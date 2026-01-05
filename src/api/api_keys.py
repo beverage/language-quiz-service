@@ -10,6 +10,7 @@ from fastapi.security import HTTPBearer
 
 from src.api.models.api_keys import ApiKeyUpdateRequest
 from src.core.auth import get_current_api_key
+from src.core.dependencies import get_api_key_service
 from src.core.exceptions import (
     AppException,
     NotFoundError,
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 API_PREFIX = "/api-keys"
 ROUTER_PREFIX = f"/api/v1{API_PREFIX}"
 
-router = APIRouter(prefix=API_PREFIX, tags=["api-keys"])
+router = APIRouter(prefix=API_PREFIX, tags=["API Keys"])
 security = HTTPBearer()
 
 
@@ -57,7 +58,7 @@ security = HTTPBearer()
             "content": {
                 "application/json": {
                     "example": {
-                        "api_key": "sk_live_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567",
+                        "api_key": "sk_live_***",
                         "key_info": {
                             "id": "123e4567-e89b-12d3-a456-426614174000",
                             "key_prefix": "sk_live_abc1",
@@ -108,6 +109,7 @@ async def create_api_key(
     api_key_data: ApiKeyCreate,
     request: Request,
     current_key: dict = Depends(get_current_api_key),
+    service: ApiKeyService = Depends(get_api_key_service),
 ) -> ApiKeyWithPlainText:
     """
     Create a new API key.
@@ -123,7 +125,6 @@ async def create_api_key(
         )
 
     try:
-        service = ApiKeyService()
         result = await service.create_api_key(api_key_data)
 
         logger.info(
@@ -217,6 +218,7 @@ async def list_api_keys(
         False, description="Include deactivated keys in results"
     ),
     current_key: dict = Depends(get_current_api_key),
+    service: ApiKeyService = Depends(get_api_key_service),
 ) -> list[ApiKeyResponse]:
     """
     List all API keys.
@@ -232,7 +234,6 @@ async def list_api_keys(
         )
 
     try:
-        service = ApiKeyService()
         return await service.get_all_api_keys(limit, include_inactive)
 
     except (RepositoryError, ServiceError) as e:
@@ -293,6 +294,7 @@ async def list_api_keys(
 )
 async def get_api_key_stats(
     current_key: dict = Depends(get_current_api_key),
+    service: ApiKeyService = Depends(get_api_key_service),
 ) -> ApiKeyStats:
     """
     Get API key usage statistics.
@@ -308,7 +310,6 @@ async def get_api_key_stats(
         )
 
     try:
-        service = ApiKeyService()
         return await service.get_api_key_stats()
     except (RepositoryError, ServiceError) as e:
         logger.error(f"API error getting key stats: {e}", exc_info=True)
@@ -325,6 +326,7 @@ async def get_api_key_stats(
 async def search_api_keys(
     name: str,
     current_key: dict = Depends(get_current_api_key),
+    service: ApiKeyService = Depends(get_api_key_service),
 ) -> list[ApiKeyResponse]:
     """
     Search API keys by name pattern.
@@ -340,7 +342,6 @@ async def search_api_keys(
         )
 
     try:
-        service = ApiKeyService()
         return await service.find_api_keys_by_name(name)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -425,6 +426,7 @@ async def get_current_key_info(
 async def get_api_key(
     api_key_id: UUID,
     current_key: dict = Depends(get_current_api_key),
+    service: ApiKeyService = Depends(get_api_key_service),
 ) -> ApiKeyResponse:
     """
     Get a specific API key by ID.
@@ -440,7 +442,6 @@ async def get_api_key(
         )
 
     try:
-        service = ApiKeyService()
         return await service.get_api_key(api_key_id)
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -589,6 +590,7 @@ async def update_api_key(
     api_key_id: UUID,
     api_key_data: ApiKeyUpdateRequest,
     current_key: dict = Depends(get_current_api_key),
+    service: ApiKeyService = Depends(get_api_key_service),
 ) -> ApiKeyResponse:
     """
     Update an API key.
@@ -611,7 +613,6 @@ async def update_api_key(
         )
 
     try:
-        service = ApiKeyService()
         update_schema = ApiKeyUpdate(**update_data)
         return await service.update_api_key(api_key_id, update_schema)
     except NotFoundError as e:
@@ -631,6 +632,7 @@ async def update_api_key(
 async def revoke_api_key(
     api_key_id: UUID,
     current_key: dict = Depends(get_current_api_key),
+    service: ApiKeyService = Depends(get_api_key_service),
 ) -> dict:
     """
     Revoke (deactivate) an API key.
@@ -646,7 +648,6 @@ async def revoke_api_key(
         )
 
     try:
-        service = ApiKeyService()
         success = await service.revoke_api_key(api_key_id)
         if not success:
             # This case might occur if the key was already deleted by another process
@@ -666,39 +667,6 @@ async def revoke_api_key(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (RepositoryError, ServiceError) as e:
         logger.error(f"API error revoking key {api_key_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=e.status_code, detail=str(e))
-    except AppException as e:
-        logger.error(f"Unhandled application error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred.",
-        )
-
-
-@router.post("/{api_key_id}/validate")
-async def validate_api_key_format(
-    api_key_plain: str,
-    current_key: dict = Depends(get_current_api_key),
-) -> dict:
-    """
-    Validate an API key format without authenticating it.
-
-    Requires 'admin' permission to validate keys.
-    """
-    # Check permissions
-    permissions = current_key.get("permissions_scope", [])
-    if "admin" not in permissions:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin permission required to validate API keys",
-        )
-
-    try:
-        service = ApiKeyService()
-        is_valid = await service.is_valid_format(api_key_plain)
-        return {"is_valid_format": is_valid}
-    except (RepositoryError, ServiceError) as e:
-        logger.error(f"API error validating key format: {e}", exc_info=True)
         raise HTTPException(status_code=e.status_code, detail=str(e))
     except AppException as e:
         logger.error(f"Unhandled application error: {e}", exc_info=True)

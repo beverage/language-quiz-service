@@ -14,6 +14,7 @@ from src.api.models.problems import (
     ProblemResponse,
 )
 from src.core.auth import get_current_api_key
+from src.core.dependencies import get_problem_service
 from src.services.problem_service import ProblemService
 from src.services.queue_service import QueueService
 
@@ -23,12 +24,7 @@ logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 API_PREFIX = "/problems"
-router = APIRouter(prefix=API_PREFIX, tags=["problems"])
-
-
-async def get_problem_service() -> ProblemService:
-    """Dependency to get ProblemService instance."""
-    return ProblemService()
+router = APIRouter(prefix=API_PREFIX, tags=["Problems"])
 
 
 async def get_queue_service() -> AsyncGenerator[QueueService, None]:
@@ -184,7 +180,7 @@ async def get_random_problem(
     }
     ```
 
-    **Required Permission**: `read`, `write`, or `admin`
+    **Required Permission**: `write` or `admin`
     """,
     responses={
         202: {
@@ -194,6 +190,19 @@ async def get_random_problem(
                     "example": {
                         "message": "Enqueued 10 problem generation requests",
                         "count": 10,
+                    }
+                }
+            },
+        },
+        403: {
+            "description": "Insufficient permissions",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": True,
+                        "message": "Write or admin permission required to generate problems",
+                        "status_code": 403,
+                        "path": "/api/v1/problems/generate",
                     }
                 }
             },
@@ -225,7 +234,17 @@ async def generate_random_problem(
 
     Publishes generation requests to Kafka for background worker processing.
     Returns immediately with 202 Accepted status.
+
+    Requires 'write' or 'admin' permission.
     """
+    # Check permissions
+    permissions = current_key.get("permissions_scope", [])
+    if "write" not in permissions and "admin" not in permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Write or admin permission required to generate problems",
+        )
+
     try:
         # Use defaults if no request body provided
         if problem_request is None:

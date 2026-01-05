@@ -28,6 +28,12 @@ if OTEL_ENABLED:  # pragma: no cover
         unit="1",
     )
 
+    messages_malformed_counter: Counter = meter.create_counter(
+        name="worker.messages.malformed",
+        description="Total number of malformed messages (missing required fields)",
+        unit="1",
+    )
+
     processing_duration_histogram: Histogram = meter.create_histogram(
         name="worker.message.processing_duration",
         description="Time taken to process a single message",
@@ -82,6 +88,7 @@ else:  # pragma: no cover
 
     messages_processed_counter = DummyCounter()
     messages_failed_counter = DummyCounter()
+    messages_malformed_counter = DummyCounter()
     processing_duration_histogram = DummyHistogram()
 
     _queue_length = 0
@@ -99,6 +106,13 @@ def increment_messages_failed(
 ) -> None:  # pragma: no cover
     """Increment the count of failed messages."""
     messages_failed_counter.add(1, {"topic": topic, "error_type": error_type})
+
+
+def increment_messages_malformed(
+    topic: str = "unknown", reason: str = "unknown"
+) -> None:  # pragma: no cover
+    """Increment the count of malformed messages."""
+    messages_malformed_counter.add(1, {"topic": topic, "reason": reason})
 
 
 def record_processing_duration(
@@ -129,6 +143,7 @@ def decrement_active_tasks() -> None:  # pragma: no cover
 __all__ = [
     "increment_messages_processed",
     "increment_messages_failed",
+    "increment_messages_malformed",
     "record_processing_duration",
     "set_queue_length",
     "increment_active_tasks",

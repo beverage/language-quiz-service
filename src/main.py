@@ -36,7 +36,7 @@ logger.info(f"📝 Log level set to: {LOG_LEVEL}")
 # ============================================================================
 OTEL_ENABLED = bool(os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
 
-if OTEL_ENABLED:
+if OTEL_ENABLED:  # pragma: no cover
     logger.info("📊 Initializing OpenTelemetry instrumentation...")
 
     from opentelemetry import metrics, trace
@@ -208,6 +208,22 @@ async def lifespan(app: FastAPI):
         logger.info(f"📊 API key cache: {api_key_cache.get_stats()}")
         logger.info("✅ All caches loaded successfully")
 
+        # Expire stale pending generation requests
+        from src.core.factories import create_generation_request_repository
+
+        try:
+            gen_repo = await create_generation_request_repository()
+            expired_count = await gen_repo.expire_stale_pending_requests(
+                older_than_minutes=10
+            )
+            if expired_count > 0:
+                logger.info(f"🧹 Expired {expired_count} stale pending requests")
+            else:
+                logger.info("🧹 No stale pending requests to expire")
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to expire stale requests: {e}")
+            # Don't raise - this is a nice-to-have, not critical
+
     except Exception as e:
         logger.error(f"❌ Failed to initialize caches: {e}", exc_info=True)
         raise
@@ -250,114 +266,94 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Language Quiz Service API",
-    description="""
-    ## AI-Powered Language Learning Quiz Generation Service
+    description="""## AI-Powered French Language Learning API
 
-    This API provides endpoints for managing French verbs, generating language learning content,
-    and creating personalized quizzes using AI technology.
+A backend service for generating grammatically-focused French language learning content
+using AI. Built to power quiz applications that help learners master French verb
+conjugations through contextual sentence practice.
 
-    ### 🌐 API Versioning
+Learn more at [beverage.me](https://beverage.me).
 
-    - **Health endpoints**: Available at root level (`/health`, `/`)
-    - **API endpoints**: Versioned under `/api/v1/` (e.g., `/api/v1/verbs`, `/api/v1/api-keys`)
+---
 
-    ### 🔐 Authentication
+### 🔐 Authentication
 
-    All API endpoints require authentication using API keys. Include your API key in the
-    `X-API-Key` header:
+All API endpoints require Bearer token authentication. Include your API key in the
+`Authorization` header:
 
-    ```
-    X-API-Key: sk_live_your_api_key_here
-    ```
+```
+Authorization: Bearer your_api_key_here
+```
 
-    ### 📋 Permission Levels
+API keys are scoped with permission levels that control endpoint access.
 
-    - **read**: Access to GET endpoints for retrieving data
-    - **write**: Access to POST endpoints for creating and downloading content
-    - **admin**: Full access including API key management
+### 📋 Permission Levels
 
-    ### 🚀 Getting Started
+| Level | Access |
+|-------|--------|
+| `read` | Retrieve verbs, sentences, problems, and generation request status |
+| `write` | Create new content: download verbs, generate problems and sentences |
+| `admin` | Full access including API key management |
 
-    1. **Obtain an API Key**: Contact your administrator to get an API key
-    2. **Test Authentication**: Use the `/health` endpoint to verify your setup
-    3. **Explore Verbs**: Start with `/api/v1/verbs/random` to get a random French verb
-    4. **Download Content**: Use `/api/v1/verbs/download` to add new verbs to the database
+### 🌐 API Structure
 
-    ### 📊 Rate Limiting
+- **Health endpoints**: Available at root level (`/`, `/health`)
+- **API endpoints**: Versioned under `/api/v1/`
 
-    All endpoints are rate-limited to prevent abuse:
-    - Default: 100 requests per minute
-    - Health endpoints: 100 requests per minute
-    - Custom limits may apply based on your API key configuration
+### 📊 Rate Limiting
 
-    ### 🛠️ Error Handling
+All endpoints are rate-limited to ensure service stability:
+- Default: 100 requests per minute per IP
+- Rate limit headers are included in responses
 
-    The API uses standard HTTP status codes:
-    - `200`: Success
-    - `400`: Bad Request (validation errors)
-    - `401`: Unauthorized (missing or invalid API key)
-    - `403`: Forbidden (insufficient permissions)
-    - `404`: Not Found
-    - `429`: Too Many Requests (rate limit exceeded)
-    - `500`: Internal Server Error
+### 🛠️ Error Responses
 
-    ### 🔄 Response Format
+The API uses standard HTTP status codes with consistent JSON error bodies:
 
-    All responses follow a consistent JSON format with appropriate HTTP status codes.
-    Error responses include detailed error messages to help with debugging.
+| Code | Meaning |
+|------|---------|
+| `200` | Success |
+| `400` | Validation error - check request body |
+| `401` | Missing or invalid API key |
+| `403` | Insufficient permissions for this endpoint |
+| `404` | Resource not found |
+| `429` | Rate limit exceeded - slow down |
+| `500` | Internal server error |
 
-    ### 📚 Examples
-
-    Check the interactive documentation below for detailed examples of each endpoint,
-    including request/response schemas and example payloads.
+Error responses include a `message` field with details and the `path` that was requested.
     """,
     version="1.0.0",
     lifespan=lifespan,
     contact={
-        "name": "Language Quiz Service",
-        "url": "https://github.com/your-org/language-quiz-service",
-        "email": "support@languagequizservice.com",
+        "name": "Alex Beverage",
+        "url": "https://beverage.me",
     },
     license_info={"name": "MIT License", "url": "https://opensource.org/licenses/MIT"},
-    servers=[
-        {
-            "url": "https://api.languagequizservice.com/api/v1",
-            "description": "Production server",
-        },
-        {
-            "url": "https://staging-api.languagequizservice.com/api/v1",
-            "description": "Staging server",
-        },
-        {
-            "url": "http://localhost:8000/api/v1",
-            "description": "Local development server",
-        },
-    ],
     openapi_tags=[
-        {"name": "health", "description": "Health check and system status endpoints"},
+        {"name": "Health", "description": "Service health and status endpoints"},
         {
-            "name": "verbs",
-            "description": "French verb management and conjugation endpoints",
+            "name": "Verbs",
+            "description": "French verb retrieval and AI-powered verb downloading",
         },
         {
-            "name": "api-keys",
-            "description": "API key management endpoints (admin only)",
+            "name": "Sentences",
+            "description": "French sentence retrieval with grammatical metadata",
         },
         {
-            "name": "problems",
-            "description": "Quiz problem generation and management endpoints",
+            "name": "Problems",
+            "description": "Quiz problem generation and retrieval",
         },
         {
-            "name": "generation-requests",
-            "description": "Async generation request tracking and status endpoints",
+            "name": "Generation Requests",
+            "description": "Track async problem generation requests",
         },
         {
-            "name": "sentences",
-            "description": "Sentence generation endpoints (coming soon)",
+            "name": "API Keys",
+            "description": "API key management (admin only)",
         },
         {
             "name": "Cache",
-            "description": "Cache statistics and monitoring endpoints",
+            "description": "Cache statistics and monitoring",
         },
     ],
 )

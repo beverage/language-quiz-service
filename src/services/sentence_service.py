@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from src.clients.openai_client import OpenAIClient
+from src.clients.abstract_llm_client import AbstractLLMClient
 from src.core.config import settings
 from src.core.exceptions import NotFoundError
 from src.prompts.response_schemas import (
@@ -15,6 +15,7 @@ from src.prompts.response_schemas import (
 )
 from src.prompts.sentences import ErrorType, SentencePromptBuilder
 from src.repositories.sentence_repository import SentenceRepository
+from src.schemas.llm_response import LLMResponse
 from src.schemas.sentences import (
     DirectObject,
     IndirectObject,
@@ -34,24 +35,50 @@ logger = logging.getLogger(__name__)
 class SentenceService:
     def __init__(
         self,
-        openai_client: OpenAIClient = None,
+        llm_client: AbstractLLMClient,
         sentence_repository: SentenceRepository | None = None,
         verb_service: VerbService | None = None,
         sentence_builder: SentencePromptBuilder | None = None,
         use_compositional: bool = True,
     ):
-        """Initialize the sentence service with injectable dependencies."""
-        self.openai_client = openai_client or OpenAIClient()
+        """Initialize the sentence service with injectable dependencies.
+
+        Args:
+            llm_client: Required LLM client for AI operations.
+            sentence_repository: Optional repository (can be set later for lazy init).
+            verb_service: Optional verb service (can be set later for lazy init).
+            sentence_builder: Optional prompt builder (defaults to SentencePromptBuilder).
+            use_compositional: Whether to use compositional prompts.
+        """
+        self.llm_client = llm_client
         self.sentence_repository = sentence_repository
-        self.verb_service = verb_service or VerbService()
+        self.verb_service = verb_service
         self.sentence_builder = sentence_builder or SentencePromptBuilder()
         self.use_compositional = use_compositional
 
-    async def _get_sentence_repository(self) -> SentenceRepository:
-        """Asynchronously get the sentence repository, creating it if it doesn't exist."""
+    def set_repository(self, sentence_repository: SentenceRepository) -> None:
+        """Set the sentence repository (for cases requiring lazy initialization)."""
+        self.sentence_repository = sentence_repository
+
+    def set_verb_service(self, verb_service: VerbService) -> None:
+        """Set the verb service (for cases requiring lazy initialization)."""
+        self.verb_service = verb_service
+
+    def _get_sentence_repository(self) -> SentenceRepository:
+        """Get the sentence repository, raising if not set."""
         if self.sentence_repository is None:
-            self.sentence_repository = await SentenceRepository.create()
+            raise RuntimeError(
+                "SentenceRepository not set. Either pass it to __init__ or call set_repository()."
+            )
         return self.sentence_repository
+
+    def _get_verb_service(self) -> VerbService:
+        """Get the verb service, raising if not set."""
+        if self.verb_service is None:
+            raise RuntimeError(
+                "VerbService not set. Either pass it to __init__ or call set_verb_service()."
+            )
+        return self.verb_service
 
     async def count_sentences(
         self,
@@ -59,17 +86,17 @@ class SentenceService:
         is_correct: bool | None = None,
     ) -> int:
         """Count sentences with optional filters."""
-        repo = await self._get_sentence_repository()
+        repo = self._get_sentence_repository()
         return await repo.count_sentences(verb_id=verb_id, is_correct=is_correct)
 
     async def create_sentence(self, sentence_data: SentenceCreate) -> Sentence:
         """Create a new sentence."""
-        repo = await self._get_sentence_repository()
+        repo = self._get_sentence_repository()
         return await repo.create_sentence(sentence_data)
 
     async def delete_sentence(self, sentence_id: UUID) -> bool:
         """Delete a sentence."""
-        repo = await self._get_sentence_repository()
+        repo = self._get_sentence_repository()
         # First, check if the sentence exists
         sentence = await repo.get_sentence(sentence_id)
         if not sentence:
@@ -89,18 +116,22 @@ class SentenceService:
         error_type: ErrorType | None = None,
         verb: Verb | None = None,
         conjugations: list | None = None,
-    ) -> Sentence:
+    ) -> tuple[Sentence, LLMResponse]:
         """Generate a sentence using AI integration.
 
         Args:
             verb: Optional pre-fetched verb to avoid duplicate DB calls
             conjugations: Optional pre-fetched conjugations to avoid duplicate DB calls
+
+        Returns:
+            Tuple of (Sentence, LLMResponse) for trace capture
         """
         logger.debug(f"Generating sentence for verb_id {verb_id}")
 
         # Get the verb details (use provided or fetch)
+        verb_service = self._get_verb_service()
         if verb is None:
-            verb = await self.verb_service.get_verb(verb_id)
+            verb = await verb_service.get_verb(verb_id)
             if not verb:
                 raise NotFoundError(f"Verb with ID {verb_id} not found")
 
@@ -108,7 +139,7 @@ class SentenceService:
         correct_conjugation_form = None
         try:
             if conjugations is None:
-                conjugations = await self.verb_service.get_conjugations(
+                conjugations = await verb_service.get_conjugations(
                     infinitive=verb.infinitive,
                     auxiliary=verb.auxiliary.value,
                     reflexive=verb.reflexive,
@@ -190,13 +221,15 @@ class SentenceService:
             response_schema = None  # Legacy prompts don't use structured output
             logger.debug("📝 Using legacy prompt generator")
 
-        response = await self.openai_client.handle_request(
+        response = await self.llm_client.handle_request(
             prompt,
             model=settings.reasoning_model,
             operation="sentence_generation",
             response_format=response_schema,
         )
-        response_json = json.loads(response)
+        # Attach the prompt to the response for trace capture
+        response.prompt_text = prompt
+        response_json = json.loads(response.content)
 
         # Update the sentence with AI response
         sentence_request.content = response_json.get("sentence", "")
@@ -256,7 +289,7 @@ class SentenceService:
             updated_at=now,
             **sentence_request.model_dump(),
         )
-        return sentence
+        return sentence, response
 
     async def _create_sentence_background(
         self, sentence_data: SentenceCreate, sentence_id: UUID, timestamp: datetime
@@ -269,7 +302,7 @@ class SentenceService:
             sentence_dict["created_at"] = timestamp.isoformat()
             sentence_dict["updated_at"] = timestamp.isoformat()
 
-            repo = await self._get_sentence_repository()
+            repo = self._get_sentence_repository()
             # Insert directly with our generated ID
             await repo.client.table("sentences").insert(sentence_dict).execute()
         except Exception as e:
@@ -277,7 +310,7 @@ class SentenceService:
 
     async def get_all_sentences(self, limit: int = 100) -> list[Sentence]:
         """Get all sentences."""
-        repo = await self._get_sentence_repository()
+        repo = self._get_sentence_repository()
         return await repo.get_all_sentences(limit)
 
     async def get_random_sentence(
@@ -286,12 +319,12 @@ class SentenceService:
         verb_id: UUID | None = None,
     ) -> Sentence | None:
         """Get a random sentence."""
-        repo = await self._get_sentence_repository()
+        repo = self._get_sentence_repository()
         return await repo.get_random_sentence(is_correct=is_correct, verb_id=verb_id)
 
     async def get_sentence(self, sentence_id: UUID) -> Sentence | None:
         """Get a sentence by ID."""
-        repo = await self._get_sentence_repository()
+        repo = self._get_sentence_repository()
         return await repo.get_sentence(sentence_id)
 
     async def get_sentences(
@@ -304,7 +337,7 @@ class SentenceService:
         limit: int = 50,
     ) -> list[Sentence]:
         """Get sentences with optional filters."""
-        repo = await self._get_sentence_repository()
+        repo = self._get_sentence_repository()
         return await repo.get_sentences(
             verb_id=verb_id,
             is_correct=is_correct,
@@ -318,12 +351,12 @@ class SentenceService:
         self, verb_id: UUID, limit: int = 50
     ) -> list[Sentence]:
         """Get all sentences for a specific verb."""
-        repo = await self._get_sentence_repository()
+        repo = self._get_sentence_repository()
         return await repo.get_sentences_by_verb(verb_id, limit)
 
     async def update_sentence(
         self, sentence_id: UUID, sentence_data: SentenceUpdate
     ) -> Sentence | None:
         """Update a sentence."""
-        repo = await self._get_sentence_repository()
+        repo = self._get_sentence_repository()
         return await repo.update_sentence(sentence_id, sentence_data)

@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+from src.core.config import settings
 from src.core.exceptions import (
     LanguageResourceNotFoundError,
     NotFoundError,
@@ -14,6 +15,7 @@ from src.core.exceptions import (
 )
 from src.prompts.sentences import SentencePromptBuilder
 from src.repositories.problem_repository import ProblemRepository
+from src.schemas.llm_response import ProblemGenerationTrace, SentenceGenerationTrace
 from src.schemas.problems import (
     GrammarProblemConstraints,
     Problem,
@@ -47,26 +49,63 @@ class ProblemService:
         verb_service: VerbService | None = None,
         sentence_builder: SentencePromptBuilder | None = None,
     ):
-        """Initialize the problems service with injectable dependencies."""
+        """Initialize the problems service with injectable dependencies.
+
+        Args:
+            problem_repository: Optional repository (can be set later for lazy init).
+            sentence_service: Optional sentence service (can be set later for lazy init).
+            verb_service: Optional verb service (can be set later for lazy init).
+            sentence_builder: Optional prompt builder (defaults to SentencePromptBuilder).
+        """
         self.problem_repository = problem_repository
-        self.sentence_service = sentence_service or SentenceService()
-        self.verb_service = verb_service or VerbService()
+        self.sentence_service = sentence_service
+        self.verb_service = verb_service
         self.sentence_builder = sentence_builder or SentencePromptBuilder()
 
-    async def _get_problem_repository(self) -> ProblemRepository:
-        """Asynchronously get the problems repository, creating it if it doesn't exist."""
+    def set_problem_repository(self, problem_repository: ProblemRepository) -> None:
+        """Set the problem repository (for cases requiring lazy initialization)."""
+        self.problem_repository = problem_repository
+
+    def set_sentence_service(self, sentence_service: SentenceService) -> None:
+        """Set the sentence service (for cases requiring lazy initialization)."""
+        self.sentence_service = sentence_service
+
+    def set_verb_service(self, verb_service: VerbService) -> None:
+        """Set the verb service (for cases requiring lazy initialization)."""
+        self.verb_service = verb_service
+
+    def _get_problem_repository(self) -> ProblemRepository:
+        """Get the problem repository, raising if not set."""
         if self.problem_repository is None:
-            self.problem_repository = await ProblemRepository.create()
+            raise RuntimeError(
+                "ProblemRepository not set. Either pass it to __init__ or call set_problem_repository()."
+            )
         return self.problem_repository
+
+    def _get_sentence_service(self) -> SentenceService:
+        """Get the sentence service, raising if not set."""
+        if self.sentence_service is None:
+            raise RuntimeError(
+                "SentenceService not set. Either pass it to __init__ or call set_sentence_service()."
+            )
+        return self.sentence_service
+
+    def _get_verb_service(self) -> VerbService:
+        """Get the verb service, raising if not set."""
+        if self.verb_service is None:
+            raise RuntimeError(
+                "VerbService not set. Either pass it to __init__ or call set_verb_service()."
+            )
+        return self.verb_service
 
     async def create_problem(self, problem_data: ProblemCreate) -> Problem:
         """Create a new problem."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.create_problem(problem_data)
 
     async def get_problem_by_id(self, problem_id: UUID) -> Problem:
         """Get a problem by ID, raising an error if not found."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         problem = await repo.get_problem(problem_id)
         if not problem:
             raise NotFoundError(f"Problem with ID {problem_id} not found")
@@ -76,21 +115,21 @@ class ProblemService:
         self, filters: ProblemFilters, include_statements: bool = True
     ) -> tuple[list[Problem], int]:
         """Get problems with filtering and pagination."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_problems(filters, include_statements)
 
     async def get_problem_summaries(
         self, filters: ProblemFilters
     ) -> tuple[list[ProblemSummary], int]:
         """Get lightweight problem summaries for list views."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_problem_summaries(filters)
 
     async def update_problem(
         self, problem_id: UUID, problem_data: ProblemUpdate
     ) -> Problem:
         """Update a problem, raising an error if not found."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
 
         # First, ensure the problem exists
         existing_problem = await repo.get_problem(problem_id)
@@ -108,8 +147,22 @@ class ProblemService:
 
     async def delete_problem(self, problem_id: UUID) -> bool:
         """Delete a problem."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.delete_problem(problem_id)
+
+    async def delete_problems_by_generation_id(
+        self, generation_request_id: UUID
+    ) -> int:
+        """Delete all problems associated with a generation request.
+
+        Args:
+            generation_request_id: The UUID of the generation request
+
+        Returns:
+            Number of problems deleted
+        """
+        repo = self._get_problem_repository()
+        return await repo.delete_problems_by_generation_id(generation_request_id)
 
     async def create_random_grammar_problem(
         self,
@@ -133,14 +186,15 @@ class ProblemService:
             constraints = GrammarProblemConstraints()
 
         # Step 1: Select a random verb for consistency across statements
-        verb = await self.verb_service.get_random_verb()
+        verb_service = self._get_verb_service()
+        verb = await verb_service.get_random_verb()
         if not verb:
             raise LanguageResourceNotFoundError(resource_type="verbs")
 
         logger.debug(f"📝 Selected verb: {verb.infinitive}")
 
         # Step 1b: Fetch conjugations once for all sentences (performance optimization)
-        conjugations = await self.verb_service.get_conjugations(
+        conjugations = await verb_service.get_conjugations(
             infinitive=verb.infinitive,
             auxiliary=verb.auxiliary.value,
             reflexive=verb.reflexive,
@@ -180,8 +234,9 @@ class ProblemService:
         random.shuffle(available_pronouns)
         selected_pronouns = available_pronouns[:statement_count]
 
-        # Prepare all sentence generation tasks
+        # Prepare all sentence generation tasks and track metadata for traces
         sentence_tasks = []
+        task_metadata = []  # Track (is_correct, error_type) for each task
         error_type_index = 0
         for i in range(statement_count):
             is_correct = i == correct_answer_index
@@ -205,7 +260,8 @@ class ProblemService:
             )
 
             # Create task but don't await yet
-            task = self.sentence_service.generate_sentence(
+            sentence_service = self._get_sentence_service()
+            task = sentence_service.generate_sentence(
                 verb_id=verb.id,
                 **sentence_params,
                 is_correct=is_correct,
@@ -215,10 +271,50 @@ class ProblemService:
                 conjugations=conjugations,  # Pass pre-fetched conjugations
             )
             sentence_tasks.append(task)
+            task_metadata.append((is_correct, error_type))
 
         # Execute all sentence generation in parallel
         logger.debug(f"⚡ Generating {statement_count} statements in parallel...")
-        sentences = await asyncio.gather(*sentence_tasks)
+        import time
+
+        generation_start = time.time()
+        results = await asyncio.gather(*sentence_tasks)
+        total_generation_time_ms = (time.time() - generation_start) * 1000
+
+        # Unpack results: each is (Sentence, LLMResponse)
+        sentences = []
+        sentence_traces = []
+        for i, (sentence, llm_response) in enumerate(results):
+            sentences.append(sentence)
+
+            # Build trace for this sentence
+            is_correct, error_type = task_metadata[i]
+            trace = SentenceGenerationTrace(
+                sentence_index=i,
+                is_correct=is_correct,
+                error_type=error_type.value if error_type else None,
+                llm_response=llm_response,
+                prompt_text=llm_response.prompt_text,
+            )
+            sentence_traces.append(trace)
+
+        # Build aggregated problem trace
+        problem_trace = ProblemGenerationTrace(
+            model=settings.reasoning_model,
+            prompt_version="2.0",
+            total_generation_time_ms=total_generation_time_ms,
+            sentence_traces=sentence_traces,
+        )
+
+        # Log trace summary
+        total_reasoning = sum(
+            t.llm_response.reasoning_tokens or 0 for t in sentence_traces
+        )
+        logger.info(
+            f"📊 Generation trace: {len(sentences)} sentences, "
+            f"{total_generation_time_ms:.0f}ms total, "
+            f"{total_reasoning} reasoning tokens"
+        )
 
         # Find the actual correct answer index based on sentence service results
         actual_correct_index = None
@@ -243,6 +339,7 @@ class ProblemService:
             target_language_code=target_language_code,
             additional_tags=additional_tags,
             generation_request_id=generation_request_id,
+            generation_trace=problem_trace,
         )
 
         # Step 5: Create problem in background (fire and forget)
@@ -280,7 +377,7 @@ class ProblemService:
             problem_dict["created_at"] = timestamp.isoformat()
             problem_dict["updated_at"] = timestamp.isoformat()
 
-            repo = await self._get_problem_repository()
+            repo = self._get_problem_repository()
             # Insert directly with our generated ID
             await repo.client.table("problems").insert(problem_dict).execute()
         except Exception as e:
@@ -289,7 +386,12 @@ class ProblemService:
     def _generate_grammatical_parameters(
         self, verb, constraints: GrammarProblemConstraints
     ) -> dict[str, Any]:
-        """Generate base grammatical parameters for the problem."""
+        """Generate base grammatical parameters for the problem.
+
+        For dimensions under test (pronoun, tense): select specific values.
+        For dimensions not under test (COD, COI, negation): use ANY to let
+        the LLM choose what's natural, avoiding contradictory constraints.
+        """
         # Use constraints if provided, otherwise randomize
         pronoun = random.choice(list(Pronoun))
 
@@ -303,118 +405,15 @@ class ProblemService:
 
         tense = random.choice(available_tenses)
 
-        # Apply verb-specific constraints for COD/COI
-        can_use_cod = verb.can_have_cod and (constraints.includes_cod is not False)
-        can_use_coi = verb.can_have_coi and (constraints.includes_coi is not False)
-
-        # Determine direct and indirect objects
-        if can_use_cod and random.choice([True, False]):
-            direct_object = random.choice(
-                [d for d in DirectObject if d != DirectObject.NONE]
-            )
-        else:
-            direct_object = DirectObject.NONE
-
-        if (
-            can_use_coi
-            and direct_object == DirectObject.NONE
-            and random.choice([True, False])
-        ):
-            indirect_object = random.choice(
-                [i for i in IndirectObject if i != IndirectObject.NONE]
-            )
-        else:
-            indirect_object = IndirectObject.NONE
-
-        # Handle negation
-        if constraints.includes_negation or (
-            constraints.includes_negation is None
-            and random.choice([True, False, False])
-        ):  # 33% chance
-            negation = random.choice([n for n in Negation if n != Negation.NONE])
-        else:
-            negation = Negation.NONE
-
+        # For non-tested dimensions, use ANY to let LLM choose naturally
+        # This avoids contradictory constraints that cause reasoning loops
         return {
             "pronoun": pronoun,
             "tense": tense,
-            "direct_object": direct_object,
-            "indirect_object": indirect_object,
-            "negation": negation,
+            "direct_object": DirectObject.ANY,
+            "indirect_object": IndirectObject.ANY,
+            "negation": Negation.ANY,
         }
-
-    # NOTE: Legacy method - no longer used with compositional prompt builder
-    # The compositional approach generates errors through targeted prompts rather than
-    # parameter variation. This method is kept for reference/rollback purposes.
-    #
-    # def _vary_parameters_for_statement(
-    #     self,
-    #     base_params: dict[str, Any],
-    #     statement_index: int,
-    #     is_correct: bool,
-    #     verb,
-    # ) -> dict[str, Any]:
-    #     """Create parameter variations for each statement."""
-    #     params = base_params.copy()
-    #
-    #     if is_correct:
-    #         # Correct statement uses base parameters as-is
-    #         return params
-    #
-    #     # For incorrect statements, introduce targeted errors
-    #     error_type = statement_index % 3  # Cycle through error types
-    #
-    #     if error_type == 0 and params["direct_object"] != DirectObject.NONE:
-    #         # Error: Wrong direct object type or incorrect indirect object usage
-    #         if random.choice([True, False]):
-    #             # Switch to indirect object incorrectly
-    #             params["direct_object"] = DirectObject.NONE
-    #             params["indirect_object"] = random.choice(
-    #                 [i for i in IndirectObject if i != IndirectObject.NONE]
-    #             )
-    #         else:
-    #             # Wrong direct object gender/number
-    #             current = params["direct_object"]
-    #             available = [
-    #                 d for d in DirectObject if d != DirectObject.NONE and d != current
-    #             ]
-    #             if available:
-    #                 params["direct_object"] = random.choice(available)
-    #
-    #     elif error_type == 1 and params["indirect_object"] != IndirectObject.NONE:
-    #         # Error: Wrong indirect object type or incorrect direct object usage
-    #         if random.choice([True, False]):
-    #             # Switch to direct object incorrectly
-    #             params["indirect_object"] = IndirectObject.NONE
-    #             params["direct_object"] = random.choice(
-    #                 [d for d in DirectObject if d != DirectObject.NONE]
-    #             )
-    #         else:
-    #             # Wrong indirect object gender/number
-    #             current = params["indirect_object"]
-    #             available = [
-    #                 i
-    #                 for i in IndirectObject
-    #                 if i != IndirectObject.NONE and i != current
-    #             ]
-    #             if available:
-    #                 params["indirect_object"] = random.choice(available)
-    #
-    #     elif error_type == 2:
-    #         # Error: Wrong negation or pronoun agreement
-    #         if params["negation"] != Negation.NONE:
-    #             # Wrong negation type
-    #             current = params["negation"]
-    #             available = [n for n in Negation if n != Negation.NONE and n != current]
-    #             if available:
-    #                 params["negation"] = random.choice(available)
-    #         else:
-    #             # Add incorrect negation
-    #             params["negation"] = random.choice(
-    #                 [n for n in Negation if n != Negation.NONE]
-    #             )
-    #
-    #     return params
 
     def _package_grammar_problem(
         self,
@@ -425,6 +424,7 @@ class ProblemService:
         target_language_code: str,
         additional_tags: list[str] | None = None,
         generation_request_id: UUID | None = None,
+        generation_trace: ProblemGenerationTrace | None = None,
     ) -> ProblemCreate:
         """Package sentences into atomic problem format."""
 
@@ -465,6 +465,7 @@ class ProblemService:
             source_statement_ids=[s.id for s in sentences],
             metadata=metadata,
             generation_request_id=generation_request_id,
+            generation_trace=generation_trace.to_dict() if generation_trace else None,
         )
 
     def _derive_grammar_metadata(
@@ -475,21 +476,13 @@ class ProblemService:
     ) -> dict[str, Any]:
         """Derive searchable metadata from sentence generation parameters."""
 
-        # Analyze what grammatical features are present
+        # Track grammatical features present (for informational purposes)
         has_cod = any(s.direct_object != DirectObject.NONE for s in sentences)
         has_coi = any(s.indirect_object != IndirectObject.NONE for s in sentences)
         has_negation = any(s.negation != Negation.NONE for s in sentences)
 
-        # Determine grammatical focus
-        grammatical_focus = []
-        if has_cod:
-            grammatical_focus.append("direct_objects")
-        if has_coi:
-            grammatical_focus.append("indirect_objects")
-        if has_negation:
-            grammatical_focus.append("negation")
-        if not grammatical_focus:
-            grammatical_focus.append("basic_conjugation")
+        # Focus is the problem type - just conjugation for grammar problems
+        grammatical_focus = ["conjugation"]
 
         # Collect unique tenses and pronouns used
         tenses_used = list(set(s.tense.value for s in sentences))
@@ -505,7 +498,7 @@ class ProblemService:
             "includes_cod": has_cod,
             "includes_coi": has_coi,
             "estimated_time_minutes": 2,
-            "learning_objective": f"Practice {', '.join(grammatical_focus)} with {verb.infinitive}",
+            "learning_objective": f"Practice conjugation with {verb.infinitive}",
             "verb_classification": verb.classification.value
             if verb.classification
             else None,
@@ -534,13 +527,11 @@ class ProblemService:
         elif verb_infinitive in ["être", "avoir", "devenir"]:
             tags.append("essential_verbs")
 
-        # Add grammatical focus tags
+        # Add grammatical focus tags (currently just "conjugation")
         tags.extend(metadata["grammatical_focus"])
 
-        # Add difficulty-based tags
-        if metadata.get("includes_cod") and metadata.get("includes_coi"):
-            tags.append("complex_grammar")
-        elif metadata.get("includes_negation"):
+        # Add complexity tag based on negation presence
+        if metadata.get("includes_negation"):
             tags.append("negation")
         else:
             tags.append("basic_grammar")
@@ -552,14 +543,14 @@ class ProblemService:
         self, topic_tags: list[str], limit: int = 50
     ) -> list[Problem]:
         """Get problems by topic tags."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_problems_by_topic_tags(topic_tags, limit)
 
     async def get_problems_using_verb(
         self, verb_id: UUID, limit: int = 50
     ) -> list[Problem]:
         """Get problems that use a specific verb."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         metadata_query = {"source_verb_ids": [str(verb_id)]}
         return await repo.search_problems_by_metadata(metadata_query, limit)
 
@@ -567,7 +558,7 @@ class ProblemService:
         self, focus: str, limit: int = 50
     ) -> list[Problem]:
         """Get problems by grammatical focus (metadata search)."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         filters = ProblemFilters(
             metadata_contains={"grammatical_focus": [focus]}, limit=limit
         )
@@ -581,7 +572,7 @@ class ProblemService:
         Returns:
             Problem object if found, None if no problems exist
         """
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
 
         # Get least recently served problem
         problem = await repo.get_least_recently_served_problem()
@@ -597,7 +588,7 @@ class ProblemService:
         filters: ProblemFilters | None = None,
     ) -> Problem | None:
         """Get a random problem, optionally filtered."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_random_problem(filters or ProblemFilters())
 
     async def count_problems(
@@ -606,10 +597,10 @@ class ProblemService:
         topic_tags: list[str] | None = None,
     ) -> int:
         """Count problems with optional filters."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.count_problems(problem_type, topic_tags)
 
     async def get_problem_statistics(self) -> dict[str, Any]:
         """Get problem statistics for analytics."""
-        repo = await self._get_problem_repository()
+        repo = self._get_problem_repository()
         return await repo.get_problem_statistics()

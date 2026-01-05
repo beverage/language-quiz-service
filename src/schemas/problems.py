@@ -44,6 +44,10 @@ class ProblemBase(BaseModel):
     topic_tags: list[str] = Field(default_factory=list)
     source_statement_ids: list[UUID] | None = Field(default=None)
     metadata: dict[str, Any] | None = Field(default=None)
+    generation_trace: dict[str, Any] | None = Field(
+        default=None,
+        description="Full generation trace including reasoning, prompts, and token usage",
+    )
 
     @field_validator("statements")
     @classmethod
@@ -150,6 +154,7 @@ class ProblemUpdate(BaseModel):
     topic_tags: list[str] | None = None
     source_statement_ids: list[UUID] | None = None
     metadata: dict[str, Any] | None = None
+    generation_trace: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def validate_correct_answer_index(self):

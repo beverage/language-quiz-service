@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 # Authentication enforced by middleware
 from src.api.models.sentences import SentenceResponse
 from src.core.auth import get_current_api_key
+from src.core.dependencies import get_sentence_service
 from src.core.exceptions import (
     AppException,
     ContentGenerationError,
@@ -32,12 +33,7 @@ from src.core.exceptions import (
 from src.services.sentence_service import SentenceService
 
 API_PREFIX = "/sentences"
-router = APIRouter(prefix=API_PREFIX, tags=["sentences"])
-
-
-async def get_sentence_service() -> SentenceService:
-    """Dependency to get SentenceService instance."""
-    return SentenceService()
+router = APIRouter(prefix=API_PREFIX, tags=["Sentences"])
 
 
 @router.get(

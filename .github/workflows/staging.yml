@@ -58,6 +58,7 @@ jobs:
   test-service:
     name: "🧪 Test Service"
     runs-on: ubuntu-latest
+    environment: staging
     
     steps:
     - uses: actions/checkout@v4
@@ -98,6 +99,10 @@ jobs:
       run: supabase migrations up
 
     - name: Run quality checks (format, lint, test)
+      env:
+        LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+        STANDARD_MODEL: ${{ secrets.STANDARD_MODEL }}
+        REASONING_MODEL: ${{ secrets.REASONING_MODEL }}
       run: |
         make format lint
         make test-cov
@@ -226,6 +231,9 @@ jobs:
         CI: true
         SERVICE_URL: ${{ secrets.SERVICE_URL }}
         SERVICE_API_KEY: ${{ secrets.SERVICE_API_KEY }}
+        LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+        STANDARD_MODEL: ${{ secrets.STANDARD_MODEL }}
+        REASONING_MODEL: ${{ secrets.REASONING_MODEL }}
       run: make test-acceptance
       
     - name: Upload acceptance test results

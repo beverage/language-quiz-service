@@ -246,23 +246,35 @@ def create_llm_latency_by_operation_panel() -> timeseries.Panel:
 
 
 def create_token_usage_panel() -> timeseries.Panel:
-    """Token usage over time (input, output, total)."""
+    """Token usage over time (input, output, reasoning) - shows actual token counts per time window."""
     return (
         timeseries.Panel()
-        .title("Token Usage")
+        .title("Token Usage (per 1m window)")
         .datasource(DataSourceRef(uid="$datasource"))
         .unit(units.Short)
         .with_target(
             prometheus.Dataquery()
-            .expr('sum(rate(llm_tokens_input_total{environment="$environment"}[5m]))')
-            .legend_format("Input tokens/sec")
+            .expr(
+                'sum(increase(llm_tokens_input_total{environment="$environment"}[1m]))'
+            )
+            .legend_format("Input tokens")
             .ref_id("A")
         )
         .with_target(
             prometheus.Dataquery()
-            .expr('sum(rate(llm_tokens_output_total{environment="$environment"}[5m]))')
-            .legend_format("Output tokens/sec")
+            .expr(
+                'sum(increase(llm_tokens_output_total{environment="$environment"}[1m]))'
+            )
+            .legend_format("Output tokens")
             .ref_id("B")
+        )
+        .with_target(
+            prometheus.Dataquery()
+            .expr(
+                '(sum(increase(llm_tokens_reasoning_total{environment="$environment"}[1m])) or vector(0)) + (sum(increase(llm_tokens_thinking_total{environment="$environment"}[1m])) or vector(0))'
+            )
+            .legend_format("Reasoning tokens")
+            .ref_id("C")
         )
         .line_width(2)
         .fill_opacity(10)
@@ -280,7 +292,7 @@ def create_token_usage_by_operation_panel() -> timeseries.Panel:
         .with_target(
             prometheus.Dataquery()
             .expr(
-                'sum by (operation) (rate(llm_tokens_total{environment="$environment"}[5m]))'
+                'sum by (operation) (irate(llm_tokens_total{environment="$environment"}[1m]))'
             )
             .legend_format("{{operation}}")
             .ref_id("A")

@@ -1,0 +1,433 @@
+"""
+CLI commands for managing generation requests.
+"""
+
+import json
+import logging
+import sys
+from datetime import timedelta
+from uuid import UUID
+
+import asyncclick as click
+
+from src.cli.problems.display import display_problem
+from src.cli.utils.http_client import get_api_key, make_api_request
+from src.cli.utils.safety import get_remote_flag, require_confirmation
+from src.cli.utils.types import DurationParam
+from src.core.factories import create_generation_request_repository
+from src.schemas.generation_requests import GenerationStatus
+from src.schemas.problems import Problem
+
+logger = logging.getLogger(__name__)
+
+
+def _get_ids_from_stdin_or_argument(argument_value: UUID | None) -> list[UUID]:
+    """Get IDs from argument or stdin if piped. Returns a list of validated UUIDs."""
+    if argument_value:
+        return [argument_value]
+
+    # Check if stdin has data (piped input)
+    if not sys.stdin.isatty():
+        stdin_data = sys.stdin.read().strip()
+        if not stdin_data:
+            return []
+
+        # Detect JSON input and give helpful error
+        if stdin_data.startswith("{") or stdin_data.startswith("["):
+            raise click.UsageError(
+                "Input looks like JSON. Pipe UUIDs (one per line), not raw JSON.\n"
+                "  Example: lqs generation-request list --json | jq -r '.[].id' | lqs generation-request get"
+            )
+
+        # Parse and validate each line as UUID
+        ids = []
+        for line_num, line in enumerate(stdin_data.split("\n"), 1):
+            line = line.strip()
+            if line:
+                try:
+                    ids.append(UUID(line))
+                except ValueError:
+                    raise click.UsageError(
+                        f"Invalid UUID on line {line_num}: '{line}'\n"
+                        "Expected valid UUIDs, one per line."
+                    )
+        return ids
+
+    return []
+
+
+async def _get_generation_request_http(
+    service_url: str, api_key: str, generation_id: str
+) -> dict:
+    """Get generation request with problems via HTTP API."""
+    response = await make_api_request(
+        method="GET",
+        endpoint=f"/api/v1/generation-requests/{generation_id}",
+        base_url=service_url,
+        api_key=api_key,
+    )
+    return response.json()
+
+
+@click.command("get")
+@click.argument("generation_id", type=click.UUID, required=False)
+@click.option("--verbose", "-v", is_flag=True, help="Show detailed problem information")
+@click.option("--json", "output_json", is_flag=True, help="Output raw JSON")
+@click.option(
+    "--llm-trace", "llm_trace", is_flag=True, help="Include LLM generation trace"
+)
+@click.pass_context
+async def get_request(
+    ctx,
+    generation_id: UUID | None,
+    verbose: bool,
+    output_json: bool,
+    llm_trace: bool,
+):
+    """
+    Get generation request(s) with their problems.
+
+    GENERATION_ID can be provided as an argument or piped from stdin.
+
+    Examples:
+        lqs generation-request get 550e8400-e29b-41d4-a716-446655440000
+        lqs generation-request get 550e8400-e29b-41d4-a716-446655440000 --verbose
+        lqs generation-request list --json | jq -r '.[].id' | lqs generation-request get
+    """
+    # Get all generation IDs from argument or stdin
+    generation_ids = _get_ids_from_stdin_or_argument(generation_id)
+
+    if not generation_ids:
+        raise click.UsageError(
+            "Must specify a generation request ID as argument or pipe IDs from stdin"
+        )
+
+    # Get service URL and flags from root context
+    root_ctx = ctx.find_root()
+    service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
+    detailed = root_ctx.params.get("detailed", False) or verbose
+
+    if not service_url:
+        raise click.ClickException(
+            "Service URL not configured. This should not happen - please report a bug."
+        )
+
+    api_key = get_api_key()
+
+    try:
+        for idx, gen_id in enumerate(generation_ids):
+            try:
+                data = await _get_generation_request_http(
+                    service_url, api_key, str(gen_id)
+                )
+
+                if output_json:
+                    print(json.dumps(data, indent=2, default=str))
+                else:
+                    if len(generation_ids) > 1 and idx > 0:
+                        click.echo("\n" + "═" * 80 + "\n")
+
+                    # Display generation request metadata
+                    click.echo("\n📋 Generation Request Details:")
+                    click.echo(f"   Request ID: {data['request_id']}")
+                    click.echo(f"   Status: {data['status']}")
+                    click.echo(f"   Entity Type: {data['entity_type']}")
+                    click.echo(
+                        f"   Progress: {data['generated_count']}/{data['requested_count']}"
+                    )
+                    if data.get("failed_count", 0) > 0:
+                        click.echo(f"   Failed: {data['failed_count']}")
+                    click.echo(f"   Requested At: {data['requested_at']}")
+                    if data.get("completed_at"):
+                        click.echo(f"   Completed At: {data['completed_at']}")
+                    if data.get("error_message"):
+                        click.echo(f"   Error: {data['error_message']}")
+
+                    # Display problems
+                    problems = data.get("entities", [])
+                    if problems:
+                        click.echo(f"\n✅ Generated {len(problems)} problem(s):\n")
+                        for pidx, problem_data in enumerate(problems, 1):
+                            problem = Problem(**problem_data)
+                            if detailed:
+                                click.echo(f"Problem {pidx}:")
+                                display_problem(
+                                    problem, detailed=True, show_trace=llm_trace
+                                )
+                                if pidx < len(problems):
+                                    click.echo("\n" + "─" * 80 + "\n")
+                            else:
+                                click.echo(
+                                    f"{pidx}. {problem.id} - {problem.title or 'Untitled'}"
+                                )
+                    else:
+                        click.echo("\n⏳ No problems generated yet.")
+
+            except Exception as ex:
+                click.echo(
+                    f"❌ Failed to get generation request {gen_id}: {ex}", err=True
+                )
+
+    except Exception as ex:
+        raise click.ClickException(f"Failed to get generation request(s): {ex}")
+
+
+@click.command("list")
+@click.option(
+    "--status",
+    type=click.Choice(
+        ["pending", "processing", "completed", "failed", "partial", "expired"]
+    ),
+    help="Filter by status",
+)
+@click.option("--limit", default=20, help="Number of requests to show")
+@click.pass_context
+async def list_requests(ctx, status: str | None, limit: int):
+    """
+    List generation requests.
+
+    Shows recent generation requests with their status and counts.
+    """
+    try:
+        repo = await create_generation_request_repository()
+
+        # Convert status string to enum if provided
+        status_filter = GenerationStatus(status) if status else None
+
+        requests, total = await repo.get_all_requests(
+            status=status_filter,
+            limit=limit,
+        )
+
+        if not requests:
+            if status:
+                click.echo(f"📭 No generation requests found with status '{status}'")
+            else:
+                click.echo("📭 No generation requests found")
+            return
+
+        click.echo(f"📋 Generation Requests (showing {len(requests)} of {total}):\n")
+
+        for req in requests:
+            # Status indicator
+            status_emoji = {
+                GenerationStatus.PENDING: "⏳",
+                GenerationStatus.PROCESSING: "🔄",
+                GenerationStatus.COMPLETED: "✅",
+                GenerationStatus.FAILED: "❌",
+                GenerationStatus.PARTIAL: "⚠️",
+                GenerationStatus.EXPIRED: "⌛",
+            }.get(req.status, "❓")
+
+            # Format time
+            time_str = req.requested_at.strftime("%Y-%m-%d %H:%M")
+
+            # Progress
+            progress = f"{req.generated_count}/{req.requested_count}"
+            if req.failed_count > 0:
+                progress += f" ({req.failed_count} failed)"
+
+            click.echo(
+                f"  {status_emoji} {req.id}  "
+                f"[{req.status.value:10}]  "
+                f"{progress:15}  "
+                f"{time_str}"
+            )
+
+            # Show error if failed or expired
+            if req.error_message and req.status in (
+                GenerationStatus.FAILED,
+                GenerationStatus.EXPIRED,
+            ):
+                click.echo(f"      └─ {req.error_message[:60]}...")
+
+        click.echo()
+
+    except Exception as e:
+        logger.error(f"Error listing generation requests: {e}", exc_info=True)
+        click.echo(f"❌ Error: {e}")
+
+
+@click.command("status")
+@click.argument("request_id", type=click.UUID)
+@click.pass_context
+async def get_status(ctx, request_id: UUID):
+    """
+    Get detailed status of a generation request.
+
+    REQUEST_ID is the UUID of the generation request.
+    """
+    try:
+        repo = await create_generation_request_repository()
+        request = await repo.get_generation_request(request_id)
+
+        if not request:
+            click.echo(f"❌ Generation request {request_id} not found")
+            return
+
+        # Status indicator
+        status_emoji = {
+            GenerationStatus.PENDING: "⏳",
+            GenerationStatus.PROCESSING: "🔄",
+            GenerationStatus.COMPLETED: "✅",
+            GenerationStatus.FAILED: "❌",
+            GenerationStatus.PARTIAL: "⚠️",
+            GenerationStatus.EXPIRED: "⌛",
+        }.get(request.status, "❓")
+
+        click.echo(f"\n{status_emoji} Generation Request: {request.id}\n")
+        click.echo(f"  Status:      {request.status.value}")
+        click.echo(f"  Entity Type: {request.entity_type}")
+        click.echo(
+            f"  Progress:    {request.generated_count}/{request.requested_count}"
+        )
+
+        if request.failed_count > 0:
+            click.echo(f"  Failed:      {request.failed_count}")
+
+        click.echo(
+            f"\n  Requested:   {request.requested_at.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
+        if request.started_at:
+            click.echo(
+                f"  Started:     {request.started_at.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+
+        if request.completed_at:
+            click.echo(
+                f"  Completed:   {request.completed_at.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            # Calculate duration
+            duration = request.completed_at - request.requested_at
+            click.echo(f"  Duration:    {duration.total_seconds():.1f}s")
+
+        if request.constraints:
+            click.echo(f"\n  Constraints: {request.constraints}")
+
+        if request.error_message:
+            click.echo(f"\n  ❌ Error: {request.error_message}")
+
+        # Get associated problems
+        problems = await repo.get_problems_by_request_id(request_id)
+        if problems:
+            click.echo(f"\n  📋 Problems Generated: {len(problems)}")
+            for p in problems[:5]:  # Show first 5
+                click.echo(f"     - {p['id']} ({p.get('title', 'Untitled')})")
+            if len(problems) > 5:
+                click.echo(f"     ... and {len(problems) - 5} more")
+
+        click.echo()
+
+    except Exception as e:
+        logger.error(f"Error getting generation request status: {e}", exc_info=True)
+        click.echo(f"❌ Error: {e}")
+
+
+@click.command("clean")
+@click.option(
+    "--older-than",
+    type=DurationParam(),
+    default="7d",
+    help="Delete completed/failed requests older than this duration (e.g., '3h', '1d', '2w', default: '7d')",
+)
+@click.option(
+    "--topic",
+    multiple=True,
+    help="Only delete requests with these topic tags in metadata (can specify multiple)",
+)
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
+@click.pass_context
+async def clean_requests(ctx, older_than: timedelta, topic: tuple, force: bool):
+    """
+    Delete old completed/failed/expired generation requests.
+
+    By default, deletes completed, failed, and expired requests older than 7 days.
+    Does NOT delete pending or processing requests.
+    """
+    is_remote = get_remote_flag(ctx)
+
+    try:
+        repo = await create_generation_request_repository()
+
+        # Get count of requests that will be deleted
+        from datetime import UTC, datetime
+
+        cutoff = datetime.now(UTC) - older_than
+
+        # Count requests to be deleted (include EXPIRED in cleanup)
+        statuses = [
+            GenerationStatus.COMPLETED,
+            GenerationStatus.FAILED,
+            GenerationStatus.EXPIRED,
+        ]
+
+        # Build metadata filter if topics provided
+        metadata_contains = None
+        if topic:
+            metadata_contains = {"topic_tags": list(topic)}
+
+        # Get count of requests that will be deleted
+        # Note: We still fetch all to count, but deletion will use efficient DB filtering
+        all_requests, _ = await repo.get_all_requests(limit=10000)
+
+        # Filter locally to get count
+        requests_to_delete = [
+            r
+            for r in all_requests
+            if r.status in statuses
+            and r.requested_at < cutoff
+            and (
+                not metadata_contains
+                or (
+                    r.metadata
+                    and r.metadata.get("topic_tags")
+                    and any(tag in r.metadata.get("topic_tags", []) for tag in topic)
+                )
+            )
+        ]
+        count = len(requests_to_delete)
+
+        # Format duration for display
+        total_seconds = int(older_than.total_seconds())
+        if total_seconds < 3600:
+            duration_str = f"{total_seconds // 60}m"
+        elif total_seconds < 86400:
+            duration_str = f"{total_seconds // 3600}h"
+        else:
+            duration_str = f"{total_seconds // 86400}d"
+
+        if count == 0:
+            click.echo(
+                f"✅ No completed/failed/expired requests older than {duration_str} to delete."
+            )
+            return
+
+        click.echo(
+            f"🎯 Found {count} completed/failed/expired requests older than {duration_str}"
+        )
+
+        # Confirm deletion
+        if not require_confirmation(
+            operation_name=f"delete {count} old generation requests",
+            is_remote=is_remote,
+            force=force,
+            item_count=count,
+        ):
+            click.echo("❌ Aborted.")
+            return
+
+        # Perform deletion
+        click.echo(f"🗑️  Deleting {count} old generation requests...")
+
+        deleted = await repo.delete_old_requests(
+            older_than=older_than,
+            statuses=statuses,
+            metadata_contains=metadata_contains,
+        )
+
+        click.echo(f"✅ Deleted {deleted} generation requests")
+
+    except Exception as e:
+        logger.error(f"Error cleaning generation requests: {e}", exc_info=True)
+        click.echo(f"❌ Error: {e}")

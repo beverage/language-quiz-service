@@ -96,6 +96,10 @@ class ProblemResponse(BaseModel):
     metadata: dict | None = Field(
         None, description="Additional metadata (verb info, grammatical focus, etc.)"
     )
+    generation_trace: dict | None = Field(
+        None,
+        description="Full generation trace including reasoning, prompts, and token usage",
+    )
 
     @classmethod
     def from_problem(cls, problem, include_metadata: bool = False):
@@ -127,6 +131,7 @@ class ProblemResponse(BaseModel):
             if include_metadata
             else None,
             "metadata": problem.metadata if include_metadata else None,
+            "generation_trace": problem.generation_trace if include_metadata else None,
         }
 
         return cls(**response_data)

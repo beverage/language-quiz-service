@@ -20,38 +20,51 @@ from src.schemas.sentences import (
 )
 from src.schemas.verbs import VerbCreate
 from src.services.sentence_service import SentenceService
+from tests.conftest import mock_llm_response
 from tests.sentences.fixtures import generate_random_sentence_data
 from tests.verbs.fixtures import generate_random_verb_data, verb_service
 
 
 @pytest.fixture
-async def sentence_service(test_supabase_client):
-    """Create a SentenceService with real repository connection."""
+async def sentence_service(test_supabase_client, mock_llm_client):
+    """Create a SentenceService with real repository connection and mock LLM client."""
     from src.repositories.sentence_repository import SentenceRepository
+    from src.repositories.verb_repository import VerbRepository
     from src.services.verb_service import VerbService
 
-    # Create repository with test client
-    repo = SentenceRepository(client=test_supabase_client)
+    # Create repositories with test client
+    sentence_repo = SentenceRepository(client=test_supabase_client)
+    verb_repo = VerbRepository(client=test_supabase_client)
 
-    # Create verb service with test client
-    verb_service = VerbService()
-    verb_service.db_client = test_supabase_client
+    # Create verb service with mock LLM client and real repository
+    verb_svc = VerbService(
+        llm_client=mock_llm_client,
+        verb_repository=verb_repo,
+    )
 
-    # Create service with real repository and verb service
-    service = SentenceService(sentence_repository=repo, verb_service=verb_service)
+    # Create service with real repository, mock LLM client, and verb service
+    service = SentenceService(
+        llm_client=mock_llm_client,
+        sentence_repository=sentence_repo,
+        verb_service=verb_svc,
+    )
     return service
 
 
 @pytest.fixture
-async def sample_verb(test_supabase_client):
+async def sample_verb(test_supabase_client, mock_llm_client):
     """Create a sample verb for sentence tests."""
+    from src.repositories.verb_repository import VerbRepository
     from src.services.verb_service import VerbService
 
-    verb_service = VerbService()
-    verb_service.db_client = test_supabase_client
+    verb_repo = VerbRepository(client=test_supabase_client)
+    verb_svc = VerbService(
+        llm_client=mock_llm_client,
+        verb_repository=verb_repo,
+    )
 
     verb_data = VerbCreate(**generate_random_verb_data())
-    return await verb_service.create_verb(verb_data)
+    return await verb_svc.create_verb(verb_data)
 
 
 @pytest.mark.asyncio
@@ -255,23 +268,29 @@ async def test_generate_sentence_success(sentence_service, sample_verb):
     mock_verb_service.get_conjugations.return_value = [mock_conjugation]
     sentence_service.verb_service = mock_verb_service
 
-    # Setup AI mock
-    mock_client.handle_request.return_value = '{"sentence": "Je parle français", "translation": "I speak French", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "negation": "none"}'
+    # Setup AI mock - returns LLMResponse
+    mock_client.handle_request.return_value = mock_llm_response(
+        '{"sentence": "Je parle français", "translation": "I speak French", "is_correct": true, "has_compliment_object_direct": false, "has_compliment_object_indirect": false, "negation": "none"}'
+    )
 
     # Inject mocks
-    sentence_service.openai_client = mock_client
+    sentence_service.llm_client = mock_client
 
-    # Generate sentence
-    result = await sentence_service.generate_sentence(
+    # Generate sentence - now returns (Sentence, LLMResponse) tuple
+    sentence, llm_response = await sentence_service.generate_sentence(
         verb_id=sample_verb.id,
         pronoun=Pronoun.FIRST_PERSON,
         tense=Tense.PRESENT,
     )
 
-    assert result.content == "Je parle français"
-    assert result.translation == "I speak French"
-    assert result.verb_id == sample_verb.id
-    assert result.is_correct is True
+    assert sentence.content == "Je parle français"
+    assert sentence.translation == "I speak French"
+    assert sentence.verb_id == sample_verb.id
+    assert sentence.is_correct is True
+
+    # Verify LLMResponse is returned
+    assert llm_response is not None
+    assert llm_response.content is not None
 
 
 @pytest.mark.asyncio

@@ -6,17 +6,18 @@ Updated to use new atomic problems system.
 
 import logging
 import traceback
+from datetime import datetime
 
 from src.api.models.problems import ProblemGenerationEnqueuedResponse
 from src.cli.problems.display import display_problem, display_problem_summary
 from src.cli.utils.http_client import get_api_key, make_api_request
+from src.core.factories import create_problem_service
 from src.schemas.problems import (
     GrammarProblemConstraints,
     Problem,
     ProblemFilters,
     ProblemType,
 )
-from src.services.problem_service import ProblemService
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,7 @@ async def generate_random_problem_with_delay(
     service_url: str | None = None,
     output_json: bool = False,
     count: int = 1,
+    show_trace: bool = False,
 ) -> Problem | ProblemGenerationEnqueuedResponse:
     """Generate random problems (wrapper for batch operations with optional delay)."""
     result = await generate_random_problem(
@@ -103,6 +105,7 @@ async def generate_random_problem_with_delay(
         service_url=service_url,
         output_json=output_json,
         count=count,
+        show_trace=show_trace,
     )
     return result
 
@@ -115,6 +118,7 @@ async def generate_random_problem(
     service_url: str | None = None,
     output_json: bool = False,
     count: int = 1,
+    show_trace: bool = False,
 ) -> Problem | ProblemGenerationEnqueuedResponse:
     """
     Generate random grammar problems.
@@ -144,12 +148,13 @@ async def generate_random_problem(
                 )
             elif display:
                 print(f"✅ {enqueued_response.message}")
+                print(f"   Request ID: {enqueued_response.request_id}")
 
             logger.debug(f"✅ Enqueued {enqueued_response.count} generation requests")
             return enqueued_response
         else:
             # Direct service call (synchronous generation)
-            problems_service = ProblemService()
+            problems_service = await create_problem_service()
             problem = await problems_service.create_random_grammar_problem(
                 constraints=constraints,
                 statement_count=statement_count,
@@ -162,7 +167,7 @@ async def generate_random_problem(
                     json.dumps(problem.model_dump(mode="json"), indent=2, default=str)
                 )
             elif display:
-                display_problem(problem, detailed=detailed)
+                display_problem(problem, detailed=detailed, show_trace=show_trace)
 
             logger.debug(f"✅ Generated problem {problem.id}")
             return problem
@@ -178,12 +183,16 @@ async def get_random_problem(
     detailed: bool = False,
     service_url: str | None = None,
     output_json: bool = False,
+    show_trace: bool = False,
 ) -> Problem:
     """Get a random problem from the database using the ProblemsService or HTTP API."""
     try:
         logger.debug(
             f"🎯 Fetching random problem from database (service_url={service_url})"
         )
+
+        # Request metadata when JSON output or when trace is requested
+        include_metadata = output_json or show_trace
 
         if service_url:
             # HTTP mode - make API call
@@ -192,12 +201,12 @@ async def get_random_problem(
             problem = await _get_random_problem_http(
                 service_url=service_url,
                 api_key=api_key,
-                include_metadata=output_json,  # Request metadata when JSON output
+                include_metadata=include_metadata,
             )
         else:
             # Direct mode - use service layer
             logger.debug("💾 Using direct service layer mode")
-            problems_service = ProblemService()
+            problems_service = await create_problem_service()
             problem = await problems_service.get_random_problem()
 
             if problem is None:
@@ -211,7 +220,7 @@ async def get_random_problem(
 
             print(json.dumps(problem.model_dump(mode="json"), indent=2, default=str))
         elif display:
-            display_problem(problem, detailed=detailed)
+            display_problem(problem, detailed=detailed, show_trace=show_trace)
 
         logger.debug(f"✅ Retrieved problem {problem.id}")
         return problem
@@ -231,6 +240,7 @@ async def generate_random_problems_batch(
     detailed: bool = False,
     service_url: str | None = None,
     output_json: bool = False,
+    show_trace: bool = False,
 ) -> list[Problem] | ProblemGenerationEnqueuedResponse:
     """
     Generate multiple random problems.
@@ -249,6 +259,7 @@ async def generate_random_problems_batch(
             service_url=service_url,
             output_json=output_json,
             count=quantity,
+            show_trace=show_trace,
         )
         return result
 
@@ -267,6 +278,7 @@ async def generate_random_problems_batch(
             service_url=None,  # Force service call
             output_json=False,  # Don't output JSON for individual items in batch
             count=1,
+            show_trace=show_trace,
         )
         for _ in range(quantity)
     ]
@@ -298,80 +310,119 @@ async def generate_random_problems_batch(
     return results
 
 
-# Problem listing and search functions
+# Problem listing functions
 async def list_problems(
     problem_type: str | None = None,
     topic_tags: list[str] | None = None,
     limit: int = 10,
+    offset: int = 0,
     verbose: bool = False,
     detailed: bool = False,
+    output_json: bool = False,
+    older_than: datetime | None = None,
+    newer_than: datetime | None = None,
+    focus: str | None = None,
+    verb: str | None = None,
 ) -> tuple[list[Problem], int]:
-    """List problems with optional filtering."""
-    problems_service = ProblemService()
+    """List problems with optional filtering and JSON output."""
+    import json
+
+    problems_service = await create_problem_service()
 
     # Build filters
-    filters = ProblemFilters(limit=limit)
+    filters = ProblemFilters(limit=limit, offset=offset)
 
     if problem_type:
         filters.problem_type = ProblemType(problem_type)
     if topic_tags:
         filters.topic_tags = topic_tags
+    if older_than:
+        filters.created_before = older_than
+    if newer_than:
+        filters.created_after = newer_than
+    if verb:
+        filters.verb = verb
+    if focus:
+        # Filter by grammatical focus in metadata
+        filters.metadata_contains = {"grammatical_focus": [focus]}
 
-    if verbose:
+    # Always fetch full problems for JSON output (need metadata for extracted fields)
+    if output_json or verbose:
         problems, total = await problems_service.get_problems(filters)
 
-        print(f"📋 Found {total} problems:")
-        for problem in problems:
-            display_problem(problem, detailed=detailed)
+        if output_json:
+            # Build analysis-friendly JSON output
+            output = _build_json_output(problems, total, limit, offset, verbose)
+            print(json.dumps(output, indent=2, default=str))
+        else:
+            print(f"📋 Found {total} problems:")
+            for problem in problems:
+                display_problem(problem, detailed=detailed)
+            # Show remaining count if there are more
+            remaining = total - offset - len(problems)
+            if remaining > 0:
+                print(f"...({remaining} more)...")
+
+        return problems, total
     else:
         summaries, total = await problems_service.get_problem_summaries(filters)
 
         print(f"📋 Found {total} problems:")
         for summary in summaries:
             display_problem_summary(summary)
+        # Show remaining count if there are more
+        remaining = total - offset - len(summaries)
+        if remaining > 0:
+            print(f"...({remaining} more)...")
 
-    return problems if verbose else summaries, total
+        return summaries, total
 
 
-async def search_problems_by_focus(
-    grammatical_focus: str,
-    limit: int = 10,
-    detailed: bool = False,
-) -> list[Problem]:
-    """Search problems by grammatical focus."""
-    problems_service = ProblemService()
+def _build_json_output(
+    problems: list[Problem],
+    total: int,
+    limit: int,
+    offset: int,
+    verbose: bool = False,
+) -> dict:
+    """Build the analysis-friendly JSON output schema."""
+    output_problems = []
 
-    problems = await problems_service.get_problems_by_grammatical_focus(
-        grammatical_focus, limit
-    )
-
-    print(f"🔍 Found {len(problems)} problems focusing on '{grammatical_focus}':")
     for problem in problems:
-        display_problem(problem, detailed=detailed)
+        metadata = problem.metadata or {}
 
-    return problems
+        problem_data = {
+            "id": str(problem.id),
+            "type": problem.problem_type.value,
+            "title": problem.title,
+            "created_at": problem.created_at.isoformat(),
+            "statement_count": len(problem.statements) if problem.statements else 0,
+            "topic_tags": problem.topic_tags or [],
+            "verb": (metadata.get("verb_infinitives") or [None])[0],
+            "tenses": metadata.get("tenses_used") or [],
+            "focus": metadata.get("grammatical_focus") or [],
+        }
 
+        # Include full metadata in verbose mode
+        if verbose:
+            problem_data["metadata"] = metadata
 
-async def search_problems_by_topic(
-    topic_tags: list[str],
-    limit: int = 10,
-    detailed: bool = False,
-) -> list[Problem]:
-    """Search problems by topic tags."""
-    problems_service = ProblemService()
+        output_problems.append(problem_data)
 
-    problems = await problems_service.get_problems_by_topic(topic_tags, limit)
-
-    print(f"🔍 Found {len(problems)} problems with topics {topic_tags}:")
-    for problem in problems:
-        display_problem(problem, detailed=detailed)
-
-    return problems
+    count = len(problems)
+    return {
+        "problems": output_problems,
+        "count": count,
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "has_more": offset + count < total,
+    }
 
 
 async def get_problem_statistics() -> dict:
     """Get and display problem statistics."""
-    problems_service = ProblemService()
+    problems_service = await create_problem_service()
 
     stats = await problems_service.get_problem_statistics()
 

@@ -8,17 +8,13 @@ from fastapi import APIRouter, Depends
 from src.api.models.generation_requests import GenerationRequestResponse
 from src.api.models.problems import ProblemResponse
 from src.core.auth import get_current_api_key
+from src.core.dependencies import get_generation_request_service
 from src.services.generation_request_service import GenerationRequestService
 
 logger = logging.getLogger(__name__)
 
 API_PREFIX = "/generation-requests"
-router = APIRouter(prefix=API_PREFIX, tags=["generation-requests"])
-
-
-async def get_generation_request_service() -> GenerationRequestService:
-    """Dependency to get GenerationRequestService instance."""
-    return GenerationRequestService()
+router = APIRouter(prefix=API_PREFIX, tags=["Generation Requests"])
 
 
 @router.get(

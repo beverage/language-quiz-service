@@ -6,9 +6,7 @@ from datetime import UTC, datetime
 
 from aiokafka import AIOKafkaProducer
 
-from src.repositories.generation_requests_repository import (
-    GenerationRequestRepository,
-)
+from src.core.factories import create_generation_request_repository
 from src.schemas.generation_requests import (
     EntityType,
     GenerationRequestCreate,
@@ -67,7 +65,7 @@ class QueueService:
             Tuple of (enqueued_count, generation_request_id)
         """
         # Create generation request record in database
-        gen_request_repo = await GenerationRequestRepository.create()
+        gen_request_repo = await create_generation_request_repository()
         generation_request_create = GenerationRequestCreate(
             entity_type=EntityType.PROBLEM,
             requested_count=count,

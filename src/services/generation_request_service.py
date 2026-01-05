@@ -22,24 +22,39 @@ class GenerationRequestService:
         generation_request_repository: GenerationRequestRepository | None = None,
         problem_repository: ProblemRepository | None = None,
     ):
-        """Initialize the generation request service with injectable dependencies."""
+        """Initialize the generation request service with injectable dependencies.
+
+        Args:
+            generation_request_repository: Optional repository (can be set later for lazy init).
+            problem_repository: Optional repository (can be set later for lazy init).
+        """
         self.generation_request_repository = generation_request_repository
         self.problem_repository = problem_repository
 
-    async def _get_generation_request_repository(
-        self,
-    ) -> GenerationRequestRepository:
-        """Asynchronously get the generation request repository, creating it if it doesn't exist."""
+    def set_generation_request_repository(
+        self, generation_request_repository: GenerationRequestRepository
+    ) -> None:
+        """Set the generation request repository (for cases requiring lazy initialization)."""
+        self.generation_request_repository = generation_request_repository
+
+    def set_problem_repository(self, problem_repository: ProblemRepository) -> None:
+        """Set the problem repository (for cases requiring lazy initialization)."""
+        self.problem_repository = problem_repository
+
+    def _get_generation_request_repository(self) -> GenerationRequestRepository:
+        """Get the generation request repository, raising if not set."""
         if self.generation_request_repository is None:
-            self.generation_request_repository = (
-                await GenerationRequestRepository.create()
+            raise RuntimeError(
+                "GenerationRequestRepository not set. Either pass it to __init__ or call set_generation_request_repository()."
             )
         return self.generation_request_repository
 
-    async def _get_problem_repository(self) -> ProblemRepository:
-        """Asynchronously get the problem repository, creating it if it doesn't exist."""
+    def _get_problem_repository(self) -> ProblemRepository:
+        """Get the problem repository, raising if not set."""
         if self.problem_repository is None:
-            self.problem_repository = await ProblemRepository.create()
+            raise RuntimeError(
+                "ProblemRepository not set. Either pass it to __init__ or call set_problem_repository()."
+            )
         return self.problem_repository
 
     async def get_generation_request_with_entities(
@@ -57,8 +72,8 @@ class GenerationRequestService:
         Raises:
             NotFoundError: If generation request not found
         """
-        gen_request_repo = await self._get_generation_request_repository()
-        await self._get_problem_repository()
+        gen_request_repo = self._get_generation_request_repository()
+        self._get_problem_repository()
 
         # Get the generation request
         generation_request = await gen_request_repo.get_generation_request(request_id)

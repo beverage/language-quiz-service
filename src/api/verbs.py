@@ -11,6 +11,7 @@ from src.api.models.verbs import (
     VerbWithConjugationsResponse,
 )
 from src.core.auth import get_current_api_key
+from src.core.dependencies import get_verb_service
 from src.core.exceptions import (
     AppException,
     ContentGenerationError,
@@ -22,7 +23,7 @@ from src.services.verb_service import VerbService
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/verbs", tags=["verbs"])
+router = APIRouter(prefix="/verbs", tags=["Verbs"])
 
 
 @router.post(
@@ -152,6 +153,7 @@ router = APIRouter(prefix="/verbs", tags=["verbs"])
 async def download_verb(
     request: VerbDownloadRequest,
     current_key: dict = Depends(get_current_api_key),
+    service: VerbService = Depends(get_verb_service),
 ) -> VerbWithConjugationsResponse:
     """
     Download conjugations for an existing verb.
@@ -170,7 +172,6 @@ async def download_verb(
         )
 
     try:
-        service = VerbService()
         verb_with_conjugations = await service.download_conjugations(
             infinitive=request.infinitive,
             target_language_code=request.target_language_code,
@@ -279,6 +280,7 @@ async def get_random_verb(
         "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
+    service: VerbService = Depends(get_verb_service),
 ) -> VerbResponse:
     """
     Get a random verb.
@@ -298,7 +300,6 @@ async def get_random_verb(
         )
 
     try:
-        service = VerbService()
         verb = await service.get_random_verb(target_language_code=target_language_code)
 
         if not verb:
@@ -433,6 +434,7 @@ async def get_verb_by_infinitive(
         "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
+    service: VerbService = Depends(get_verb_service),
 ) -> VerbResponse:
     """
     Get a verb by infinitive (supports URL encoding for spaces).
@@ -455,7 +457,6 @@ async def get_verb_by_infinitive(
         # URL decode the infinitive to handle spaces
         decoded_infinitive = unquote(infinitive)
 
-        service = VerbService()
         verb = await service.get_verb_by_infinitive(
             infinitive=decoded_infinitive,
             auxiliary=auxiliary,
@@ -614,6 +615,7 @@ async def get_verb_conjugations(
         "eng", description="Target language code for translation", examples=["eng"]
     ),
     current_key: dict = Depends(get_current_api_key),
+    service: VerbService = Depends(get_verb_service),
 ) -> VerbWithConjugationsResponse:
     """
     Get verb conjugations (supports URL encoding for spaces).
@@ -636,7 +638,6 @@ async def get_verb_conjugations(
         # URL decode the infinitive to handle spaces
         decoded_infinitive = unquote(infinitive)
 
-        service = VerbService()
         verb_with_conjugations = await service.get_verb_with_conjugations(
             infinitive=decoded_infinitive,
             auxiliary=auxiliary,

@@ -11,6 +11,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.prompts.sentences import ErrorType, SentencePromptBuilder
+from src.prompts.sentences.templates import (
+    COMPOUND_TENSES,
+    format_optional_dimension,
+    requires_auxiliary,
+)
 from src.schemas.sentences import (
     DirectObject,
     IndirectObject,
@@ -126,10 +131,11 @@ class TestCorrectSentencePrompts:
 
         # Should contain verb details
         assert avoir_verb.infinitive in prompt
-        assert avoir_verb.past_participle in prompt
+        # Note: past_participle is only included for compound tenses (passé composé, etc.)
+        # For simple tenses like present, it's omitted to avoid confusing the LLM
 
         # Should contain required parameters section
-        assert "REQUIRED PARAMETERS" in prompt
+        assert "REQUIRED" in prompt
 
         # Should contain instructions
         assert "CORRECT" in prompt or "correct" in prompt
@@ -143,13 +149,28 @@ class TestCorrectSentencePrompts:
         # The correct conjugation for first person should be in the prompt
         assert "parle" in prompt
 
-    def test_correct_prompt_includes_auxiliary(
-        self, builder, basic_sentence, avoir_verb, present_conjugations
+    def test_correct_prompt_includes_auxiliary_for_compound_tense(
+        self, builder, etre_verb, passe_compose_conjugations
     ):
-        """Verify correct prompt includes auxiliary information."""
-        prompt = builder.build_prompt(basic_sentence, avoir_verb, present_conjugations)
+        """Verify correct prompt includes auxiliary information for compound tenses."""
+        # Auxiliary info is only included for compound tenses (passé composé, etc.)
+        sentence = SentenceBase(
+            content="",
+            translation="",
+            verb_id=uuid.uuid4(),
+            pronoun=Pronoun.FIRST_PERSON,
+            tense=Tense.PASSE_COMPOSE,
+            direct_object=DirectObject.NONE,
+            indirect_object=IndirectObject.NONE,
+            negation=Negation.NONE,
+            is_correct=True,
+            target_language_code="eng",
+        )
+        prompt = builder.build_prompt(sentence, etre_verb, passe_compose_conjugations)
 
-        assert "avoir" in prompt.lower()
+        # Compound tense should include auxiliary info
+        assert "être" in prompt.lower()
+        assert etre_verb.past_participle in prompt
 
     def test_correct_prompt_includes_tense(
         self, builder, basic_sentence, avoir_verb, present_conjugations
@@ -577,3 +598,55 @@ class TestIntegration:
 
         # Prompts should be different (different conjugations)
         assert len(set(prompts)) > 1
+
+
+# ===== Test Template Helpers =====
+
+
+class TestTemplateHelpers:
+    """Tests for template helper functions."""
+
+    def test_requires_auxiliary_for_compound_tenses(self):
+        """Verify requires_auxiliary returns True for compound tenses."""
+        assert requires_auxiliary(Tense.PASSE_COMPOSE) is True
+
+    def test_requires_auxiliary_for_simple_tenses(self):
+        """Verify requires_auxiliary returns False for simple tenses."""
+        simple_tenses = [
+            Tense.PRESENT,
+            Tense.FUTURE_SIMPLE,
+            Tense.IMPARFAIT,
+            Tense.CONDITIONNEL,
+            Tense.SUBJONCTIF,
+            Tense.IMPERATIF,
+        ]
+        for tense in simple_tenses:
+            assert (
+                requires_auxiliary(tense) is False
+            ), f"{tense} should not require auxiliary"
+
+    def test_compound_tenses_set_contains_passe_compose(self):
+        """Verify COMPOUND_TENSES set is properly defined."""
+        assert Tense.PASSE_COMPOSE in COMPOUND_TENSES
+        # Simple tenses should not be in the set
+        assert Tense.PRESENT not in COMPOUND_TENSES
+
+    def test_format_optional_dimension_with_any(self):
+        """Verify ANY values format as natural choice instruction."""
+        result = format_optional_dimension(DirectObject.ANY)
+        assert "natural" in result.lower() or "choose" in result.lower()
+
+    def test_format_optional_dimension_with_specific_value(self):
+        """Verify specific values format as their enum value."""
+        assert format_optional_dimension(DirectObject.NONE) == "none"
+        assert format_optional_dimension(DirectObject.MASCULINE) == "masculine"
+        assert format_optional_dimension(Negation.PAS) == "pas"
+        assert format_optional_dimension(IndirectObject.FEMININE) == "feminine"
+
+    def test_format_optional_dimension_all_any_values(self):
+        """Verify all ANY enum values format correctly."""
+        # All ANY values should produce the same natural choice instruction
+        any_values = [DirectObject.ANY, IndirectObject.ANY, Negation.ANY]
+        for any_val in any_values:
+            result = format_optional_dimension(any_val)
+            assert "natural" in result.lower() or "choose" in result.lower()

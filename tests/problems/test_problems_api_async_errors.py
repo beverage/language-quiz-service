@@ -1,4 +1,8 @@
-"""Tests for async generation endpoint error handling."""
+"""Tests for async generation endpoint error handling.
+
+These tests focus on error handling behavior in the problems API.
+Service dependencies are mocked via dependency overrides.
+"""
 
 from unittest.mock import AsyncMock, patch
 
@@ -11,17 +15,64 @@ from src.main import ROUTER_PREFIX, app
 PROBLEMS_PREFIX = f"{ROUTER_PREFIX}{API_PREFIX}"
 
 
+# =============================================================================
+# Error-Raising Mock Services
+# =============================================================================
+
+
+class ErrorRaisingProblemService:
+    """Mock problem service that raises errors."""
+
+    def __init__(self, error: Exception = None):
+        self.error = error
+
+    async def get_least_recently_served_problem(self, filters=None):
+        """Mock that raises the configured error."""
+        if self.error:
+            raise self.error
+        return None  # No problems found
+
+    async def get_problem_by_id(self, problem_id):
+        """Mock get problem by ID."""
+        if self.error:
+            raise self.error
+        return None
+
+    async def close(self):
+        """Mock close."""
+        pass
+
+
+# =============================================================================
+# Test Fixtures
+# =============================================================================
+
+
 @pytest.fixture
-def client():
-    """Create a test client for the FastAPI app."""
-    return TestClient(app)
+def client(monkeypatch):
+    """Create a test client with auth disabled."""
+    from src.core.config import reset_settings
+
+    monkeypatch.setenv("REQUIRE_AUTH", "false")
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    reset_settings()
+
+    yield TestClient(app)
+
+    app.dependency_overrides.clear()
+    reset_settings()
+
+
+# =============================================================================
+# Tests
+# =============================================================================
 
 
 @pytest.mark.unit
 class TestAsyncGenerationErrors:
     """Test error handling in async generation endpoint."""
 
-    def test_queue_service_failure_returns_500(self, client, read_headers):
+    def test_queue_service_failure_returns_500(self, client):
         """Test that Kafka connection failures return 500."""
         with patch("src.api.problems.QueueService") as mock_queue_class:
             mock_queue = AsyncMock()
@@ -32,7 +83,6 @@ class TestAsyncGenerationErrors:
 
             response = client.post(
                 f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
                 json={"count": 1, "topic_tags": ["test_data"]},
             )
 
@@ -41,7 +91,7 @@ class TestAsyncGenerationErrors:
             assert "message" in data
             assert "Failed to enqueue" in data["message"]
 
-    def test_queue_service_partial_failure(self, client, read_headers):
+    def test_queue_service_partial_failure(self, client):
         """Test handling when some messages fail to enqueue."""
         with patch("src.api.problems.QueueService") as mock_queue_class:
             mock_queue = AsyncMock()
@@ -54,7 +104,6 @@ class TestAsyncGenerationErrors:
 
             response = client.post(
                 f"{PROBLEMS_PREFIX}/generate",
-                headers=read_headers,
                 json={"count": 5, "topic_tags": ["test_data"]},
             )
 
@@ -66,32 +115,52 @@ class TestAsyncGenerationErrors:
             assert "request_id" in data
             assert isinstance(data["request_id"], str)
 
-    def test_get_random_no_problems_returns_404(self, client, read_headers):
+    def test_get_random_no_problems_returns_404(self, client, monkeypatch):
         """Test GET /random returns 404 when no problems exist."""
-        with patch("src.api.problems.ProblemService") as mock_service_class:
-            mock_service = AsyncMock()
-            mock_service.get_least_recently_served_problem.return_value = None
-            mock_service_class.return_value = mock_service
+        from src.core.config import reset_settings
+        from src.core.dependencies import get_problem_service
 
-            response = client.get(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+        # Create mock service that returns None (no problems)
+        mock_service = ErrorRaisingProblemService(error=None)
 
-            assert response.status_code == 404
-            data = response.json()
-            assert "message" in data
-            assert "No problems available" in data["message"]
+        monkeypatch.setenv("REQUIRE_AUTH", "false")
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        reset_settings()
 
-    def test_get_random_database_error_returns_500(self, client, read_headers):
+        app.dependency_overrides[get_problem_service] = lambda: mock_service
+
+        response = client.get(f"{PROBLEMS_PREFIX}/random")
+
+        assert response.status_code == 404
+        data = response.json()
+        assert "message" in data
+        assert "No problems available" in data["message"]
+
+        app.dependency_overrides.clear()
+        reset_settings()
+
+    def test_get_random_database_error_returns_500(self, client, monkeypatch):
         """Test GET /random handles database errors gracefully."""
-        with patch("src.api.problems.ProblemService") as mock_service_class:
-            mock_service = AsyncMock()
-            mock_service.get_least_recently_served_problem.side_effect = Exception(
-                "Database connection lost"
-            )
-            mock_service_class.return_value = mock_service
+        from src.core.config import reset_settings
+        from src.core.dependencies import get_problem_service
 
-            response = client.get(f"{PROBLEMS_PREFIX}/random", headers=read_headers)
+        # Create mock service that raises an error
+        mock_service = ErrorRaisingProblemService(
+            error=Exception("Database connection lost")
+        )
 
-            assert response.status_code == 500
-            data = response.json()
-            assert "message" in data
-            assert "Failed to retrieve" in data["message"]
+        monkeypatch.setenv("REQUIRE_AUTH", "false")
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        reset_settings()
+
+        app.dependency_overrides[get_problem_service] = lambda: mock_service
+
+        response = client.get(f"{PROBLEMS_PREFIX}/random")
+
+        assert response.status_code == 500
+        data = response.json()
+        assert "message" in data
+        assert "Failed to retrieve" in data["message"]
+
+        app.dependency_overrides.clear()
+        reset_settings()

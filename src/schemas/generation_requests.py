@@ -20,6 +20,7 @@ class GenerationStatus(str, Enum):
     COMPLETED = "completed"
     PARTIAL = "partial"
     FAILED = "failed"
+    EXPIRED = "expired"  # Timed out waiting to be processed
 
 
 class EntityType(str, Enum):

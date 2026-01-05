@@ -98,6 +98,11 @@ class VerbBase(BaseModel):
         description="Whether the verb can have an indirect object",
         json_schema_extra={"example": True},
     )
+    is_test: bool = Field(
+        default=False,
+        description="Flag for test data - excluded from random selection",
+        json_schema_extra={"example": False},
+    )
 
     @field_validator(
         "infinitive", "translation", "past_participle", "present_participle"
@@ -147,6 +152,7 @@ class VerbUpdate(BaseModel):
     is_irregular: bool | None = None
     can_have_cod: bool | None = None
     can_have_coi: bool | None = None
+    is_test: bool | None = None
 
     @field_validator(
         "infinitive", "translation", "past_participle", "present_participle"

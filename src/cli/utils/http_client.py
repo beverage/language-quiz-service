@@ -14,32 +14,31 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-def get_service_url_from_flag(local: bool, remote: bool) -> str | None:
+def get_service_url_from_flag(remote: bool) -> str:
     """
     Determine the service URL based on CLI flags.
 
+    By default (no flags), CLI targets local service at localhost using SERVICE_PORT.
+    With --remote, CLI targets remote service from SERVICE_URL env var.
+
     Args:
-        local: True if --local flag was provided
         remote: True if --remote flag was provided
 
     Returns:
-        Service URL string or None (for direct mode)
-
-    Raises:
-        click.ClickException: If both flags are provided
+        Service URL string
     """
-    if local and remote:
-        raise click.ClickException("Cannot use both --local and --remote flags")
-
-    if local:
-        return "http://localhost:8000"
-
     if remote:
-        # Use SERVICE_URL from environment, default to localhost if not set
-        return os.getenv("SERVICE_URL", "http://localhost:8000")
+        # Use SERVICE_URL from environment, error if not set
+        service_url = os.getenv("SERVICE_URL")
+        if not service_url:
+            raise click.ClickException(
+                "SERVICE_URL environment variable required when using --remote flag"
+            )
+        return service_url
 
-    # No flags = direct mode (use service layer directly)
-    return None
+    # Default = local HTTP mode (uses SERVICE_PORT, defaults to 8000)
+    port = os.getenv("SERVICE_PORT", "8000")
+    return f"http://localhost:{port}"
 
 
 def get_api_key() -> str:

@@ -248,3 +248,61 @@ class TestProblemRepository:
 
         # Test empty update - skip this test as it may not be supported
         # Different repositories handle empty updates differently
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_query_problems_by_topic_tag(
+        self, problem_repository, test_supabase_client
+    ):
+        """Test that problems can be queried by topic_tags."""
+        # Create a problem with test_data tag
+        problem_data = generate_random_problem_data(
+            title="Topic tag test problem", topic_tags=["test_data", "query_test"]
+        )
+        created = await problem_repository.create_problem(ProblemCreate(**problem_data))
+
+        try:
+            # Query for problems with test_data tag
+            result = (
+                await test_supabase_client.table("problems")
+                .select("id, title, topic_tags")
+                .contains("topic_tags", ["test_data"])
+                .execute()
+            )
+
+            assert len(result.data) > 0
+            assert any(p["id"] == str(created.id) for p in result.data)
+        finally:
+            # Cleanup
+            await problem_repository.delete_problem(created.id)
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_topic_tags_filter_excludes_non_matching(
+        self, problem_repository, test_supabase_client
+    ):
+        """Test that topic_tags query doesn't return non-matching problems."""
+        # Create a problem WITHOUT test_data tag
+        problem_data = generate_random_problem_data(
+            title="Non-test problem",
+            topic_tags=["grammar", "production"],  # No test_data
+        )
+        # Override the automatic test_data addition
+        problem_data["topic_tags"] = ["grammar", "production"]
+
+        created = await problem_repository.create_problem(ProblemCreate(**problem_data))
+
+        try:
+            # Query for problems with test_data tag
+            result = (
+                await test_supabase_client.table("problems")
+                .select("id, title, topic_tags")
+                .contains("topic_tags", ["test_data"])
+                .execute()
+            )
+
+            # This problem should NOT be in the results
+            assert not any(p["id"] == str(created.id) for p in result.data)
+        finally:
+            # Cleanup
+            await problem_repository.delete_problem(created.id)

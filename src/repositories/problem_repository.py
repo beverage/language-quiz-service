@@ -7,7 +7,6 @@ from uuid import UUID
 
 from postgrest import APIError as PostgrestAPIError
 
-from src.clients.supabase import get_supabase_client
 from src.core.exceptions import RepositoryError
 from src.schemas.problems import (
     Problem,
@@ -24,13 +23,6 @@ logger = logging.getLogger(__name__)
 
 class ProblemRepository:
     """Repository for problem data access operations."""
-
-    @classmethod
-    async def create(cls, client: AsyncClient | None = None) -> "ProblemRepository":
-        """Asynchronously create an instance of ProblemRepository."""
-        if client is None:
-            client = await get_supabase_client()
-        return cls(client)
 
     def __init__(self, client: AsyncClient):
         """Initialize the repository with a Supabase client."""
@@ -182,6 +174,33 @@ class ProblemRepository:
             .execute()
         )
         return len(result.data) > 0
+
+    async def delete_problems_by_generation_id(
+        self, generation_request_id: UUID
+    ) -> int:
+        """Delete all problems associated with a generation request.
+
+        Args:
+            generation_request_id: The UUID of the generation request
+
+        Returns:
+            Number of problems deleted
+        """
+        try:
+            result = (
+                await self.client.table("problems")
+                .delete()
+                .eq("generation_request_id", str(generation_request_id))
+                .execute()
+            )
+            return len(result.data) if result.data else 0
+        except PostgrestAPIError as e:
+            logger.error(
+                f"Database error deleting problems by generation ID: {e.message}"
+            )
+            raise RepositoryError(
+                f"Failed to delete problems by generation ID: {e.message}"
+            ) from e
 
     def _prepare_problem_data(self, problem_data: dict[str, Any]) -> dict[str, Any]:
         """Prepare problem data from database for model validation."""

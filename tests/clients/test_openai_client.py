@@ -111,8 +111,13 @@ async def test_handle_request_records_metrics(
             "Test prompt", model="gpt-4o-mini", operation="test_operation"
         )
 
-    # Verify response
-    assert result == "Test response content"
+    # Verify response is LLMResponse with correct fields
+    assert result.content == "Test response content"
+    assert result.model == "gpt-4o-mini"
+    assert result.response_id == mock_openai_response.id
+    assert result.prompt_tokens == 50
+    assert result.completion_tokens == 25
+    assert result.total_tokens == 75
 
     # Verify duration metric was recorded
     mock_metrics["duration"].record.assert_called_once()
@@ -201,8 +206,8 @@ async def test_handle_request_without_operation(
     ):
         result = await client.handle_request("Test prompt", model="gpt-4o-mini")
 
-    # Verify response
-    assert result == "Test response content"
+    # Verify response is LLMResponse
+    assert result.content == "Test response content"
 
     # Verify metrics don't include operation
     duration_call = mock_metrics["duration"].record.call_args
@@ -232,8 +237,11 @@ async def test_handle_request_without_usage_data(
             "Test prompt", model="gpt-4o-mini", operation="test_op"
         )
 
-    # Verify response
-    assert result == "Test response content"
+    # Verify response is LLMResponse with zero tokens
+    assert result.content == "Test response content"
+    assert result.prompt_tokens == 0
+    assert result.completion_tokens == 0
+    assert result.total_tokens == 0
 
     # Verify token metrics were NOT called (since usage is None)
     mock_metrics["tokens_input"].add.assert_not_called()
@@ -372,8 +380,8 @@ async def test_clean_response_removes_markdown():
     # Test empty string
     assert client._clean_response("") == ""
 
-    # Test None
-    assert client._clean_response(None) is None
+    # Test None returns empty string
+    assert client._clean_response(None) == ""
 
 
 @pytest.mark.asyncio

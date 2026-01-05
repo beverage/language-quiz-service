@@ -8,12 +8,12 @@ complete conjugation data.
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 
 import asyncclick as click
 
 from src.cli.utils.http_client import get_api_key, make_api_request
-from src.cli.utils.verb_diff import format_verb_diff, get_verb_diff
 from src.clients.supabase import get_supabase_client
 from src.schemas.verbs import Tense
 
@@ -58,8 +58,6 @@ async def _worker(
     api_key: str,
     success_count: dict,
     failure_count: dict,
-    changes_report: dict,
-    db_client=None,
 ):
     """Worker that processes verbs from the queue with retry logic."""
     while True:
@@ -70,67 +68,13 @@ async def _worker(
             should_mark_done = True  # Track if we should call task_done
 
             try:
-                # GET verb before download to compare
-                before_verb = None
-                if db_client:
-                    try:
-                        result = (
-                            await db_client.table("verbs")
-                            .select(
-                                "infinitive,auxiliary,reflexive,classification,can_have_cod,can_have_coi"
-                            )
-                            .eq("infinitive", task.infinitive)
-                            .eq("target_language_code", task.target_language_code)
-                            .execute()
-                        )
-
-                        if result.data:
-                            # If multiple variants exist, just take the first for comparison
-                            before_verb = result.data[0]
-                    except Exception as e:
-                        logger.debug(f"Could not GET verb before download: {e}")
-
-                # Attempt to download
+                # Download conjugations for this verb
                 await _download_verb_conjugations_http(
                     service_url, api_key, task.infinitive, task.target_language_code
                 )
 
-                # GET verb after download to compare
-                after_verb = None
-                if db_client:
-                    try:
-                        result = (
-                            await db_client.table("verbs")
-                            .select(
-                                "infinitive,auxiliary,reflexive,classification,can_have_cod,can_have_coi"
-                            )
-                            .eq("infinitive", task.infinitive)
-                            .eq("target_language_code", task.target_language_code)
-                            .execute()
-                        )
-
-                        if result.data:
-                            # Same logic - take first if multiple
-                            after_verb = result.data[0]
-                    except Exception as e:
-                        logger.debug(f"Could not GET verb after download: {e}")
-
-                # Calculate and display diff
-                if after_verb:
-                    changes = get_verb_diff(before_verb, after_verb)
-                    if changes:
-                        # Save changes to report
-                        changes_report[task.infinitive] = changes
-
-                        diff_output = format_verb_diff(task.infinitive, changes)
-                        if diff_output:
-                            click.echo(diff_output)
-                    else:
-                        # No changes - just show checkmark
-                        click.echo(f"   ✅ {task.infinitive}")
-                else:
-                    # Couldn't get after verb - just show success
-                    click.echo(f"   ✅ {task.infinitive}")
+                # Report success - conjugations are always refreshed
+                click.echo(f"   ✅ {task.infinitive}")
 
                 # Success
                 success_count["value"] += 1
@@ -184,10 +128,9 @@ async def init_verbs(ctx, verbs_only: bool):
     2. Calls the verb download API for each verb to download conjugations
     3. Uses a worker pool of 50 concurrent workers processing from a queue
     4. Retries failures up to 3 times
-    5. Respects --local/--remote flags (default: local at http://localhost:8000)
+    5. Targets local service by default (http://localhost:8000)
 
-    Use --local to target local service (default)
-    Use --remote to target remote service from SERVICE_URL env var
+    Use --remote to target remote service from SERVICE_URL env var.
 
     Note: Verbs must already exist in the database (added via migrations).
     """
@@ -200,11 +143,12 @@ async def init_verbs(ctx, verbs_only: bool):
         return
 
     # Get service URL from context (set by root CLI)
-    service_url = ctx.obj.get("service_url") if ctx.obj else None
-
-    if not service_url:
-        # Default to local if no flags provided
-        service_url = "http://localhost:8000"
+    # Fallback uses SERVICE_PORT for consistency
+    if ctx.obj and ctx.obj.get("service_url"):
+        service_url = ctx.obj["service_url"]
+    else:
+        port = os.getenv("SERVICE_PORT", "8000")
+        service_url = f"http://localhost:{port}"
 
     logger.info(f"Initializing verb conjugations using API at {service_url}")
 
@@ -243,12 +187,11 @@ async def init_verbs(ctx, verbs_only: bool):
         for infinitive, target_lang in non_test_verbs:
             await queue.put(VerbTask(infinitive, target_lang))
 
-        # Shared counters and report data (using dict for mutability across workers)
+        # Shared counters (using dict for mutability across workers)
         success_count = {"value": 0}
         failure_count = {"value": 0}
-        changes_report = {}  # Dict[infinitive, Dict[field, (old_val, new_val)]]
 
-        # Create 50 workers - pass db client for diff functionality
+        # Create 50 workers
         workers = []
         for i in range(50):
             worker = asyncio.create_task(
@@ -259,8 +202,6 @@ async def init_verbs(ctx, verbs_only: bool):
                     api_key,
                     success_count,
                     failure_count,
-                    changes_report,
-                    client,
                 )
             )
             workers.append(worker)
@@ -280,7 +221,6 @@ async def init_verbs(ctx, verbs_only: bool):
             success_count["value"],
             failure_count["value"],
             len(non_test_verbs),
-            changes_report,
         )
 
     except Exception as e:
@@ -289,53 +229,18 @@ async def init_verbs(ctx, verbs_only: bool):
         raise
 
 
-def _display_report(
-    success_count: int, failure_count: int, total_verbs: int, changes_report: dict
-):
-    """Display a comprehensive report of verb initialization results."""
+def _display_report(success_count: int, failure_count: int, total_verbs: int):
+    """Display a report of verb initialization results."""
     click.echo(f"\n{'='*70}")
-    click.echo("📊 Verb Initialization Report")
+    click.echo("📊 Conjugation Refresh Report")
     click.echo(f"{'='*70}")
-    click.echo(f"✅ Successfully processed: {success_count}/{total_verbs} verbs")
-
-    if changes_report:
-        click.echo(f"📝 Verbs with changes: {len(changes_report)}")
-        click.echo()
-
-        # Calculate field change statistics
-        field_stats = {}
-        for verb_changes in changes_report.values():
-            for field in verb_changes.keys():
-                field_stats[field] = field_stats.get(field, 0) + 1
-
-        if field_stats:
-            click.echo("Changes by Field:")
-            for field in sorted(field_stats.keys()):
-                count = field_stats[field]
-                click.echo(
-                    f"  • {field}: {count} verb{'s' if count != 1 else ''} changed"
-                )
-            click.echo()
-
-        # Display detailed changes (alphabetically by verb)
-        click.echo("Detailed Changes:")
-        for infinitive in sorted(changes_report.keys()):
-            changes = changes_report[infinitive]
-            diff_output = format_verb_diff(infinitive, changes)
-            if diff_output:
-                click.echo(diff_output)
-    else:
-        click.echo("📝 Verbs with changes: 0")
-        click.echo()
-        click.echo("✨ No verbs were modified - all data was already up to date!")
-
-    click.echo(f"\n{'='*70}")
+    click.echo(f"✅ Conjugations refreshed: {success_count}/{total_verbs} verbs")
 
     if failure_count > 0:
         click.echo(
             f"⚠️  {failure_count} verb{'s' if failure_count != 1 else ''} failed after 3 attempts. Check logs for details."
         )
     else:
-        click.echo("🎉 All verbs successfully initialized!")
+        click.echo("🎉 All conjugations successfully refreshed!")
 
     click.echo(f"{'='*70}")

@@ -24,6 +24,7 @@ class Pronoun(StrEnum):
 class DirectObject(StrEnum):
     """Direct object types."""
 
+    ANY = "any"  # LLM chooses what's natural
     NONE = "none"
     MASCULINE = "masculine"
     FEMININE = "feminine"
@@ -33,6 +34,7 @@ class DirectObject(StrEnum):
 class IndirectObject(StrEnum):
     """Indirect object types."""
 
+    ANY = "any"  # LLM chooses what's natural
     NONE = "none"
     MASCULINE = "masculine"
     FEMININE = "feminine"
@@ -42,6 +44,7 @@ class IndirectObject(StrEnum):
 class Negation(StrEnum):
     """Negation types."""
 
+    ANY = "any"  # LLM chooses what's natural
     NONE = "none"
     PAS = "pas"
     JAMAIS = "jamais"

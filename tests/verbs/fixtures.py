@@ -25,15 +25,21 @@ fake = Faker()
 
 
 @pytest.fixture
-async def verb_service(test_supabase_client):
-    """Create a VerbService with real repository connection."""
-    service = VerbService()
-    service.db_client = test_supabase_client  # Inject test client
-    return service
+async def verb_service(test_supabase_client, mock_llm_client):
+    """Create a VerbService with real repository connection and mock LLM client."""
+    verb_repository = VerbRepository(client=test_supabase_client)
+    return VerbService(
+        llm_client=mock_llm_client,
+        verb_repository=verb_repository,
+    )
 
 
 def generate_random_verb_data() -> dict[str, Any]:
-    """Generate random verb data for testing."""
+    """Generate random verb data for testing.
+
+    All test-generated verbs are marked with is_test=True to exclude
+    them from random selection during problem generation.
+    """
     infinitive = f"{fake.word()}_{uuid4().hex[:8]}"  # Make unique
 
     return {
@@ -52,6 +58,7 @@ def generate_random_verb_data() -> dict[str, Any]:
         "is_irregular": choice([True, False]),
         "can_have_cod": choice([True, False]),
         "can_have_coi": choice([True, False]),
+        "is_test": True,
     }
 
 
@@ -108,6 +115,7 @@ def sample_verb():
         is_irregular=False,
         can_have_cod=True,
         can_have_coi=False,
+        is_test=True,
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
         last_used_at=None,
