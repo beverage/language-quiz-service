@@ -164,7 +164,35 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             return None
 
         except Exception as e:
-            logger.error(f"Error validating API key: {e}")
+            from src.core.exceptions import RepositoryError, ServiceError
+
+            # Check if this is an infrastructure error (database connection, etc.)
+            # These should return 500 to indicate service unavailability
+            if isinstance(e, RepositoryError | ServiceError):
+                logger.error(
+                    f"Infrastructure error during API key validation: {e}",
+                    exc_info=True,
+                    extra={
+                        "api_key_prefix": api_key[:12] if api_key else None,
+                        "client_ip": client_ip,
+                        "error_type": type(e).__name__,
+                    },
+                )
+                # Re-raise to let the outer handler return 500
+                raise
+
+            # For other exceptions (including Supabase client creation failures),
+            # log but return None to indicate authentication failure (401)
+            # This prevents infrastructure issues from being exposed as auth failures
+            logger.warning(
+                f"Error during API key validation (treated as auth failure): {e}",
+                exc_info=True,
+                extra={
+                    "api_key_prefix": api_key[:12] if api_key else None,
+                    "client_ip": client_ip,
+                    "error_type": type(e).__name__,
+                },
+            )
             return None
 
 
