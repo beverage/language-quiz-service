@@ -124,31 +124,6 @@ async def test_supabase_client() -> Client:
     return await create_test_supabase_client(supabase_url, service_role_key)
 
 
-@pytest.fixture(scope="function", autouse=True)
-async def ensure_verb_cache_loaded():
-    """Ensure verb cache is loaded before each test."""
-    from src.cache.verb_cache import verb_cache
-    from src.clients.supabase import get_supabase_client
-    from src.repositories.verb_repository import VerbRepository
-
-    # Force reload to get latest test data
-    stats = verb_cache.get_stats()
-    if not stats["loaded"] or stats["total_verbs"] == 0:
-        try:
-            client = await get_supabase_client()
-            verb_repo = VerbRepository(client=client)
-            await verb_cache.load(verb_repo)
-        except Exception as e:
-            # If loading fails, log but continue
-            # Tests that need it will fail with clear errors
-            print(f"Warning: Failed to load verb cache: {e}")
-            import traceback
-
-            traceback.print_exc()
-
-    yield
-
-
 @pytest.fixture(scope="session")
 async def test_keys():
     """
