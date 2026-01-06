@@ -23,7 +23,10 @@ class TestLLMClientFactory:
 
     def test_get_client_returns_gemini_client(self):
         """Test that get_client returns Gemini client when LLM_PROVIDER is 'gemini'."""
-        with patch("src.clients.llm_client_factory.settings") as mock_settings:
+        with (
+            patch("src.clients.llm_client_factory.settings") as mock_settings,
+            patch("src.clients.gemini_client.genai.Client"),
+        ):
             mock_settings.llm_provider = "gemini"
 
             client = get_client()
@@ -43,7 +46,10 @@ class TestLLMClientFactory:
 
     def test_get_client_case_insensitive_gemini(self):
         """Test that get_client is case-insensitive for 'gemini'."""
-        with patch("src.clients.llm_client_factory.settings") as mock_settings:
+        with (
+            patch("src.clients.llm_client_factory.settings") as mock_settings,
+            patch("src.clients.gemini_client.genai.Client"),
+        ):
             mock_settings.llm_provider = "GEMINI"
 
             client = get_client()
