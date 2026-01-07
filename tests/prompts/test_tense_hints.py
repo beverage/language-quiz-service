@@ -40,6 +40,7 @@ class TestTenseHints:
         expected_tenses = [
             Tense.PRESENT,
             Tense.PASSE_COMPOSE,
+            Tense.PLUS_QUE_PARFAIT,
             Tense.IMPARFAIT,
             Tense.FUTURE_SIMPLE,
             Tense.CONDITIONNEL,

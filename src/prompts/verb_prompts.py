@@ -78,14 +78,14 @@ KEY PATTERNS:
         )
 
         return f"""
-Conjugate the French verb '{verb_infinitive}' (auxiliary: {auxiliary}, reflexive: {str(reflexive).lower()}) across all 7 tenses.
+Conjugate the French verb '{verb_infinitive}' (auxiliary: {auxiliary}, reflexive: {str(reflexive).lower()}) across all 8 tenses.
 
 CRITICAL: Return ONLY the verb form itself, never subject pronouns or connectors.
 - NO subject pronouns: "parle" not "je parle", "parlons" not "nous parlons"
 - NO "que" for subjonctif: "parle" not "que je parle"
 - For reflexive verbs: include reflexive pronoun only: "me lave" not "je me lave"{reflexive_note}
 
-Return a JSON array with exactly 7 objects. Example for "parler":
+Return a JSON array with exactly 8 objects. Example for "parler":
 [
     {{"infinitive": "parler", "auxiliary": "avoir", "reflexive": false, "tense": "present",
       "first_person_singular": "parle", "second_person_singular": "parles", "third_person_singular": "parle",
@@ -93,10 +93,13 @@ Return a JSON array with exactly 7 objects. Example for "parler":
     {{"infinitive": "parler", "auxiliary": "avoir", "reflexive": false, "tense": "passe_compose",
       "first_person_singular": "ai parlé", "second_person_singular": "as parlé", "third_person_singular": "a parlé",
       "first_person_plural": "avons parlé", "second_person_plural": "avez parlé", "third_person_plural": "ont parlé"}},
+    {{"infinitive": "parler", "auxiliary": "avoir", "reflexive": false, "tense": "plus_que_parfait",
+      "first_person_singular": "avais parlé", "second_person_singular": "avais parlé", "third_person_singular": "avait parlé",
+      "first_person_plural": "avions parlé", "second_person_plural": "aviez parlé", "third_person_plural": "avaient parlé"}},
     ... (imparfait, future_simple, conditionnel, subjonctif, imperatif)
 ]
 
-TENSES: present, passe_compose, imparfait, future_simple, conditionnel, subjonctif, imperatif
+TENSES: present, passe_compose, plus_que_parfait, imparfait, future_simple, conditionnel, subjonctif, imperatif
 IMPERATIF: Only tu/nous/vous forms exist. Use "" for first_person_singular, third_person_singular, third_person_plural.
 
 FORMATTING:
@@ -221,6 +224,7 @@ REASONING GUARD RAILS:
 Tenses must be named exactly as follows:
 - 'present'
 - 'passe_compose'
+- 'plus_que_parfait'
 - 'imparfait'
 - 'future_simple'
 - 'conditionnel'

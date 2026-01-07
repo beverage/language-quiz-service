@@ -29,6 +29,7 @@ class Tense(str, Enum):
 
     PRESENT = "present"
     PASSE_COMPOSE = "passe_compose"
+    PLUS_QUE_PARFAIT = "plus_que_parfait"
     IMPARFAIT = "imparfait"
     FUTURE_SIMPLE = "future_simple"
     CONDITIONNEL = "conditionnel"

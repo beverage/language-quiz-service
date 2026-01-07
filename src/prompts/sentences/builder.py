@@ -37,7 +37,7 @@ class SentencePromptBuilder:
         available_errors.append(ErrorType.WRONG_CONJUGATION)
 
         # Wrong auxiliary: only for compound tenses
-        if sentence.tense in [Tense.PASSE_COMPOSE]:
+        if sentence.tense in [Tense.PASSE_COMPOSE, Tense.PLUS_QUE_PARFAIT]:
             available_errors.append(ErrorType.WRONG_AUXILIARY)
 
         # If we need more errors than available, just use what we have

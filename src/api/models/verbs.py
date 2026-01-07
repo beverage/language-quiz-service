@@ -181,6 +181,7 @@ class ConjugationResponse(BaseModel):
             "enum": [
                 "present",
                 "passe_compose",
+                "plus_que_parfait",
                 "imparfait",
                 "future_simple",
                 "conditionnel",

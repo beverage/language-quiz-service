@@ -49,6 +49,7 @@ class SentenceGenerateRequest(BaseModel):
             "enum": [
                 "present",
                 "passe_compose",
+                "plus_que_parfait",
                 "imparfait",
                 "future_simple",
                 "conditionnel",
@@ -149,6 +150,7 @@ class SentenceListRequest(BaseModel):
             "enum": [
                 "present",
                 "passe_compose",
+                "plus_que_parfait",
                 "imparfait",
                 "future_simple",
                 "conditionnel",

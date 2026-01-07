@@ -5,7 +5,7 @@ from src.schemas.verbs import Tense, Verb
 
 # Compound tenses that require auxiliary verb (avoir/être)
 # Extend this set when adding tenses like plus-que-parfait, futur antérieur, etc.
-COMPOUND_TENSES = frozenset([Tense.PASSE_COMPOSE])
+COMPOUND_TENSES = frozenset([Tense.PASSE_COMPOSE, Tense.PLUS_QUE_PARFAIT])
 
 # Tense-specific hints to encourage idiomatic, varied sentence construction
 # These guide the LLM toward natural French patterns for each tense
@@ -18,6 +18,14 @@ TENSE_HINTS: dict[Tense, str] = {
         "Set the sentence in a specific past context with time markers when natural: "
         "hier, la semaine dernière, ce matin, il y a deux jours, etc. "
         "Describe completed actions or events."
+    ),
+    Tense.PLUS_QUE_PARFAIT: (
+        "IMPORTANT: The plus-que-parfait requires a reference to another past action. "
+        "You MUST create a multi-clause sentence. Patterns to use: "
+        "'Quand + passé composé, ... plus-que-parfait' or 'plus-que-parfait + quand + passé composé', "
+        "or reported speech like 'Il m'a dit qu'il avait...' "
+        "Example: 'Quand je suis arrivé, il avait déjà mangé.' "
+        "Never generate a standalone plus-que-parfait clause without temporal context."
     ),
     Tense.IMPARFAIT: (
         "Use for past descriptions, habits, or ongoing states: "
