@@ -4,13 +4,13 @@ Sentence management endpoints.
 Provides read-only access to sentence data with filtering capabilities.
 Sentence creation and updates are handled through internal services only.
 
-**Available Endpoints:**
+Available Endpoints:
 - GET /random - Retrieve a random sentence
 - GET /{sentence_id} - Get specific sentence by ID
 - GET / - List sentences with optional filters
 - DELETE /{sentence_id} - Remove a sentence from the database
 
-**Note**: Creation and update endpoints have been removed as sentence
+Note: Creation and update endpoints have been removed as sentence
 generation requires complex grammatical validation best handled by AI services.
 """
 
@@ -49,11 +49,11 @@ router = APIRouter(prefix=API_PREFIX, tags=["Sentences"])
     - Vocabulary practice with varied contexts
     - Content discovery and exploration
 
-    **Filtering Options:**
+    Filtering Options:
     - Filter by correctness to get only valid sentences for learning
     - Filter by verb to focus on specific vocabulary
 
-    **Required Permission**: `read`, `write`, or `admin`
+    Required Permission: read, write, or admin
     """,
     responses={
         200: {
@@ -136,12 +136,12 @@ async def get_random_sentence(
     description="""
     Retrieve a specific sentence using its unique identifier.
 
-    **Use Cases:**
+    Use Cases:
     - Display detailed sentence information in learning interfaces
     - Retrieve sentences for analysis or modification workflows
     - Access specific content referenced by ID from other systems
 
-    **Required Permission**: `read`, `write`, or `admin`
+    Required Permission: read, write, or admin
     """,
     responses={
         200: {
@@ -210,23 +210,23 @@ async def get_sentence(
     description="""
     Retrieve a filtered list of sentences from the database.
 
-    **Advanced Filtering:**
+    Advanced Filtering:
     Combine multiple filters to create targeted queries:
     - Verb-specific sentences for focused vocabulary practice
     - Tense-based filtering for grammar lessons
     - Correctness filtering for quality control
     - Language-specific content for multi-language support
 
-    **Pagination:**
-    Use the `limit` parameter to control result size (1-100 sentences).
+    Pagination:
+    Use the limit parameter to control result size (1-100 sentences).
 
-    **Use Cases:**
+    Use Cases:
     - Build vocabulary exercises focused on specific verbs
     - Create grammar lessons targeting particular tenses
     - Generate quiz content with known difficulty levels
     - Analyze sentence patterns and structures
 
-    **Required Permission**: `read`, `write`, or `admin`
+    Required Permission: read, write, or admin
     """,
     responses={
         200: {
@@ -324,14 +324,14 @@ async def list_sentences(
     description="""
     Remove a sentence from the database.
 
-    **Use Cases:**
+    Use Cases:
     - Content moderation and quality control
     - Removing outdated or incorrect sentences
     - Database maintenance and cleanup
 
-    **Required Permission**: `write` or `admin`
+    Required Permission: write or admin
 
-    **Note**: This operation is irreversible. Deleted sentences cannot be recovered.
+    Note: This operation is irreversible. Deleted sentences cannot be recovered.
     """,
     responses={
         200: {

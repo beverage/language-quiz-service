@@ -42,15 +42,15 @@ security = HTTPBearer()
     description="""
     Create a new API key with specified permissions and settings.
 
-    **⚠️ Important**: The API key will only be shown once in the response.
+    Important: The API key will only be shown once in the response.
     Save it securely as it cannot be retrieved again.
 
-    **Permission Levels**:
-    - `read`: Access to GET endpoints
-    - `write`: Access to POST/PUT endpoints + read permissions
-    - `admin`: Full access including API key management
+    Permission Levels:
+    - read: Access to GET endpoints
+    - write: Access to POST/PUT endpoints + read permissions
+    - admin: Full access including API key management
 
-    **Required Permission**: `admin`
+    Required Permission: admin
     """,
     responses={
         200: {
@@ -151,11 +151,11 @@ async def create_api_key(
     description="""
     Retrieve a list of all API keys in the system.
 
-    **Filtering Options**:
-    - `limit`: Maximum number of keys to return (default: 100)
-    - `include_inactive`: Whether to include deactivated keys (default: false)
+    Filtering Options:
+    - limit: Maximum number of keys to return (default: 100)
+    - include_inactive: Whether to include deactivated keys (default: false)
 
-    **Required Permission**: `admin`
+    Required Permission: admin
     """,
     responses={
         200: {
@@ -254,12 +254,12 @@ async def list_api_keys(
     description="""
     Retrieve system-wide API key usage statistics and metrics.
 
-    **Returns**:
+    Returns:
     - Total number of API keys (active and inactive)
     - Usage metrics and request counts
     - Most active API key information
 
-    **Required Permission**: `admin`
+    Required Permission: admin
     """,
     responses={
         200: {
@@ -363,13 +363,13 @@ async def search_api_keys(
     description="""
     Retrieve information about the currently authenticated API key.
 
-    **Use Cases**:
+    Use Cases:
     - Verify API key authentication is working
     - Check current permissions and rate limits
     - View usage statistics for your key
     - Useful for debugging and monitoring
 
-    **Required Permission**: Any (authenticated user can view their own key info)
+    Required Permission: Any (authenticated user can view their own key info)
     """,
     responses={
         200: {
@@ -463,31 +463,24 @@ async def get_api_key(
     description="""
     Update an existing API key's properties.
 
-    **Partial Updates Supported**: Only provide the fields you want to update.
+    Partial Updates Supported: Only provide the fields you want to update.
     All fields are optional, and unchanged fields will retain their current values.
 
-    **Updatable Properties:**
-    - **Name & Description**: Update human-readable identification
-    - **Client Information**: Modify associated client application details
-    - **Permissions**: Grant or revoke access levels (read/write/admin)
-    - **Status**: Activate or deactivate the key
-    - **Rate Limiting**: Adjust request limits (1-10,000 RPM)
-    - **IP Restrictions**: Modify allowed IP addresses or CIDR blocks
+    Updatable Properties:
+    - Name and Description: Update human-readable identification
+    - Client Information: Modify associated client application details
+    - Permissions: Grant or revoke access levels (read/write/admin)
+    - Status: Activate or deactivate the key
+    - Rate Limiting: Adjust request limits (1-10,000 RPM)
+    - IP Restrictions: Modify allowed IP addresses or CIDR blocks
 
-    **Security Considerations:**
+    Security Considerations:
     - Permission changes take effect immediately
     - Deactivated keys cannot authenticate until reactivated
     - IP restrictions apply to all requests using the key
     - Rate limit changes affect ongoing usage patterns
 
-    **Use Cases:**
-    - Rotate permissions for security compliance
-    - Adjust rate limits based on usage patterns
-    - Update client information for better tracking
-    - Implement IP-based access controls
-    - Temporarily disable compromised keys
-
-    **Required Permission**: `admin` (only administrators can modify API keys)
+    Required Permission: admin (only administrators can modify API keys)
     """,
     responses={
         200: {
