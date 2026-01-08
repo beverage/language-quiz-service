@@ -72,6 +72,28 @@ class SentenceBase(BaseModel):
     explanation: str | None = None
     source: str | None = None
 
+    @property
+    def has_pronoun_substitution(self) -> bool:
+        """True if sentence has COD or COI pronoun substitution.
+
+        Derived from direct_object/indirect_object values - no database storage needed.
+        """
+        return self.direct_object not in (
+            DirectObject.NONE,
+            DirectObject.ANY,
+        ) or self.indirect_object not in (IndirectObject.NONE, IndirectObject.ANY)
+
+    @property
+    def has_double_pronouns(self) -> bool:
+        """True if sentence has both COD and COI pronouns.
+
+        Derived from direct_object/indirect_object values - no database storage needed.
+        """
+        return self.direct_object not in (
+            DirectObject.NONE,
+            DirectObject.ANY,
+        ) and self.indirect_object not in (IndirectObject.NONE, IndirectObject.ANY)
+
     @field_validator("target_language_code")
     @classmethod
     def validate_language_code(cls, v: str) -> str:

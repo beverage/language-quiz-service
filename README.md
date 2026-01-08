@@ -110,7 +110,7 @@ lqs database init
 lqs problem generate -c 5
 
 # Check generation status
-lqs generation-request status <request-id>
+lqs generation status <request-id>
 
 # Get a random problem
 lqs problem random

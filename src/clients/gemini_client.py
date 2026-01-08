@@ -110,7 +110,7 @@ class GeminiClient(AbstractLLMClient):
             # Configure thinking based on use_reasoning flag
             if use_reasoning:
                 config_params["thinking_config"] = types.ThinkingConfig(
-                    thinking_budget=-1,  # Auto
+                    thinking_budget=1500,  # Auto
                     include_thoughts=True,
                 )
             else:

@@ -260,6 +260,7 @@ class MockQueueService:
     async def publish_problem_generation_request(
         self,
         constraints=None,
+        focus=None,
         statement_count=4,
         topic_tags=None,
         count=1,
@@ -268,6 +269,7 @@ class MockQueueService:
         self.published_requests.append(
             {
                 "constraints": constraints,
+                "focus": focus,
                 "statement_count": statement_count,
                 "topic_tags": topic_tags,
                 "count": count,

@@ -8,7 +8,6 @@ import pytest
 
 from src.cli.problems.create import (
     generate_random_problem,
-    generate_random_problem_with_delay,
     generate_random_problems_batch,
     get_problem_statistics,
     list_problems,
@@ -124,7 +123,7 @@ class TestCLIProblemsCreation:
 
         assert result == sample_problem
         mock_service.create_random_grammar_problem.assert_called_once_with(
-            constraints=sample_constraints, statement_count=4
+            constraints=sample_constraints, statement_count=4, focus=None
         )
 
     @patch("src.cli.problems.create.create_problem_service")
@@ -143,7 +142,7 @@ class TestCLIProblemsCreation:
 
         assert result == sample_problem
         mock_service.create_random_grammar_problem.assert_called_once_with(
-            constraints=None, statement_count=3
+            constraints=None, statement_count=3, focus=None
         )
 
     @patch("src.cli.problems.create.create_problem_service")
@@ -160,32 +159,6 @@ class TestCLIProblemsCreation:
         with pytest.raises(ValueError, match="Service error"):
             await generate_random_problem(statement_count=4)
 
-    @patch("src.cli.problems.create.generate_random_problem")
-    async def test_generate_random_problem_with_delay(
-        self,
-        mock_generate: AsyncMock,
-        sample_problem: Problem,
-        sample_constraints: GrammarProblemConstraints,
-    ):
-        """Test problem generation wrapper function."""
-        mock_generate.return_value = sample_problem
-
-        result = await generate_random_problem_with_delay(
-            statement_count=4, constraints=sample_constraints, display=True
-        )
-
-        assert result == sample_problem
-        mock_generate.assert_called_once_with(
-            statement_count=4,
-            constraints=sample_constraints,
-            display=True,
-            detailed=False,
-            service_url=None,
-            output_json=False,
-            count=1,
-            show_trace=False,
-        )
-
     @patch("src.cli.utils.queues.parallel_execute")
     async def test_generate_random_problems_batch_success(
         self,
@@ -197,31 +170,23 @@ class TestCLIProblemsCreation:
         problems = [sample_problem, sample_problem, sample_problem]
         mock_parallel_execute.return_value = problems
 
-        with patch(
-            "src.cli.problems.create.generate_random_problem_with_delay"
-        ) as mock_generate_with_delay:
-            # Mock the coroutine function to return an awaitable mock
-            mock_generate_with_delay.return_value = AsyncMock(
-                return_value=sample_problem
-            )
+        result = await generate_random_problems_batch(
+            quantity=3,
+            statement_count=4,
+            constraints=sample_constraints,
+            workers=5,
+            display=False,
+        )
 
-            result = await generate_random_problems_batch(
-                quantity=3,
-                statement_count=4,
-                constraints=sample_constraints,
-                workers=5,
-                display=False,
-            )
+        assert result == problems
+        assert len(result) == 3
+        mock_parallel_execute.assert_called_once()
 
-            assert result == problems
-            assert len(result) == 3
-            mock_parallel_execute.assert_called_once()
-
-            # Verify the call arguments
-            call_args = mock_parallel_execute.call_args
-            assert call_args.kwargs["max_concurrent"] == 5
-            assert call_args.kwargs["batch_delay"] == 0.5
-            assert len(call_args.kwargs["tasks"]) == 3
+        # Verify the call arguments
+        call_args = mock_parallel_execute.call_args
+        assert call_args.kwargs["max_concurrent"] == 5
+        assert call_args.kwargs["batch_delay"] == 0.5
+        assert len(call_args.kwargs["tasks"]) == 3
 
     @patch("src.cli.utils.queues.parallel_execute")
     async def test_generate_random_problems_batch_with_display(
@@ -231,16 +196,10 @@ class TestCLIProblemsCreation:
         problems = [sample_problem, sample_problem]
         mock_parallel_execute.return_value = problems
 
-        with patch(
-            "src.cli.problems.create.generate_random_problem_with_delay"
-        ) as mock_generate_with_delay:
-            mock_generate_with_delay.return_value = AsyncMock(
-                return_value=sample_problem
-            )
-            with patch("builtins.print"):  # Mock print to avoid display output
-                result = await generate_random_problems_batch(quantity=2, display=True)
+        with patch("builtins.print"):  # Mock print to avoid display output
+            result = await generate_random_problems_batch(quantity=2, display=True)
 
-            assert result == problems
+        assert result == problems
 
     @patch("src.cli.utils.queues.parallel_execute")
     async def test_generate_random_problems_batch_empty_results(
@@ -249,11 +208,7 @@ class TestCLIProblemsCreation:
         """Test batch generation when no problems are successfully created."""
         mock_parallel_execute.return_value = []
 
-        with patch(
-            "src.cli.problems.create.generate_random_problem_with_delay"
-        ) as mock_generate_with_delay:
-            mock_generate_with_delay.return_value = AsyncMock(return_value=None)
-            result = await generate_random_problems_batch(quantity=3, display=True)
+        result = await generate_random_problems_batch(quantity=3, display=True)
 
         assert result == []
 
@@ -375,19 +330,12 @@ class TestCLIProblemsEdgeCases:
         """Test batch generation with various sizes and worker counts."""
         mock_parallel_execute.return_value = [sample_problem] * statement_count
 
-        with patch(
-            "src.cli.problems.create.generate_random_problem_with_delay"
-        ) as mock_generate_with_delay:
-            mock_generate_with_delay.return_value = AsyncMock(
-                return_value=sample_problem
-            )
+        result = await generate_random_problems_batch(
+            quantity=statement_count, workers=workers, display=False
+        )
 
-            result = await generate_random_problems_batch(
-                quantity=statement_count, workers=workers, display=False
-            )
-
-            assert len(result) == statement_count
-            mock_parallel_execute.assert_called_once()
+        assert len(result) == statement_count
+        mock_parallel_execute.assert_called_once()
 
     @patch("src.cli.problems.create.create_problem_service")
     async def test_list_problems_empty_results(

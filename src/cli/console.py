@@ -52,7 +52,7 @@ from src.cli.sentences.create import create_random_sentence_batch, create_senten
 from src.cli.sentences.purge import purge_orphaned_sentences
 from src.cli.utils.types import DateOrDurationParam
 from src.cli.verbs.commands import download, get, random
-from src.schemas.problems import GrammarProblemConstraints
+from src.schemas.problems import GrammarFocus, GrammarProblemConstraints
 
 
 @click.group()
@@ -207,6 +207,12 @@ async def problem_random(
 @problem.command("generate")
 @click.option("--count", "-c", default=1, help="Number of problems to generate")
 @click.option("--statements", "-s", default=4, help="Number of statements per problem")
+@click.option(
+    "--focus",
+    type=click.Choice(["conjugation", "pronouns"]),
+    default="conjugation",
+    help="Grammar focus area: conjugation (verb errors) or pronouns (object pronoun errors)",
+)
 @click.option("--include-cod", is_flag=True, help="Force inclusion of direct objects")
 @click.option("--include-coi", is_flag=True, help="Force inclusion of indirect objects")
 @click.option("--include-negation", is_flag=True, help="Force inclusion of negation")
@@ -224,6 +230,7 @@ async def problem_generate(
     ctx,
     count: int,
     statements: int,
+    focus: str,
     include_cod: bool,
     include_coi: bool,
     include_negation: bool,
@@ -237,6 +244,9 @@ async def problem_generate(
         root_ctx = ctx.find_root()
         detailed = root_ctx.params.get("detailed", False)
         service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
+
+        # Convert focus string to enum
+        grammar_focus = GrammarFocus(focus)
 
         # Build constraints from CLI options
         constraints = None
@@ -257,6 +267,7 @@ async def problem_generate(
             await generate_random_problem(
                 statement_count=statements,
                 constraints=constraints,
+                focus=grammar_focus,
                 display=not output_json,
                 detailed=detailed,
                 service_url=service_url,
@@ -270,6 +281,7 @@ async def problem_generate(
                 quantity=count,
                 statement_count=statements,
                 constraints=constraints,
+                focus=grammar_focus,
                 display=not output_json,
                 detailed=detailed,
                 service_url=service_url,
@@ -402,17 +414,17 @@ api_keys.add_command(api_keys_list, name="list")
 api_keys.add_command(api_keys_revoke, name="revoke")
 
 
-@cli.group("generation-request")
-async def generation_request():
+@cli.group("generation")
+async def generation():
     """Generation request management commands."""
     pass
 
 
 # Add generation request commands to the group
-generation_request.add_command(genreq_list, name="list")
-generation_request.add_command(genreq_get, name="get")
-generation_request.add_command(genreq_status, name="status")
-generation_request.add_command(genreq_clean, name="clean")
+generation.add_command(genreq_list, name="list")
+generation.add_command(genreq_get, name="get")
+generation.add_command(genreq_status, name="status")
+generation.add_command(genreq_clean, name="clean")
 
 
 @cli.group()

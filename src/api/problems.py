@@ -240,6 +240,7 @@ async def generate_random_problem(
 
         # Extract parameters
         constraints = problem_request.constraints
+        focus = problem_request.focus
         statement_count = problem_request.statement_count
         topic_tags = problem_request.topic_tags
         count = problem_request.count
@@ -250,6 +251,7 @@ async def generate_random_problem(
             request_id,
         ) = await queue_service.publish_problem_generation_request(
             constraints=constraints,
+            focus=focus,
             statement_count=statement_count,
             topic_tags=topic_tags,
             count=count,

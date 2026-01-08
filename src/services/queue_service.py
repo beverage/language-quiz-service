@@ -12,7 +12,7 @@ from src.schemas.generation_requests import (
     GenerationRequestCreate,
     GenerationStatus,
 )
-from src.schemas.problems import GrammarProblemConstraints
+from src.schemas.problems import GrammarFocus, GrammarProblemConstraints
 from src.worker.config import worker_config
 from src.worker.tracing import inject_trace_context
 
@@ -43,6 +43,7 @@ class QueueService:
     async def publish_problem_generation_request(
         self,
         constraints: GrammarProblemConstraints | None = None,
+        focus: GrammarFocus | None = None,
         statement_count: int = 4,
         topic_tags: list[str] | None = None,
         count: int = 1,
@@ -56,6 +57,7 @@ class QueueService:
 
         Args:
             constraints: Optional constraints for problem generation
+            focus: Grammar focus area (conjugation or pronouns)
             statement_count: Number of statements per problem
             topic_tags: Additional topic tags
             count: Number of problems to generate
@@ -72,6 +74,7 @@ class QueueService:
             status=GenerationStatus.PENDING,
             constraints=constraints.model_dump() if constraints else None,
             metadata={
+                "focus": focus.value if focus else None,
                 "statement_count": statement_count,
                 "topic_tags": topic_tags or [],
             },
@@ -93,6 +96,7 @@ class QueueService:
             message = {
                 "generation_request_id": generation_request_id,
                 "constraints": constraints.model_dump() if constraints else None,
+                "focus": focus.value if focus else None,
                 "statement_count": statement_count,
                 "topic_tags": topic_tags or [],
                 "enqueued_at": datetime.now(UTC).isoformat(),

@@ -17,6 +17,7 @@ from src.prompts.sentences import SentencePromptBuilder
 from src.repositories.problem_repository import ProblemRepository
 from src.schemas.llm_response import ProblemGenerationTrace, SentenceGenerationTrace
 from src.schemas.problems import (
+    GrammarFocus,
     GrammarProblemConstraints,
     Problem,
     ProblemCreate,
@@ -171,27 +172,60 @@ class ProblemService:
         target_language_code: str = "eng",
         additional_tags: list[str] | None = None,
         generation_request_id: UUID | None = None,
+        focus: GrammarFocus | None = None,
     ) -> Problem:
         """
         Create a random grammar problem by orchestrating sentence generation.
 
+        Args:
+            constraints: Optional constraints for problem generation
+            statement_count: Number of statements (options) to generate
+            target_language_code: Target language for translations
+            additional_tags: Additional topic tags
+            generation_request_id: Optional correlation ID
+            focus: Grammar focus area (conjugation or pronouns). If None, randomly selected.
+
         This is the main integration point with your existing sentence generation system.
         """
+        # Randomly select focus if not specified
+        if focus is None:
+            focus = random.choice(list(GrammarFocus))
+            logger.debug(f"🎲 Randomly selected focus: {focus.value}")
+
         logger.debug(
-            f"🎯 Creating random grammar problem with {statement_count} statements"
+            f"🎯 Creating random grammar problem with {statement_count} statements, focus={focus.value}"
         )
 
         # Apply default constraints if none provided
         if constraints is None:
             constraints = GrammarProblemConstraints()
 
-        # Step 1: Select a random verb for consistency across statements
+        # Step 1: Determine verb requirements based on focus
+        # For pronoun problems, we need to determine COD/COI requirements FIRST
+        # then select a verb that supports them
         verb_service = self._get_verb_service()
-        verb = await verb_service.get_random_verb()
+        requires_cod = False
+        requires_coi = False
+        pronoun_config = None
+
+        if focus == GrammarFocus.PRONOUNS:
+            # Pre-determine pronoun configuration to select appropriate verb
+            pronoun_config = self._select_pronoun_configuration()
+            requires_cod = pronoun_config["has_cod"]
+            requires_coi = pronoun_config["has_coi"]
+            logger.debug(f"🎯 Pronoun config: COD={requires_cod}, COI={requires_coi}")
+
+        # Select a random verb that meets the requirements
+        verb = await verb_service.get_random_verb(
+            requires_cod=requires_cod,
+            requires_coi=requires_coi,
+        )
         if not verb:
             raise LanguageResourceNotFoundError(resource_type="verbs")
 
-        logger.debug(f"📝 Selected verb: {verb.infinitive}")
+        logger.debug(
+            f"📝 Selected verb: {verb.infinitive} (can_have_cod={verb.can_have_cod}, can_have_coi={verb.can_have_coi})"
+        )
 
         # Step 1b: Fetch conjugations once for all sentences (performance optimization)
         conjugations = await verb_service.get_conjugations(
@@ -204,7 +238,9 @@ class ProblemService:
         )
 
         # Step 2: Generate random grammatical parameters
-        grammatical_params = self._generate_grammatical_parameters(verb, constraints)
+        grammatical_params = self._generate_grammatical_parameters(
+            verb, constraints, focus, pronoun_config=pronoun_config
+        )
 
         # Step 2b: Select error types for incorrect sentences using compositional approach
         # Create a temporary sentence object to determine available error types
@@ -218,9 +254,9 @@ class ProblemService:
             **grammatical_params,
         )
 
-        # Select 3 error types (one per incorrect sentence)
+        # Select error types for incorrect sentences (one per incorrect sentence)
         selected_error_types = self.sentence_builder.select_error_types(
-            temp_sentence, verb, count=statement_count - 1
+            temp_sentence, verb, focus=focus, count=statement_count - 1
         )
         logger.debug(
             f"🎯 Selected error types: {[e.value for e in selected_error_types]}"
@@ -269,6 +305,7 @@ class ProblemService:
                 error_type=error_type,  # Pass the selected error type
                 verb=verb,  # Pass pre-fetched verb to avoid duplicate DB call
                 conjugations=conjugations,  # Pass pre-fetched conjugations
+                focus=focus,  # Pass grammar focus for prompt selection
             )
             sentence_tasks.append(task)
             task_metadata.append((is_correct, error_type))
@@ -340,6 +377,7 @@ class ProblemService:
             additional_tags=additional_tags,
             generation_request_id=generation_request_id,
             generation_trace=problem_trace,
+            focus=focus,
         )
 
         # Step 5: Create problem in background (fire and forget)
@@ -383,14 +421,80 @@ class ProblemService:
         except Exception as e:
             logger.error(f"Failed to persist problem {problem_id} to database: {e}")
 
+    def _select_pronoun_configuration(self) -> dict[str, Any]:
+        """Pre-select pronoun configuration for verb filtering.
+
+        Called BEFORE verb selection to determine COD/COI requirements.
+
+        Returns:
+            Dict with has_cod, has_coi booleans and specific pronoun values
+        """
+        # Randomly decide: COD only, COI only, or double pronouns
+        config_type = random.choice(["cod_only", "coi_only", "double"])
+
+        if config_type == "cod_only":
+            return {
+                "has_cod": True,
+                "has_coi": False,
+                "direct_object": random.choice(
+                    [
+                        DirectObject.MASCULINE,
+                        DirectObject.FEMININE,
+                        DirectObject.PLURAL,
+                    ]
+                ),
+                "indirect_object": IndirectObject.NONE,
+            }
+        elif config_type == "coi_only":
+            return {
+                "has_cod": False,
+                "has_coi": True,
+                "direct_object": DirectObject.NONE,
+                "indirect_object": random.choice(
+                    [
+                        IndirectObject.MASCULINE,
+                        IndirectObject.FEMININE,
+                        IndirectObject.PLURAL,
+                    ]
+                ),
+            }
+        else:  # double
+            return {
+                "has_cod": True,
+                "has_coi": True,
+                "direct_object": random.choice(
+                    [
+                        DirectObject.MASCULINE,
+                        DirectObject.FEMININE,
+                        DirectObject.PLURAL,
+                    ]
+                ),
+                "indirect_object": random.choice(
+                    [
+                        IndirectObject.MASCULINE,
+                        IndirectObject.FEMININE,
+                        IndirectObject.PLURAL,
+                    ]
+                ),
+            }
+
     def _generate_grammatical_parameters(
-        self, verb, constraints: GrammarProblemConstraints
+        self,
+        verb,
+        constraints: GrammarProblemConstraints,
+        focus: GrammarFocus = GrammarFocus.CONJUGATION,
+        pronoun_config: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Generate base grammatical parameters for the problem.
 
         For dimensions under test (pronoun, tense): select specific values.
-        For dimensions not under test (COD, COI, negation): use ANY to let
-        the LLM choose what's natural, avoiding contradictory constraints.
+        For dimensions not under test: use ANY to let LLM choose naturally.
+
+        Args:
+            verb: The selected verb
+            constraints: Problem generation constraints
+            focus: Grammar focus area
+            pronoun_config: Pre-selected pronoun configuration (for PRONOUNS focus)
         """
         # Use constraints if provided, otherwise randomize
         pronoun = random.choice(list(Pronoun))
@@ -405,15 +509,30 @@ class ProblemService:
 
         tense = random.choice(available_tenses)
 
-        # For non-tested dimensions, use ANY to let LLM choose naturally
-        # This avoids contradictory constraints that cause reasoning loops
-        return {
+        # Base parameters
+        params = {
             "pronoun": pronoun,
             "tense": tense,
-            "direct_object": DirectObject.ANY,
-            "indirect_object": IndirectObject.ANY,
             "negation": Negation.ANY,
         }
+
+        if focus == GrammarFocus.CONJUGATION:
+            # For conjugation focus, use ANY for objects (not testing these)
+            params["direct_object"] = DirectObject.ANY
+            params["indirect_object"] = IndirectObject.ANY
+
+        elif focus == GrammarFocus.PRONOUNS:
+            # Use pre-selected pronoun config (already determined before verb selection)
+            if pronoun_config:
+                params["direct_object"] = pronoun_config["direct_object"]
+                params["indirect_object"] = pronoun_config["indirect_object"]
+            else:
+                # Fallback: generate new config (shouldn't happen in normal flow)
+                config = self._select_pronoun_configuration()
+                params["direct_object"] = config["direct_object"]
+                params["indirect_object"] = config["indirect_object"]
+
+        return params
 
     def _package_grammar_problem(
         self,
@@ -425,6 +544,7 @@ class ProblemService:
         additional_tags: list[str] | None = None,
         generation_request_id: UUID | None = None,
         generation_trace: ProblemGenerationTrace | None = None,
+        focus: GrammarFocus = GrammarFocus.CONJUGATION,
     ) -> ProblemCreate:
         """Package sentences into atomic problem format."""
 
@@ -444,10 +564,10 @@ class ProblemService:
             statements.append(statement)
 
         # Derive searchable metadata from generation parameters
-        metadata = self._derive_grammar_metadata(sentences, verb, constraints)
+        metadata = self._derive_grammar_metadata(sentences, verb, constraints, focus)
 
         # Generate topic tags
-        topic_tags = self._derive_topic_tags(verb, constraints, metadata)
+        topic_tags = self._derive_topic_tags(verb, constraints, metadata, focus)
 
         # Merge in any additional tags passed from the API
         if additional_tags:
@@ -473,6 +593,7 @@ class ProblemService:
         sentences: list[Sentence],
         verb,
         constraints: GrammarProblemConstraints,
+        focus: GrammarFocus = GrammarFocus.CONJUGATION,
     ) -> dict[str, Any]:
         """Derive searchable metadata from sentence generation parameters."""
 
@@ -481,8 +602,8 @@ class ProblemService:
         has_coi = any(s.indirect_object != IndirectObject.NONE for s in sentences)
         has_negation = any(s.negation != Negation.NONE for s in sentences)
 
-        # Focus is the problem type - just conjugation for grammar problems
-        grammatical_focus = ["conjugation"]
+        # Focus is the grammar focus area
+        grammatical_focus = [focus.value]
 
         # Collect unique tenses and pronouns used
         tenses_used = list(set(s.tense.value for s in sentences))
@@ -510,6 +631,7 @@ class ProblemService:
         verb,
         constraints: GrammarProblemConstraints,
         metadata: dict[str, Any],
+        focus: GrammarFocus = GrammarFocus.CONJUGATION,
     ) -> list[str]:
         """Derive topic tags for searchability."""
         tags = []
@@ -527,8 +649,17 @@ class ProblemService:
         elif verb_infinitive in ["être", "avoir", "devenir"]:
             tags.append("essential_verbs")
 
-        # Add grammatical focus tags (currently just "conjugation")
+        # Add grammatical focus tags from metadata
         tags.extend(metadata["grammatical_focus"])
+
+        # Add pronoun-specific tags for pronouns focus
+        if focus == GrammarFocus.PRONOUNS:
+            if metadata.get("includes_cod"):
+                tags.append("cod_pronouns")
+            if metadata.get("includes_coi"):
+                tags.append("coi_pronouns")
+            if metadata.get("includes_cod") and metadata.get("includes_coi"):
+                tags.append("double_pronouns")
 
         # Add complexity tag based on negation presence
         if metadata.get("includes_negation"):

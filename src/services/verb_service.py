@@ -108,9 +108,24 @@ class VerbService:
             limit=limit, target_language_code=target_language_code
         )
 
-    async def get_random_verb(self, target_language_code: str = "eng") -> Verb | None:
-        """Get a random verb from cache."""
-        verb = await verb_cache.get_random_verb(target_language_code)
+    async def get_random_verb(
+        self,
+        target_language_code: str = "eng",
+        requires_cod: bool = False,
+        requires_coi: bool = False,
+    ) -> Verb | None:
+        """Get a random verb from cache.
+
+        Args:
+            target_language_code: Language code for the verb
+            requires_cod: If True, only return verbs that can have direct objects
+            requires_coi: If True, only return verbs that can have indirect objects
+        """
+        verb = await verb_cache.get_random_verb(
+            target_language_code,
+            requires_cod=requires_cod,
+            requires_coi=requires_coi,
+        )
         if verb:
             # Update last used timestamp (fire and forget)
             asyncio.create_task(self._update_last_used_background(verb.id))
