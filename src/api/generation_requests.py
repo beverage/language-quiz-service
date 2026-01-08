@@ -25,13 +25,13 @@ router = APIRouter(prefix=API_PREFIX, tags=["Generation Requests"])
     Retrieve the status and results of an async generation request.
 
     This endpoint returns:
-    - **Request metadata**: Status, counts, timestamps
-    - **Generated entities**: Full problem objects created by the request
+    - Request metadata: Status, counts, timestamps
+    - Generated entities: Full problem objects created by the request
 
     Use this to check the status of async generation requests and retrieve
     the generated problems once complete.
 
-    **Required Permission**: `read`, `write`, or `admin`
+    Required Permission: read, write, or admin
     """,
     responses={
         200: {

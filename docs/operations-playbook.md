@@ -33,13 +33,13 @@ lqs problem get 123e4567-e89b-12d3-a456-426614174000 --llm-trace
 
 ```bash
 # Get a generation request with all its problems
-lqs generation-request get 550e8400-e29b-41d4-a716-446655440000
+lqs generation get 550e8400-e29b-41d4-a716-446655440000
 
 # Get with verbose problem details
-lqs generation-request get 550e8400-e29b-41d4-a716-446655440000 -v
+lqs generation get 550e8400-e29b-41d4-a716-446655440000 -v
 
 # Get as JSON for piping
-lqs generation-request get 550e8400-e29b-41d4-a716-446655440000 --json
+lqs generation get 550e8400-e29b-41d4-a716-446655440000 --json
 ```
 
 ### Piping and Streaming
@@ -52,7 +52,7 @@ After running `lqs problem generate`, get the completed problems:
 
 ```bash
 # Get generation request output, extract problem IDs, fetch each problem
-lqs generation-request get 1289c46d-16b0-4a39-9138-4302fed9b6d7 --json \
+lqs generation get 1289c46d-16b0-4a39-9138-4302fed9b6d7 --json \
   | jq -r '.entities[].id' \
   | lqs problem get
 ```
@@ -112,7 +112,7 @@ Get reasoning summaries for all problems from a generation request:
 
 ```bash
 # Extract key reasoning fields grouped by problem
-lqs generation-request get <generation-id> --json \
+lqs generation get <generation-id> --json \
   | jq -r '.entities[].id' \
   | lqs problem get --llm-trace --json \
   | jq -s '[.[] | {
@@ -130,7 +130,7 @@ lqs generation-request get <generation-id> --json \
 
 ```bash
 # Get total tokens used per problem
-lqs generation-request get <generation-id> --json \
+lqs generation get <generation-id> --json \
   | jq -r '.entities[].id' \
   | lqs problem get --llm-trace --json \
   | jq -s '[.[] | {
@@ -214,23 +214,23 @@ lqs problem purge --older-than 7d
 
 ### Generation Request Cleanup
 
-Use `lqs generation-request clean` to remove old completed, failed, or expired generation requests.
+Use `lqs generation clean` to remove old completed, failed, or expired generation requests.
 
 #### Basic Cleanup
 
 ```bash
 # Delete completed/failed requests older than 7 days
-lqs generation-request clean --older-than 7d --force
+lqs generation clean --older-than 7d --force
 
 # Delete requests older than 24 hours
-lqs generation-request clean --older-than 24h --force
+lqs generation clean --older-than 24h --force
 ```
 
 #### Filter by Topic
 
 ```bash
 # Delete old test generation requests
-lqs generation-request clean --older-than 1d --topic test_data --force
+lqs generation clean --older-than 1d --topic test_data --force
 ```
 
 ---
@@ -242,10 +242,10 @@ lqs generation-request clean --older-than 1d --topic test_data --force
 | Task | Command |
 |------|---------|
 | Get problem by ID | `lqs problem get <uuid>` |
-| Get generation request | `lqs generation-request get <uuid>` |
+| Get generation request | `lqs generation get <uuid>` |
 | Get with verbose details | `lqs problem get <uuid> -v` |
 | Get with LLM trace | `lqs problem get <uuid> --llm-trace` |
-| Extract reasoning from batch | `lqs generation-request get <uuid> --json \| jq ... \| lqs problem get --llm-trace --json` |
+| Extract reasoning from batch | `lqs generation get <uuid> --json \| jq ... \| lqs problem get --llm-trace --json` |
 | Pipe IDs to fetch | `... \| jq -r '.problems[].id' \| lqs problem get` |
 | Export as JSONL | `... \| lqs problem get --json > out.jsonl` |
 
@@ -259,7 +259,7 @@ lqs generation-request clean --older-than 1d --topic test_data --force
 | Delete problems in date range | `lqs problem purge --newer-than 7d --older-than 1d -f` |
 | Delete problems before date | `lqs problem purge --older-than 2025-01-01 -f` |
 | Delete by piped IDs | `... \| jq -r '.problems[].id' \| lqs problem delete -f` |
-| Clean old generation requests | `lqs generation-request clean --older-than 7d -f` |
+| Clean old generation requests | `lqs generation clean --older-than 7d -f` |
 | Preview deletion (no --force) | `lqs problem purge --older-than 7d` |
 
 ### Duration Formats

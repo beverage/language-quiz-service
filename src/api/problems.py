@@ -50,16 +50,16 @@ async def get_queue_service() -> AsyncGenerator[QueueService, None]:
     Retrieve a random problem from the database.
 
     This endpoint fetches an existing problem from the database, providing:
-    - **Fast Response**: No AI generation delay
-    - **Consistent Problems**: Previously generated and stored problems
-    - **Multiple Choice**: Complete problem with all statements and correct answer
+    - Fast Response: No AI generation delay
+    - Consistent Problems: Previously generated and stored problems
+    - Multiple Choice: Complete problem with all statements and correct answer
 
     Future enhancements will include filtering by topic, difficulty, and other criteria.
 
-    **Query Parameters**:
-    - `include_metadata`: Include source_statement_ids and metadata in response (default: false)
+    Query Parameters:
+    - include_metadata: Include source_statement_ids and metadata in response (default: false)
 
-    **Required Permission**: `read`, `write`, or `admin`
+    Required Permission: read, write, or admin
     """,
     responses={
         200: {
@@ -156,31 +156,19 @@ async def get_random_problem(
     This endpoint enqueues problem generation requests to a background worker queue.
     Problems are generated asynchronously and become available via GET /problems/random.
 
-    **Benefits**:
-    - **Fast Response**: Returns immediately (202 Accepted)
-    - **Bulk Generation**: Generate multiple problems with count parameter
-    - **Quality**: Worker can retry and validate problems without blocking API
-    - **Scalability**: Decouples API latency from LLM processing time
+    Benefits:
+    - Fast Response: Returns immediately (202 Accepted)
+    - Bulk Generation: Generate multiple problems with count parameter
+    - Quality: Worker can retry and validate problems without blocking API
+    - Scalability: Decouples API latency from LLM processing time
 
-    **Request Body** (all optional):
-    ```json
-    {
-      "count": 10,
-      "constraints": {
-        "grammatical_focus": ["direct_objects", "pronoun_placement"],
-        "verb_infinitives": ["parler", "manger", "finir"],
-        "tenses_used": ["present", "passe_compose"],
-        "includes_negation": true,
-        "includes_cod": true,
-        "includes_coi": false,
-        "difficulty_level": "intermediate"
-      },
-      "statement_count": 4,
-      "target_language_code": "eng"
-    }
-    ```
+    Request Body (all optional):
+    - count: Number of problems to generate
+    - constraints: Object with grammatical_focus, verb_infinitives, tenses_used, etc.
+    - statement_count: Number of statements per problem
+    - target_language_code: Language code for translations (default: eng)
 
-    **Required Permission**: `write` or `admin`
+    Required Permission: write or admin
     """,
     responses={
         202: {
@@ -252,6 +240,7 @@ async def generate_random_problem(
 
         # Extract parameters
         constraints = problem_request.constraints
+        focus = problem_request.focus
         statement_count = problem_request.statement_count
         topic_tags = problem_request.topic_tags
         count = problem_request.count
@@ -262,6 +251,7 @@ async def generate_random_problem(
             request_id,
         ) = await queue_service.publish_problem_generation_request(
             constraints=constraints,
+            focus=focus,
             statement_count=statement_count,
             topic_tags=topic_tags,
             count=count,
@@ -302,10 +292,10 @@ async def generate_random_problem(
     - Metadata and categorization tags
     - Creation and modification timestamps
 
-    **Query Parameters**:
-    - `include_metadata`: Include source_statement_ids and metadata in response (default: false)
+    Query Parameters:
+    - include_metadata: Include source_statement_ids and metadata in response (default: false)
 
-    **Required Permission**: `read`, `write`, or `admin`
+    Required Permission: read, write, or admin
     """,
 )
 async def get_problem(

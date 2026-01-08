@@ -31,6 +31,16 @@ class DifficultyLevel(str, Enum):
     NATIVE = "native"
 
 
+class GrammarFocus(str, Enum):
+    """Focus areas within grammar problems.
+
+    Determines which error types are applicable and how sentences are generated.
+    """
+
+    CONJUGATION = "conjugation"  # Verb conjugation and auxiliary errors
+    PRONOUNS = "pronouns"  # Object pronoun substitution errors
+
+
 # Base Problem model
 class ProblemBase(BaseModel):
     """Base problem model with common fields."""

@@ -628,6 +628,7 @@ class TestTemplateHelpers:
     def test_compound_tenses_set_contains_passe_compose(self):
         """Verify COMPOUND_TENSES set is properly defined."""
         assert Tense.PASSE_COMPOSE in COMPOUND_TENSES
+        assert Tense.PLUS_QUE_PARFAIT in COMPOUND_TENSES
         # Simple tenses should not be in the set
         assert Tense.PRESENT not in COMPOUND_TENSES
 

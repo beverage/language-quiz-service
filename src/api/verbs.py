@@ -34,21 +34,21 @@ router = APIRouter(prefix="/verbs", tags=["Verbs"])
     description="""
     Download conjugations for an existing verb using AI.
 
-    **Important**: This endpoint requires the verb to already exist in the database.
+    Important: This endpoint requires the verb to already exist in the database.
     Verbs must be added via database migrations. This endpoint only generates and stores
     conjugations for existing verbs.
 
-    **What it does:**
+    What it does:
     1. Verifies the verb exists in the database
     2. Generates conjugations using AI for all tense forms
     3. Stores conjugations in the database (overwrites existing ones)
     4. Returns the complete verb with all conjugations
 
-    **Input Requirements:**
-    - `infinitive`: French verb in infinitive form (e.g., "parler", "être", "se lever")
-    - `target_language_code`: ISO 639-3 language code (default: "eng")
+    Input Requirements:
+    - infinitive: French verb in infinitive form (e.g., "parler", "être", "se lever")
+    - target_language_code: ISO 639-3 language code (default: "eng")
 
-    **Required Permission**: `write` or `admin`
+    Required Permission: write or admin
     """,
     responses={
         200: {
@@ -220,7 +220,7 @@ async def download_verb(
     - Vocabulary practice
     - Random content exploration
 
-    **Required Permission**: `read`, `write`, or `admin`
+    Required Permission: read, write, or admin
     """,
     responses={
         200: {
@@ -326,34 +326,34 @@ async def get_random_verb(
     description="""
     Retrieve a specific French verb by its infinitive form.
 
-    **Important: Verb Identification**
+    Important - Verb Identification:
 
-    Verbs are uniquely identified by: `(infinitive, auxiliary, reflexive, target_language_code)`
+    Verbs are uniquely identified by: (infinitive, auxiliary, reflexive, target_language_code)
     - Multiple variants of the same infinitive can exist (e.g., "sortir" with avoir vs être)
     - The same French verb can have different representations for different target languages
     - Use auxiliary, reflexive, and target_language_code parameters to specify the exact variant
 
-    **URL Encoding:**
+    URL Encoding:
     The infinitive supports URL encoding for verbs with spaces (e.g., reflexive verbs like "se laver").
 
-    **Optional Filters:**
-    - `auxiliary`: Filter by auxiliary verb type (avoir/être)
-    - `reflexive`: Filter by reflexive status (true/false)
-    - `target_language_code`: Filter by target language (part of uniqueness)
+    Optional Filters:
+    - auxiliary: Filter by auxiliary verb type (avoir/être)
+    - reflexive: Filter by reflexive status (true/false)
+    - target_language_code: Filter by target language (part of uniqueness)
 
-    **Examples:**
-    - `/verbs/parler` - Returns any "parler" variant (usually avoir, non-reflexive, eng)
-    - `/verbs/sortir?auxiliary=avoir` - Returns "sortir" with auxiliary avoir
-    - `/verbs/sortir?auxiliary=être` - Returns "sortir" with auxiliary être
-    - `/verbs/se%20laver?reflexive=true` - Returns the reflexive verb "se laver"
+    Examples:
+    - /verbs/parler - Returns any "parler" variant (usually avoir, non-reflexive, eng)
+    - /verbs/sortir?auxiliary=avoir - Returns "sortir" with auxiliary avoir
+    - /verbs/sortir?auxiliary=être - Returns "sortir" with auxiliary être
+    - /verbs/se%20laver?reflexive=true - Returns the reflexive verb "se laver"
 
-    **Use Cases:**
+    Use Cases:
     - Vocabulary lookup for language learning applications
     - Grammar rule verification and conjugation reference
     - Content generation for educational materials
     - API integration for translation and language tools
 
-    **Required Permission**: `read` or higher
+    Required Permission: read or higher
     """,
     responses={
         200: {
@@ -490,45 +490,45 @@ async def get_verb_by_infinitive(
     description="""
     Retrieve comprehensive conjugation information for a French verb across all supported tenses.
 
-    **Important: Verb Identification**
+    Important - Verb Identification:
 
-    Verbs are uniquely identified by: `(infinitive, auxiliary, reflexive, target_language_code)`
+    Verbs are uniquely identified by: (infinitive, auxiliary, reflexive, target_language_code)
     - Multiple variants can exist for the same infinitive (e.g., "sortir" + avoir vs "sortir" + être)
     - The same French verb can have different representations for different target languages
     - Specify auxiliary, reflexive, and target_language_code parameters to get the exact variant
 
-    **Conjugation Coverage:**
+    Conjugation Coverage:
     Returns conjugations for all available tenses including:
-    - **Indicative**: présent, passé composé, imparfait, futur simple, conditionnel
-    - **Subjunctive**: subjonctif présent
-    - **Imperative**: impératif présent
+    - Indicative: présent, passé composé, imparfait, futur simple, conditionnel
+    - Subjunctive: subjonctif présent
+    - Imperative: impératif présent
 
-    **Response Format:**
+    Response Format:
     - Complete verb metadata (participles, classification, grammatical properties)
     - Array of conjugation objects, each containing all six persons for a specific tense
     - Tense-specific conjugation patterns with person markers (je/tu/il/nous/vous/ils)
 
-    **URL Encoding:**
+    URL Encoding:
     Supports URL encoding for verbs with spaces (e.g., "se%20laver" for reflexive verbs).
 
-    **Filtering Options:**
-    - `auxiliary`: Specify auxiliary verb (avoir/être) to get exact variant
-    - `reflexive`: Specify reflexive status (true/false) for precise identification
-    - `target_language_code`: Specify target language (part of uniqueness)
+    Filtering Options:
+    - auxiliary: Specify auxiliary verb (avoir/être) to get exact variant
+    - reflexive: Specify reflexive status (true/false) for precise identification
+    - target_language_code: Specify target language (part of uniqueness)
 
-    **Examples:**
-    - `/verbs/parler/conjugations` - All conjugations for "parler" (avoir, non-reflexive, eng)
-    - `/verbs/sortir/conjugations?auxiliary=avoir` - "sortir" with auxiliary avoir
-    - `/verbs/sortir/conjugations?auxiliary=être` - "sortir" with auxiliary être
-    - `/verbs/se%20laver/conjugations?reflexive=true` - Reflexive "se laver"
+    Examples:
+    - /verbs/parler/conjugations - All conjugations for "parler" (avoir, non-reflexive, eng)
+    - /verbs/sortir/conjugations?auxiliary=avoir - "sortir" with auxiliary avoir
+    - /verbs/sortir/conjugations?auxiliary=être - "sortir" with auxiliary être
+    - /verbs/se%20laver/conjugations?reflexive=true - Reflexive "se laver"
 
-    **Use Cases:**
+    Use Cases:
     - Language learning applications requiring complete conjugation tables
     - Grammar checking tools and educational content generation
     - Translation services needing accurate French verb forms
     - Linguistic analysis and computational grammar applications
 
-    **Required Permission**: `read` or higher
+    Required Permission: read or higher
     """,
     responses={
         200: {

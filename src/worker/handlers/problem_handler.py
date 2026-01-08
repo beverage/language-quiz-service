@@ -13,7 +13,7 @@ from src.repositories.generation_requests_repository import (
     GenerationRequestRepository,
 )
 from src.schemas.generation_requests import GenerationStatus
-from src.schemas.problems import GrammarProblemConstraints
+from src.schemas.problems import GrammarFocus, GrammarProblemConstraints
 from src.services.problem_service import ProblemService
 from src.worker import metrics
 from src.worker.config import worker_config
@@ -189,11 +189,14 @@ class ProblemGenerationHandler:
                 if constraints_data
                 else None
             )
+            focus_value = message.get("focus")
+            focus = GrammarFocus(focus_value) if focus_value else None
             topic_tags = message.get("topic_tags", [])
 
+            focus_display = focus.value if focus else "random"
             logger.info(
                 f"Processing problem generation request {generation_request_id_str} "
-                f"(statement_count={statement_count})"
+                f"(statement_count={statement_count}, focus={focus_display})"
             )
 
             # Generate problem using existing service
@@ -203,6 +206,7 @@ class ProblemGenerationHandler:
                 statement_count=statement_count,
                 additional_tags=topic_tags,
                 generation_request_id=generation_request_id_uuid,
+                focus=focus,
             )
 
             # Add success attributes to span

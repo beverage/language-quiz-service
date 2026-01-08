@@ -176,8 +176,18 @@ class VerbCache:
             self._hits += 1
         return verbs.copy()  # Return a copy to prevent external modification
 
-    async def get_random_verb(self, target_language_code: str = "eng") -> Verb | None:
+    async def get_random_verb(
+        self,
+        target_language_code: str = "eng",
+        requires_cod: bool = False,
+        requires_coi: bool = False,
+    ) -> Verb | None:
         """Get a random verb from cache for the specified language.
+
+        Args:
+            target_language_code: Language code for the verb
+            requires_cod: If True, only return verbs that can have direct objects
+            requires_coi: If True, only return verbs that can have indirect objects
 
         Excludes test verbs (is_test=True) from selection.
         """
@@ -188,6 +198,13 @@ class VerbCache:
         all_verbs = self._verbs_by_language.get(target_language_code, [])
         # Filter out test verbs
         verbs = [v for v in all_verbs if not v.is_test]
+
+        # Filter by COD/COI capability if required
+        if requires_cod:
+            verbs = [v for v in verbs if v.can_have_cod]
+        if requires_coi:
+            verbs = [v for v in verbs if v.can_have_coi]
+
         if not verbs:
             self._misses += 1
             return None

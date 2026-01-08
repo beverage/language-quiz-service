@@ -57,24 +57,29 @@ OPTIONAL GUIDANCE (use if natural, ignore if problematic):
 
     instructions = f"""
 [TASK]
-Generate a French sentence using the WRONG auxiliary "{wrong_auxiliary}" with "{verb.infinitive}".
+Generate a French sentence with the WRONG auxiliary "{wrong_auxiliary}" for "{verb.infinitive}".
 
 PRIMARY ERROR (required):
-Use "{wrong_auxiliary}" even though "{verb.infinitive}" requires "{correct_auxiliary}".
+Mechanically use "{wrong_auxiliary}" where "{correct_auxiliary}" belongs.
+Do NOT try to restructure the sentence to accommodate the wrong auxiliary.
 
-Example:
-- Correct: "Je suis allé" (aller uses être)
-- Your output: "J'ai allé" (wrong auxiliary)
+Example for passé composé:
+- Correct: "J'ai parlé avec lui" (parler uses avoir)
+- Wrong: "Je suis parlé avec lui" (just swap the auxiliary)
 
-GUIDANCE:
-- Make the sentence sound natural despite the auxiliary error
-- Other grammar can be correct OR have minor issues - focus on the auxiliary error
-- If the optional parameters create conflicts, ignore them and write a natural sentence
-- Keep it simple - one clause is fine
+Example for plus-que-parfait:
+- Correct: "J'avais parlé avant son arrivée"
+- Wrong: "J'étais parlé avant son arrivée" (swap avais→étais)
+
+CRITICAL:
+- The wrong auxiliary WILL sound wrong - that's intentional
+- Do NOT change sentence structure to "make it work"
+- Build a normal sentence first, then use the wrong auxiliary
+- Keep all other grammar correct
+- If the optional parameters create conflicts, ignore them
 
 EXPLANATION:
-Write a brief explanation stating ONLY the auxiliary error.
-Format: "The verb '{verb.infinitive}' requires '{correct_auxiliary}', not '{wrong_auxiliary}'."
+Write: "The verb '{verb.infinitive}' requires '{correct_auxiliary}', not '{wrong_auxiliary}'."
 """
 
     return base + required_params + instructions

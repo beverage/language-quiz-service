@@ -15,7 +15,7 @@ class ApiKeyUpdateRequest(BaseModel):
     All fields are optional for partial updates. Only provided fields
     will be updated, others remain unchanged.
 
-    **Security Note**: Updating permissions requires admin privileges.
+    Security Note: Updating permissions requires admin privileges.
     """
 
     name: str | None = Field(

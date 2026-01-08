@@ -36,7 +36,7 @@ def _get_ids_from_stdin_or_argument(argument_value: UUID | None) -> list[UUID]:
         if stdin_data.startswith("{") or stdin_data.startswith("["):
             raise click.UsageError(
                 "Input looks like JSON. Pipe UUIDs (one per line), not raw JSON.\n"
-                "  Example: lqs generation-request list --json | jq -r '.[].id' | lqs generation-request get"
+                "  Example: lqs generation list --json | jq -r '.[].id' | lqs generation get"
             )
 
         # Parse and validate each line as UUID
@@ -90,9 +90,9 @@ async def get_request(
     GENERATION_ID can be provided as an argument or piped from stdin.
 
     Examples:
-        lqs generation-request get 550e8400-e29b-41d4-a716-446655440000
-        lqs generation-request get 550e8400-e29b-41d4-a716-446655440000 --verbose
-        lqs generation-request list --json | jq -r '.[].id' | lqs generation-request get
+        lqs generation get 550e8400-e29b-41d4-a716-446655440000
+        lqs generation get 550e8400-e29b-41d4-a716-446655440000 --verbose
+        lqs generation list --json | jq -r '.[].id' | lqs generation get
     """
     # Get all generation IDs from argument or stdin
     generation_ids = _get_ids_from_stdin_or_argument(generation_id)

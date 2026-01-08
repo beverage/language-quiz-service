@@ -57,7 +57,7 @@ lqs --remote <command>  # Uses SERVICE_URL from environment
 |-------|---------|
 | `database` | Database initialization and cleanup |
 | `problem` | Problem management and generation |
-| `generation-request` | Async generation request tracking |
+| `generation` | Async generation request tracking |
 | `cache` | Cache statistics and reload |
 | `verb` | Verb data management |
 | `sentence` | Sentence generation |
@@ -113,7 +113,7 @@ lqs problem generate -c 5
 # Output: ✅ Enqueued 5 problem generation requests (request_id: abc123...)
 
 # Step 3: Check generation progress
-lqs generation-request status abc123...
+lqs generation status abc123...
 
 # Step 4: View generated problems
 lqs problem get --generation-id abc123...
@@ -155,16 +155,16 @@ lqs problem delete --id <problem-id> -f  # Skip confirmation
 
 ```bash
 # List recent requests
-lqs generation-request list
-lqs generation-request list --status processing
-lqs generation-request list --status completed
+lqs generation list
+lqs generation list --status processing
+lqs generation list --status completed
 
 # Check specific request with problem details
-lqs generation-request status <request-id>
+lqs generation status <request-id>
 
 # Clean old requests (older than 7 days by default)
-lqs generation-request clean
-lqs generation-request clean --older-than 14
+lqs generation clean
+lqs generation clean --older-than 14
 ```
 
 ### 8. Cache Management
@@ -311,32 +311,32 @@ Orphaned sentences can occur if the service restarts during problem generation, 
 
 ## Generation Request Commands
 
-### `lqs generation-request list`
+### `lqs generation list`
 
 List generation requests:
 
 ```bash
-lqs generation-request list
-lqs generation-request list --status pending
-lqs generation-request list --status completed
-lqs generation-request list --limit 50
+lqs generation list
+lqs generation list --status pending
+lqs generation list --status completed
+lqs generation list --limit 50
 ```
 
-### `lqs generation-request status`
+### `lqs generation status`
 
 Get detailed status:
 
 ```bash
-lqs generation-request status <request-id>
+lqs generation status <request-id>
 ```
 
-### `lqs generation-request clean`
+### `lqs generation clean`
 
 Delete old completed/failed requests:
 
 ```bash
-lqs generation-request clean              # Older than 7 days
-lqs generation-request clean --older-than 14
+lqs generation clean              # Older than 7 days
+lqs generation clean --older-than 14
 ```
 
 ---
@@ -477,7 +477,7 @@ Check Kafka connectivity and worker status:
 make logs
 
 # List stuck requests
-lqs generation-request list --status processing
+lqs generation list --status processing
 ```
 
 ### API Key Issues

@@ -16,6 +16,7 @@ from src.prompts.response_schemas import (
 from src.prompts.sentences import ErrorType, SentencePromptBuilder
 from src.repositories.sentence_repository import SentenceRepository
 from src.schemas.llm_response import LLMResponse
+from src.schemas.problems import GrammarFocus
 from src.schemas.sentences import (
     DirectObject,
     IndirectObject,
@@ -116,12 +117,14 @@ class SentenceService:
         error_type: ErrorType | None = None,
         verb: Verb | None = None,
         conjugations: list | None = None,
+        focus: GrammarFocus = GrammarFocus.CONJUGATION,
     ) -> tuple[Sentence, LLMResponse]:
         """Generate a sentence using AI integration.
 
         Args:
             verb: Optional pre-fetched verb to avoid duplicate DB calls
             conjugations: Optional pre-fetched conjugations to avoid duplicate DB calls
+            focus: Grammar focus area (conjugation or pronouns)
 
         Returns:
             Tuple of (Sentence, LLMResponse) for trace capture
@@ -200,6 +203,7 @@ class SentenceService:
                 verb,
                 conjugations,  # Pass conjugations to the builder
                 error_type=error_type,
+                focus=focus,
             )
 
             # Get appropriate response schema based on correctness

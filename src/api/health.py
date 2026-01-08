@@ -18,13 +18,13 @@ limiter = Limiter(key_func=get_remote_address)
     description="""
     Root endpoint providing basic service information.
 
-    **Use Cases**:
+    Use Cases:
     - Verify API is running and accessible
     - Check service version and basic configuration
     - First endpoint to test when setting up API access
 
-    **Rate Limit**: 100 requests per minute
-    **Authentication**: Not required
+    Rate Limit: 100 requests per minute
+    Authentication: Not required
     """,
     responses={
         200: {
@@ -70,20 +70,20 @@ async def root(request: Request, settings: Settings = Depends(get_settings)):
     description="""
     Comprehensive health check endpoint with detailed system information.
 
-    **Returns**:
+    Returns:
     - Service status and version
     - Environment information (production/staging/development)
     - Rate limiting configuration
     - System health indicators
 
-    **Use Cases**:
+    Use Cases:
     - Monitor service availability
     - Check environment configuration
     - Verify rate limiting settings
     - Integration with monitoring systems
 
-    **Rate Limit**: 100 requests per minute
-    **Authentication**: Not required
+    Rate Limit: 100 requests per minute
+    Authentication: Not required
     """,
     responses={
         200: {

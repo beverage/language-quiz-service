@@ -13,6 +13,7 @@ from src.cli.problems.display import display_problem, display_problem_summary
 from src.cli.utils.http_client import get_api_key, make_api_request
 from src.core.factories import create_problem_service
 from src.schemas.problems import (
+    GrammarFocus,
     GrammarProblemConstraints,
     Problem,
     ProblemFilters,
@@ -27,6 +28,7 @@ async def _generate_problem_http(
     api_key: str,
     statement_count: int = 4,
     constraints: GrammarProblemConstraints | None = None,
+    focus: GrammarFocus | None = None,
     count: int = 1,
 ) -> ProblemGenerationEnqueuedResponse:
     """
@@ -39,6 +41,8 @@ async def _generate_problem_http(
         "statement_count": statement_count,
         "count": count,
     }
+    if focus is not None:
+        request_data["focus"] = focus.value
     if constraints:
         request_data["constraints"] = constraints.model_dump(exclude_none=True)
 
@@ -86,33 +90,10 @@ async def _get_problem_http(service_url: str, api_key: str, problem_id: str) -> 
     return Problem(**response.json())
 
 
-async def generate_random_problem_with_delay(
-    statement_count: int = 4,
-    constraints: GrammarProblemConstraints | None = None,
-    display: bool = True,
-    detailed: bool = False,
-    service_url: str | None = None,
-    output_json: bool = False,
-    count: int = 1,
-    show_trace: bool = False,
-) -> Problem | ProblemGenerationEnqueuedResponse:
-    """Generate random problems (wrapper for batch operations with optional delay)."""
-    result = await generate_random_problem(
-        statement_count=statement_count,
-        constraints=constraints,
-        display=display,
-        detailed=detailed,
-        service_url=service_url,
-        output_json=output_json,
-        count=count,
-        show_trace=show_trace,
-    )
-    return result
-
-
 async def generate_random_problem(
     statement_count: int = 4,
     constraints: GrammarProblemConstraints | None = None,
+    focus: GrammarFocus | None = None,
     display: bool = False,
     detailed: bool = False,
     service_url: str | None = None,
@@ -135,6 +116,7 @@ async def generate_random_problem(
                 api_key=api_key,
                 statement_count=statement_count,
                 constraints=constraints,
+                focus=focus,
                 count=count,
             )
 
@@ -158,6 +140,7 @@ async def generate_random_problem(
             problem = await problems_service.create_random_grammar_problem(
                 constraints=constraints,
                 statement_count=statement_count,
+                focus=focus,
             )
 
             if output_json:
@@ -235,6 +218,7 @@ async def generate_random_problems_batch(
     quantity: int,
     statement_count: int = 4,
     constraints: GrammarProblemConstraints | None = None,
+    focus: GrammarFocus | None = None,
     workers: int = 25,
     display: bool = True,
     detailed: bool = False,
@@ -254,6 +238,7 @@ async def generate_random_problems_batch(
         result = await generate_random_problem(
             statement_count=statement_count,
             constraints=constraints,
+            focus=focus,
             display=display,
             detailed=detailed,
             service_url=service_url,
@@ -270,9 +255,10 @@ async def generate_random_problems_batch(
 
     # Create tasks for parallel execution
     tasks = [
-        generate_random_problem_with_delay(
+        generate_random_problem(
             statement_count=statement_count,
             constraints=constraints,
+            focus=focus,
             display=display and not output_json,  # Only display if not JSON mode
             detailed=detailed,
             service_url=None,  # Force service call

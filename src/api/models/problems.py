@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.schemas.problems import (
+    GrammarFocus,
     GrammarProblemConstraints,
     ProblemType,
 )
@@ -16,6 +17,10 @@ class ProblemRandomRequest(BaseModel):
 
     constraints: GrammarProblemConstraints | None = Field(
         None, description="Constraints for problem generation"
+    )
+    focus: GrammarFocus | None = Field(
+        default=None,
+        description="Grammar focus area: conjugation (verb errors) or pronouns (object pronoun errors). If not specified, randomly selected.",
     )
     statement_count: int = Field(
         4, ge=2, le=6, description="Number of statements to generate"
