@@ -210,8 +210,8 @@ async def problem_random(
 @click.option(
     "--focus",
     type=click.Choice(["conjugation", "pronouns"]),
-    default="conjugation",
-    help="Grammar focus area: conjugation (verb errors) or pronouns (object pronoun errors)",
+    default=None,
+    help="Grammar focus area: conjugation or pronouns. If not specified, randomly selected.",
 )
 @click.option("--include-cod", is_flag=True, help="Force inclusion of direct objects")
 @click.option("--include-coi", is_flag=True, help="Force inclusion of indirect objects")
@@ -230,7 +230,7 @@ async def problem_generate(
     ctx,
     count: int,
     statements: int,
-    focus: str,
+    focus: str | None,
     include_cod: bool,
     include_coi: bool,
     include_negation: bool,
@@ -245,8 +245,8 @@ async def problem_generate(
         detailed = root_ctx.params.get("detailed", False)
         service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
 
-        # Convert focus string to enum
-        grammar_focus = GrammarFocus(focus)
+        # Convert focus string to enum (None means random selection)
+        grammar_focus = GrammarFocus(focus) if focus else None
 
         # Build constraints from CLI options
         constraints = None

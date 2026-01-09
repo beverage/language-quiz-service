@@ -13,6 +13,7 @@ from src.cli.problems.create import (
     list_problems,
 )
 from src.schemas.problems import (
+    GrammarFocus,
     GrammarProblemConstraints,
     Problem,
     ProblemSummary,
@@ -158,6 +159,67 @@ class TestCLIProblemsCreation:
 
         with pytest.raises(ValueError, match="Service error"):
             await generate_random_problem(statement_count=4)
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_generate_random_problem_with_conjugation_focus(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test problem generation with explicit conjugation focus."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.create_random_grammar_problem.return_value = sample_problem
+
+        result = await generate_random_problem(
+            statement_count=4, focus=GrammarFocus.CONJUGATION, display=False
+        )
+
+        assert result == sample_problem
+        mock_service.create_random_grammar_problem.assert_called_once_with(
+            constraints=None,
+            statement_count=4,
+            focus=GrammarFocus.CONJUGATION,
+        )
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_generate_random_problem_with_pronouns_focus(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test problem generation with explicit pronouns focus."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.create_random_grammar_problem.return_value = sample_problem
+
+        result = await generate_random_problem(
+            statement_count=4, focus=GrammarFocus.PRONOUNS, display=False
+        )
+
+        assert result == sample_problem
+        mock_service.create_random_grammar_problem.assert_called_once_with(
+            constraints=None,
+            statement_count=4,
+            focus=GrammarFocus.PRONOUNS,
+        )
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_generate_random_problem_none_focus_passes_to_service(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test that None focus is passed to service for random selection."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.create_random_grammar_problem.return_value = sample_problem
+
+        result = await generate_random_problem(
+            statement_count=4, focus=None, display=False
+        )
+
+        assert result == sample_problem
+        # Verify focus=None is explicitly passed (service does random selection)
+        mock_service.create_random_grammar_problem.assert_called_once_with(
+            constraints=None,
+            statement_count=4,
+            focus=None,
+        )
 
     @patch("src.cli.utils.queues.parallel_execute")
     async def test_generate_random_problems_batch_success(

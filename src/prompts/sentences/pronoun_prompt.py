@@ -8,6 +8,7 @@ from src.prompts.sentences.error_types import ErrorType
 from src.prompts.sentences.helpers import get_conjugation_pair
 from src.prompts.sentences.templates import (
     build_base_template,
+    build_explanation_section,
     format_optional_dimension,
     requires_auxiliary,
 )
@@ -202,6 +203,9 @@ REQUIRED:
 
     if is_compound:
         # For compound tenses: pronoun should go before auxiliary, not between auxiliary and participle
+        explanation = build_explanation_section(
+            f"The pronoun '{object_pronoun}' should come BEFORE the auxiliary, not between auxiliary and participle."
+        )
         instructions = f"""
 [TASK]
 Generate a French sentence with the object pronoun "{object_pronoun}" in the WRONG position.
@@ -219,12 +223,12 @@ GUIDANCE:
 - The auxiliary and participle should be correct
 - Only the pronoun placement is wrong (between auxiliary and participle)
 - Don't worry about making it sound natural - errors are unnatural by definition
-
-EXPLANATION:
-Write: "The pronoun '{object_pronoun}' should come BEFORE the auxiliary, not between auxiliary and participle."
-"""
+{explanation}"""
     else:
         # For simple tenses: pronoun after verb instead of before
+        explanation = build_explanation_section(
+            f"The pronoun '{object_pronoun}' should come BEFORE the verb, not after."
+        )
         instructions = f"""
 [TASK]
 Generate a French sentence with the object pronoun "{object_pronoun}" in the WRONG position.
@@ -244,10 +248,7 @@ GUIDANCE:
 - Don't worry about making it sound natural - errors are unnatural by definition
 - Create a COMPLETE sentence with context (time expressions, locations, complements, etc.)
 - Avoid bare minimal sentences - include meaningful content beyond just subject + verb + pronoun
-
-EXPLANATION:
-Write: "The pronoun '{object_pronoun}' should come BEFORE the verb, not after."
-"""
+{explanation}"""
 
     return base + required_params + instructions
 
@@ -289,6 +290,9 @@ REQUIRED:
 - COI pronoun: {coi_pronoun}
 """
 
+    explanation = build_explanation_section(
+        f"With double pronouns, COD (le/la/les) must come BEFORE COI (lui/leur). Should be '{cod_pronoun} {coi_pronoun}', not '{coi_pronoun} {cod_pronoun}'."
+    )
     instructions = f"""
 [TASK]
 Generate a French sentence with DOUBLE PRONOUNS in the WRONG order.
@@ -310,10 +314,7 @@ GUIDANCE:
 - Both pronouns MUST be present, in the wrong order
 - The conjugation should be correct
 - Don't worry about making it sound natural - errors are unnatural by definition
-
-EXPLANATION:
-Write: "With double pronouns, COD (le/la/les) must come BEFORE COI (lui/leur). Should be '{cod_pronoun} {coi_pronoun}', not '{coi_pronoun} {cod_pronoun}'."
-"""
+{explanation}"""
 
     return base + required_params + instructions
 
@@ -370,6 +371,9 @@ REQUIRED:
 - Correct pronoun would be: {correct_pronoun} ({correct_type})
 """
 
+    explanation = build_explanation_section(
+        f"This verb requires {correct_type} ({correct_pronoun}), not {wrong_type} ({wrong_pronoun})."
+    )
     instructions = f"""
 [TASK]
 Generate a French sentence using the WRONG pronoun category.
@@ -386,10 +390,7 @@ GUIDANCE:
 - The conjugation should be correct
 - Use the wrong pronoun category deliberately
 - Don't worry about making it sound natural - errors are unnatural by definition
-
-EXPLANATION:
-Write: "This verb requires {correct_type} ({correct_pronoun}), not {wrong_type} ({wrong_pronoun})."
-"""
+{explanation}"""
 
     return base + required_params + instructions
 
@@ -448,6 +449,9 @@ REQUIRED:
         referent_example = "la lettre"
         referent_gender = "feminine"
 
+    explanation = build_explanation_section(
+        f"The pronoun '{wrong_pronoun}' doesn't match the gender of the referent. Should be '{correct_pronoun}' ({referent_gender})."
+    )
     instructions = f"""
 [TASK]
 Generate a French sentence with the WRONG GENDER pronoun.
@@ -466,10 +470,7 @@ GUIDANCE:
 - Use the required tense ({sentence.tense.value}) - do NOT switch to a different tense
 - The explicit noun makes the gender error detectable
 - Don't worry about making it sound natural - errors are unnatural by definition
-
-EXPLANATION:
-Write: "The pronoun '{wrong_pronoun}' doesn't match the gender of the referent. Should be '{correct_pronoun}' ({referent_gender})."
-"""
+{explanation}"""
 
     return base + required_params + instructions
 
@@ -530,6 +531,9 @@ REQUIRED:
 - Correct pronoun would be: {correct_pronoun} ({correct_desc})
 """
 
+    explanation = build_explanation_section(
+        f"The pronoun '{wrong_pronoun}' is {wrong_desc}, but the referent is {correct_desc}. Should be '{correct_pronoun}'."
+    )
     instructions = f"""
 [TASK]
 Generate a French sentence with a NUMBER MISMATCH in the object pronoun.
@@ -547,10 +551,7 @@ GUIDANCE:
 - Include context that reveals the number mismatch
 - The conjugation should be correct
 - Don't worry about making it sound natural - errors are unnatural by definition
-
-EXPLANATION:
-Write: "The pronoun '{wrong_pronoun}' is {wrong_desc}, but the referent is {correct_desc}. Should be '{correct_pronoun}'."
-"""
+{explanation}"""
 
     return base + required_params + instructions
 

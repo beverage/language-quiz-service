@@ -3,6 +3,7 @@
 from src.prompts.sentences.helpers import get_pronoun_display
 from src.prompts.sentences.templates import (
     build_base_template,
+    build_explanation_section,
     format_optional_dimension,
 )
 from src.schemas.sentences import SentenceBase
@@ -55,6 +56,9 @@ OPTIONAL GUIDANCE (use if natural, ignore if problematic):
 - Indirect object: {indirect_object_display}
 """
 
+    explanation = build_explanation_section(
+        f"The verb '{verb.infinitive}' requires '{correct_auxiliary}', not '{wrong_auxiliary}'."
+    )
     instructions = f"""
 [TASK]
 Generate a French sentence with the WRONG auxiliary "{wrong_auxiliary}" for "{verb.infinitive}".
@@ -77,9 +81,6 @@ CRITICAL:
 - Build a normal sentence first, then use the wrong auxiliary
 - Keep all other grammar correct
 - If the optional parameters create conflicts, ignore them
-
-EXPLANATION:
-Write: "The verb '{verb.infinitive}' requires '{correct_auxiliary}', not '{wrong_auxiliary}'."
-"""
+{explanation}"""
 
     return base + required_params + instructions

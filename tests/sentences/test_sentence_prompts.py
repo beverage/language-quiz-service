@@ -13,6 +13,8 @@ import pytest
 from src.prompts.sentences import ErrorType, SentencePromptBuilder
 from src.prompts.sentences.templates import (
     COMPOUND_TENSES,
+    EXPLANATION_RULES,
+    build_explanation_section,
     format_optional_dimension,
     requires_auxiliary,
 )
@@ -651,3 +653,244 @@ class TestTemplateHelpers:
         for any_val in any_values:
             result = format_optional_dimension(any_val)
             assert "natural" in result.lower() or "choose" in result.lower()
+
+
+# ===== Test Vowel Detection Helpers =====
+
+
+class TestVowelDetectionHelpers:
+    """Tests for vowel detection in conjugation forms."""
+
+    def test_french_vowels_set_contains_basic_vowels(self):
+        """Verify FRENCH_VOWELS contains all basic French vowels."""
+        from src.prompts.sentences.builder import FRENCH_VOWELS
+
+        basic_vowels = "aeiouy"
+        for vowel in basic_vowels:
+            assert vowel in FRENCH_VOWELS, f"Missing basic vowel: {vowel}"
+
+    def test_french_vowels_set_contains_accented_vowels(self):
+        """Verify FRENCH_VOWELS contains accented French vowels."""
+        from src.prompts.sentences.builder import FRENCH_VOWELS
+
+        accented_vowels = "àâäéèêëïîôùûüÿ"
+        for vowel in accented_vowels:
+            assert vowel in FRENCH_VOWELS, f"Missing accented vowel: {vowel}"
+
+    def test_french_vowels_set_contains_ligatures(self):
+        """Verify FRENCH_VOWELS contains French ligatures."""
+        from src.prompts.sentences.builder import FRENCH_VOWELS
+
+        assert "æ" in FRENCH_VOWELS
+        assert "œ" in FRENCH_VOWELS
+
+    def test_conjugation_starts_with_vowel_true_for_avoir_forms(self):
+        """Verify vowel detection for avoir conjugation forms."""
+        from src.prompts.sentences.builder import _conjugation_starts_with_vowel
+
+        # Create mock conjugation with avoir forms (ai, as, a, avons, avez, ont)
+        class MockConjugation:
+            tense = Tense.PRESENT
+            first_person_singular = "ai"
+            second_person_singular = "as"
+            third_person_singular = "a"
+            first_person_plural = "avons"
+            second_person_plural = "avez"
+            third_person_plural = "ont"
+
+        conjugations = [MockConjugation()]
+
+        # All avoir present tense forms start with vowels
+        assert _conjugation_starts_with_vowel(
+            Tense.PRESENT, "first_person", conjugations
+        )
+        assert _conjugation_starts_with_vowel(
+            Tense.PRESENT, "second_person", conjugations
+        )
+        assert _conjugation_starts_with_vowel(
+            Tense.PRESENT, "third_person", conjugations
+        )
+        assert _conjugation_starts_with_vowel(
+            Tense.PRESENT, "first_person_plural", conjugations
+        )
+        assert _conjugation_starts_with_vowel(
+            Tense.PRESENT, "second_person_plural", conjugations
+        )
+        assert _conjugation_starts_with_vowel(
+            Tense.PRESENT, "third_person_plural", conjugations
+        )
+
+    def test_conjugation_starts_with_vowel_false_for_parler_forms(self):
+        """Verify vowel detection for parler conjugation forms (consonant start)."""
+        from src.prompts.sentences.builder import _conjugation_starts_with_vowel
+
+        # Create mock conjugation with parler forms
+        class MockConjugation:
+            tense = Tense.PRESENT
+            first_person_singular = "parle"
+            second_person_singular = "parles"
+            third_person_singular = "parle"
+            first_person_plural = "parlons"
+            second_person_plural = "parlez"
+            third_person_plural = "parlent"
+
+        conjugations = [MockConjugation()]
+
+        # All parler present tense forms start with consonant
+        assert not _conjugation_starts_with_vowel(
+            Tense.PRESENT, "first_person", conjugations
+        )
+        assert not _conjugation_starts_with_vowel(
+            Tense.PRESENT, "third_person_plural", conjugations
+        )
+
+    def test_conjugation_starts_with_vowel_subjonctif_aient(self):
+        """Verify vowel detection for subjunctive forms like 'aient'."""
+        from src.prompts.sentences.builder import _conjugation_starts_with_vowel
+
+        # The edge case that prompted this fix: avoir subjunctive 3p = "aient"
+        class MockConjugation:
+            tense = Tense.SUBJONCTIF
+            first_person_singular = "aie"
+            second_person_singular = "aies"
+            third_person_singular = "ait"
+            first_person_plural = "ayons"
+            second_person_plural = "ayez"
+            third_person_plural = "aient"
+
+        conjugations = [MockConjugation()]
+
+        # All avoir subjunctive forms start with vowels
+        assert _conjugation_starts_with_vowel(
+            Tense.SUBJONCTIF, "first_person", conjugations
+        )
+        assert _conjugation_starts_with_vowel(
+            Tense.SUBJONCTIF, "third_person_plural", conjugations
+        )
+
+    def test_conjugation_starts_with_vowel_missing_tense(self):
+        """Verify returns False when tense not found in conjugations."""
+        from src.prompts.sentences.builder import _conjugation_starts_with_vowel
+
+        class MockConjugation:
+            tense = Tense.PRESENT
+            first_person_singular = "ai"
+
+        conjugations = [MockConjugation()]
+
+        # IMPARFAIT not in conjugations - should return False
+        assert not _conjugation_starts_with_vowel(
+            Tense.IMPARFAIT, "first_person", conjugations
+        )
+
+    def test_conjugation_starts_with_vowel_invalid_pronoun(self):
+        """Verify returns False for invalid pronoun value."""
+        from src.prompts.sentences.builder import _conjugation_starts_with_vowel
+
+        class MockConjugation:
+            tense = Tense.PRESENT
+            first_person_singular = "ai"
+
+        conjugations = [MockConjugation()]
+
+        # Invalid pronoun value - should return False
+        assert not _conjugation_starts_with_vowel(
+            Tense.PRESENT, "invalid_pronoun", conjugations
+        )
+
+    def test_conjugation_starts_with_vowel_empty_conjugations(self):
+        """Verify returns False for empty conjugations list."""
+        from src.prompts.sentences.builder import _conjugation_starts_with_vowel
+
+        assert not _conjugation_starts_with_vowel(Tense.PRESENT, "first_singular", [])
+
+    def test_conjugation_starts_with_vowel_accented_start(self):
+        """Verify vowel detection for accented first letters like 'être'."""
+        from src.prompts.sentences.builder import _conjugation_starts_with_vowel
+
+        class MockConjugation:
+            tense = Tense.PRESENT
+            first_person_singular = "étais"  # Accented é
+            third_person_plural = "étaient"
+
+        conjugations = [MockConjugation()]
+
+        assert _conjugation_starts_with_vowel(
+            Tense.PRESENT, "first_person", conjugations
+        )
+        assert _conjugation_starts_with_vowel(
+            Tense.PRESENT, "third_person_plural", conjugations
+        )
+
+
+# ===== Test Explanation Section Helpers =====
+
+
+class TestExplanationSectionHelpers:
+    """Tests for explanation section building helpers."""
+
+    def test_explanation_rules_contains_student_guidance(self):
+        """Verify EXPLANATION_RULES contains guidance for student audience."""
+        assert "student" in EXPLANATION_RULES.lower()
+        assert "french" in EXPLANATION_RULES.lower()
+
+    def test_explanation_rules_contains_brevity_requirement(self):
+        """Verify EXPLANATION_RULES requires 1-2 sentences."""
+        assert "1-2 sentences" in EXPLANATION_RULES
+
+    def test_explanation_rules_forbids_meta_commentary(self):
+        """Verify EXPLANATION_RULES forbids prompt/reasoning references."""
+        rules_lower = EXPLANATION_RULES.lower()
+        assert "do not mention the prompt" in rules_lower
+        assert "do not include your reasoning" in rules_lower
+
+    def test_explanation_rules_provides_structure(self):
+        """Verify EXPLANATION_RULES provides what is wrong → what it should be structure."""
+        assert "what is wrong" in EXPLANATION_RULES.lower()
+        assert "what it should be" in EXPLANATION_RULES.lower()
+
+    def test_build_explanation_section_includes_rules(self):
+        """Verify build_explanation_section includes EXPLANATION_RULES."""
+        template = "The pronoun should be 'le' not 'la'."
+        result = build_explanation_section(template)
+
+        # Should include the rules
+        assert "IMPORTANT for explanation" in result
+        assert "1-2 sentences" in result
+        assert "do not mention the prompt" in result.lower()
+
+    def test_build_explanation_section_includes_template(self):
+        """Verify build_explanation_section includes the provided template."""
+        template = "Use 'ai' for first person singular."
+        result = build_explanation_section(template)
+
+        assert template in result
+
+    def test_build_explanation_section_formats_as_section(self):
+        """Verify build_explanation_section creates proper section format."""
+        template = "Test template content."
+        result = build_explanation_section(template)
+
+        # Should have EXPLANATION header
+        assert "EXPLANATION:" in result
+        # Should have Write: prefix for template
+        assert 'Write: "' in result
+
+    def test_build_explanation_section_with_complex_template(self):
+        """Verify build_explanation_section handles complex templates."""
+        template = (
+            "The direct object pronoun '{wrong}' should be '{correct}' "
+            "to match the {gender} noun."
+        )
+        result = build_explanation_section(template)
+
+        assert template in result
+        assert "EXPLANATION:" in result
+
+    def test_build_explanation_section_with_empty_template(self):
+        """Verify build_explanation_section handles empty template."""
+        result = build_explanation_section("")
+
+        # Should still have structure even with empty template
+        assert "EXPLANATION:" in result
+        assert "IMPORTANT for explanation" in result

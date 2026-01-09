@@ -256,7 +256,11 @@ class ProblemService:
 
         # Select error types for incorrect sentences (one per incorrect sentence)
         selected_error_types = self.sentence_builder.select_error_types(
-            temp_sentence, verb, focus=focus, count=statement_count - 1
+            temp_sentence,
+            verb,
+            focus=focus,
+            count=statement_count - 1,
+            conjugations=conjugations,
         )
         logger.debug(
             f"🎯 Selected error types: {[e.value for e in selected_error_types]}"

@@ -346,3 +346,110 @@ class TestVerbCache:
         # Should have gotten different verbs (with high probability)
         # With 3 verbs and 20 selections, we should see at least 2 different ones
         assert len(selected_verbs) >= 2
+
+    async def test_get_random_verb_requires_cod_filters_verbs(self, mock_repository):
+        """Should only return verbs with can_have_cod=True when requires_cod=True."""
+        cache = VerbCache()
+        await cache.load(mock_repository)
+
+        # Get random verb with COD requirement multiple times
+        for _ in range(10):
+            verb = await cache.get_random_verb("eng", requires_cod=True)
+            assert verb is not None
+            assert verb.can_have_cod is True
+            # "parler" is the only verb in sample_verbs with can_have_cod=True
+            assert verb.infinitive == "parler"
+
+    async def test_get_random_verb_requires_coi_filters_verbs(self, mock_repository):
+        """Should only return verbs with can_have_coi=True when requires_coi=True."""
+        cache = VerbCache()
+        await cache.load(mock_repository)
+
+        # Get random verb with COI requirement multiple times
+        for _ in range(10):
+            verb = await cache.get_random_verb("eng", requires_coi=True)
+            assert verb is not None
+            assert verb.can_have_coi is True
+            # "parler" is the only verb in sample_verbs with can_have_coi=True
+            assert verb.infinitive == "parler"
+
+    async def test_get_random_verb_requires_both_cod_and_coi(self, mock_repository):
+        """Should only return verbs with both can_have_cod and can_have_coi when both required."""
+        cache = VerbCache()
+        await cache.load(mock_repository)
+
+        # Get random verb with both requirements
+        for _ in range(10):
+            verb = await cache.get_random_verb(
+                "eng", requires_cod=True, requires_coi=True
+            )
+            assert verb is not None
+            assert verb.can_have_cod is True
+            assert verb.can_have_coi is True
+            assert verb.infinitive == "parler"
+
+    async def test_get_random_verb_no_matching_cod_verbs_returns_none(self):
+        """Should return None if no verbs match COD requirement."""
+        now = datetime.now(UTC)
+        # Create verbs that all have can_have_cod=False
+        verbs_without_cod = [
+            Verb(
+                id="00000000-0000-0000-0000-000000000001",
+                infinitive="aller",
+                auxiliary=AuxiliaryType.ETRE,
+                reflexive=False,
+                target_language_code="eng",
+                translation="to go",
+                past_participle="allé",
+                present_participle="allant",
+                classification=VerbClassification.THIRD_GROUP,
+                is_irregular=True,
+                can_have_cod=False,
+                can_have_coi=False,
+                created_at=now,
+                updated_at=now,
+            ),
+        ]
+
+        class MockRepo:
+            async def get_all_verbs(self, limit=10000):
+                return verbs_without_cod
+
+        cache = VerbCache()
+        await cache.load(MockRepo())
+
+        verb = await cache.get_random_verb("eng", requires_cod=True)
+        assert verb is None
+
+    async def test_get_random_verb_no_matching_coi_verbs_returns_none(self):
+        """Should return None if no verbs match COI requirement."""
+        now = datetime.now(UTC)
+        # Create verbs that all have can_have_coi=False
+        verbs_without_coi = [
+            Verb(
+                id="00000000-0000-0000-0000-000000000001",
+                infinitive="dormir",
+                auxiliary=AuxiliaryType.AVOIR,
+                reflexive=False,
+                target_language_code="eng",
+                translation="to sleep",
+                past_participle="dormi",
+                present_participle="dormant",
+                classification=VerbClassification.THIRD_GROUP,
+                is_irregular=False,
+                can_have_cod=False,
+                can_have_coi=False,
+                created_at=now,
+                updated_at=now,
+            ),
+        ]
+
+        class MockRepo:
+            async def get_all_verbs(self, limit=10000):
+                return verbs_without_coi
+
+        cache = VerbCache()
+        await cache.load(MockRepo())
+
+        verb = await cache.get_random_verb("eng", requires_coi=True)
+        assert verb is None
