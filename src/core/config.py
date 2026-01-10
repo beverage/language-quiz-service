@@ -35,6 +35,14 @@ class Settings(BaseSettings):
         default=60, description="Rate limit window in seconds"
     )
 
+    # Problem Selection
+    virtual_staleness_days: float = Field(
+        default=3.0,
+        alias="VIRTUAL_STALENESS_DAYS",
+        description="Virtual staleness (days) for never-served problems in weighted random selection. "
+        "Higher values favor new problems more strongly.",
+    )
+
     # Environment
     environment: str = Field(default="development")
     debug: bool = Field(default=False)

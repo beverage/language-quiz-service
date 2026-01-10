@@ -653,8 +653,8 @@ class ProblemService:
         elif verb_infinitive in ["être", "avoir", "devenir"]:
             tags.append("essential_verbs")
 
-        # Add grammatical focus tags from metadata
-        tags.extend(metadata["grammatical_focus"])
+        # Note: grammatical_focus is stored in metadata, not topic_tags
+        # This keeps topic_tags for semantic content tags only
 
         # Add pronoun-specific tags for pronouns focus
         if focus == GrammarFocus.PRONOUNS:
@@ -700,17 +700,33 @@ class ProblemService:
         problems, _ = await repo.get_problems(filters)
         return problems
 
-    async def get_least_recently_served_problem(self) -> Problem | None:
+    async def get_least_recently_served_problem(
+        self,
+        filters: ProblemFilters | None = None,
+    ) -> Problem | None:
         """
-        Get the least recently used problem and update its last_served_at.
+        Get a problem for serving using weighted random selection.
+
+        Uses staleness-weighted randomization that:
+        - Favors problems that haven't been served recently
+        - Gives never-served problems fair chance via virtual staleness
+        - Avoids batch hotspots through randomization
+
+        Args:
+            filters: Optional filters to narrow problem selection (focus, problem_type, etc.)
 
         Returns:
             Problem object if found, None if no problems exist
         """
+        from src.core.config import settings
+
         repo = self._get_problem_repository()
 
-        # Get least recently served problem
-        problem = await repo.get_least_recently_served_problem()
+        # Get weighted random problem
+        problem = await repo.get_weighted_random_problem(
+            filters=filters,
+            virtual_staleness_days=settings.virtual_staleness_days,
+        )
 
         if problem:
             # Update last_served_at timestamp

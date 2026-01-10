@@ -311,3 +311,99 @@ class TestTopicTagsContracts:
         assert response.status_code == 202
         data = response.json()
         assert data["count"] == 1
+
+
+# =============================================================================
+# Focus Filter Contract Tests
+# =============================================================================
+
+
+@pytest.mark.integration
+class TestFocusFilterContracts:
+    """Test focus filter parameter on random problem endpoint."""
+
+    def test_random_with_focus_parameter_accepted(self, client):
+        """Test that focus parameter is accepted on random endpoint."""
+        test_client, _ = client
+
+        # Focus parameter should be accepted (even if no problems match)
+        response = test_client.get(f"{PROBLEMS_PREFIX}/random?focus=conjugation")
+        # Will be 404 because mock has no problems, but param is accepted
+        assert response.status_code == 404
+
+        response = test_client.get(f"{PROBLEMS_PREFIX}/random?focus=pronouns")
+        assert response.status_code == 404
+
+    def test_random_with_invalid_focus_rejected(self, client):
+        """Test that invalid focus values are rejected with 422."""
+        test_client, _ = client
+
+        response = test_client.get(f"{PROBLEMS_PREFIX}/random?focus=invalid_focus")
+        assert response.status_code == 422
+        data = response.json()
+        # Validation error should mention the invalid value
+        assert "detail" in data or "message" in data
+
+    def test_random_with_focus_returns_filtered_problem(self, client):
+        """Test that focus filter returns matching problems when available."""
+        from datetime import UTC, datetime
+
+        from src.schemas.problems import Problem, ProblemType
+
+        test_client, _ = client
+
+        # Add a problem to the mock service
+        from src.core.dependencies import get_problem_service
+
+        mock_service = app.dependency_overrides[get_problem_service]()
+        problem_id = uuid4()
+        mock_service.problems[problem_id] = Problem(
+            id=problem_id,
+            problem_type=ProblemType.GRAMMAR,
+            title="Test Conjugation Problem",
+            instructions="Choose correctly",
+            correct_answer_index=0,
+            target_language_code="eng",
+            statements=[{"content": "Test", "is_correct": True, "translation": "Test"}],
+            topic_tags=["test_data"],
+            metadata={"grammatical_focus": ["conjugation"]},
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        response = test_client.get(f"{PROBLEMS_PREFIX}/random?focus=conjugation")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == str(problem_id)
+
+    def test_random_without_focus_still_works(self, client):
+        """Test that random endpoint works without focus parameter."""
+        from datetime import UTC, datetime
+
+        from src.schemas.problems import Problem, ProblemType
+
+        test_client, _ = client
+
+        # Add a problem
+        from src.core.dependencies import get_problem_service
+
+        mock_service = app.dependency_overrides[get_problem_service]()
+        problem_id = uuid4()
+        mock_service.problems[problem_id] = Problem(
+            id=problem_id,
+            problem_type=ProblemType.GRAMMAR,
+            title="Test Problem",
+            instructions="Choose correctly",
+            correct_answer_index=0,
+            target_language_code="eng",
+            statements=[{"content": "Test", "is_correct": True, "translation": "Test"}],
+            topic_tags=["test_data"],
+            metadata={},
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        response = test_client.get(f"{PROBLEMS_PREFIX}/random")
+        assert response.status_code == 200
+        data = response.json()
+        assert "id" in data

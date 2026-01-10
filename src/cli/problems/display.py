@@ -176,12 +176,17 @@ def display_problem_summary(summary):
 
     console = Console()
 
+    # Build type/focus string
+    type_info = summary.problem_type.value
+    if summary.focus:
+        type_info = f"{type_info}/{summary.focus.value}"
+
     # Create styled summary line
     summary_text = Text()
     summary_text.append("🎯 ", style="cyan")
     summary_text.append(summary.title or "Untitled", style="bold white")
     summary_text.append(
-        f" ({summary.problem_type.value}, {summary.statement_count} statements) ",
+        f" ({type_info}, {summary.statement_count} statements) ",
         style="dim",
     )
     summary_text.append(f"- {summary.id}", style="blue")

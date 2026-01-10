@@ -61,11 +61,14 @@ async def _get_random_problem_http(
     service_url: str,
     api_key: str,
     include_metadata: bool = False,
+    focus: GrammarFocus | None = None,
 ) -> Problem:
     """Get a random problem from database via HTTP API."""
     params = {}
     if include_metadata:
         params["include_metadata"] = "true"
+    if focus:
+        params["focus"] = focus.value
 
     response = await make_api_request(
         method="GET",
@@ -162,6 +165,7 @@ async def generate_random_problem(
 
 
 async def get_random_problem(
+    focus: GrammarFocus | None = None,
     display: bool = False,
     detailed: bool = False,
     service_url: str | None = None,
@@ -171,7 +175,7 @@ async def get_random_problem(
     """Get a random problem from the database using the ProblemsService or HTTP API."""
     try:
         logger.debug(
-            f"🎯 Fetching random problem from database (service_url={service_url})"
+            f"🎯 Fetching random problem from database (service_url={service_url}, focus={focus})"
         )
 
         # Request metadata when JSON output or when trace is requested
@@ -185,17 +189,26 @@ async def get_random_problem(
                 service_url=service_url,
                 api_key=api_key,
                 include_metadata=include_metadata,
+                focus=focus,
             )
         else:
             # Direct mode - use service layer
             logger.debug("💾 Using direct service layer mode")
             problems_service = await create_problem_service()
-            problem = await problems_service.get_random_problem()
+
+            # Build filters if focus is specified
+            filters = ProblemFilters(focus=focus) if focus else None
+            problem = await problems_service.get_least_recently_served_problem(
+                filters=filters
+            )
 
             if problem is None:
                 import asyncclick as click
 
-                raise click.ClickException("No problems available in database")
+                msg = "No problems available in database"
+                if focus:
+                    msg = f"No problems available with focus '{focus.value}'"
+                raise click.ClickException(msg)
 
         if output_json:
             # Output raw JSON with all fields

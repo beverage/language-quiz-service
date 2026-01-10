@@ -174,6 +174,12 @@ async def problem():
 
 @problem.command("random")
 @click.option(
+    "--focus",
+    type=click.Choice(["conjugation", "pronouns"]),
+    default=None,
+    help="Filter by grammar focus area: conjugation or pronouns",
+)
+@click.option(
     "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
 )
 @click.option(
@@ -182,6 +188,7 @@ async def problem():
 @click.pass_context
 async def problem_random(
     ctx,
+    focus: str | None,
     output_json: bool,
     llm_trace: bool,
 ):
@@ -192,7 +199,11 @@ async def problem_random(
         detailed = root_ctx.params.get("detailed", False)
         service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
 
+        # Convert focus string to enum if provided
+        grammar_focus = GrammarFocus(focus) if focus else None
+
         await get_random_problem(
+            focus=grammar_focus,
             display=not output_json,
             detailed=detailed,
             service_url=service_url,

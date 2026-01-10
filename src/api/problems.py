@@ -4,7 +4,7 @@ import logging
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -15,6 +15,7 @@ from src.api.models.problems import (
 )
 from src.core.auth import get_current_api_key
 from src.core.dependencies import get_problem_service
+from src.schemas.problems import GrammarFocus, ProblemFilters
 from src.services.problem_service import ProblemService
 from src.services.queue_service import QueueService
 
@@ -54,9 +55,8 @@ async def get_queue_service() -> AsyncGenerator[QueueService, None]:
     - Consistent Problems: Previously generated and stored problems
     - Multiple Choice: Complete problem with all statements and correct answer
 
-    Future enhancements will include filtering by topic, difficulty, and other criteria.
-
     Query Parameters:
+    - focus: Filter by grammar focus area (conjugation or pronouns)
     - include_metadata: Include source_statement_ids and metadata in response (default: false)
 
     Required Permission: read, write, or admin
@@ -110,6 +110,9 @@ async def get_queue_service() -> AsyncGenerator[QueueService, None]:
 @limiter.limit("100/minute")
 async def get_random_problem(
     request: Request,
+    focus: GrammarFocus | None = Query(
+        None, description="Filter by grammar focus area (conjugation or pronouns)"
+    ),
     include_metadata: bool = False,
     current_key: dict = Depends(get_current_api_key),
     service: ProblemService = Depends(get_problem_service),
@@ -118,19 +121,27 @@ async def get_random_problem(
     Get a random problem from the database.
 
     Fetches a random existing problem without generating new content.
+    Optionally filter by grammar focus (conjugation or pronouns).
     """
     try:
-        # Get least recently served problem
-        problem = await service.get_least_recently_served_problem()
+        # Build filters from query parameters
+        filters = ProblemFilters(focus=focus) if focus else None
+
+        # Get least recently served problem with optional filters
+        problem = await service.get_least_recently_served_problem(filters=filters)
 
         if problem is None:
+            detail = "No problems available"
+            if focus:
+                detail = f"No problems available with focus '{focus.value}'"
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="No problems available",
+                detail=detail,
             )
 
         logger.info(
-            f"Retrieved LRU problem {problem.id} for API key {current_key.get('name', 'unknown')}"
+            f"Retrieved LRU problem {problem.id} (focus={focus.value if focus else 'any'}) "
+            f"for API key {current_key.get('name', 'unknown')}"
         )
 
         return ProblemResponse.from_problem(problem, include_metadata=include_metadata)

@@ -205,6 +205,7 @@ class ProblemSummary(BaseModel):
     instructions: str
     correct_answer_index: int
     topic_tags: list[str]
+    focus: GrammarFocus | None = None  # Extracted from metadata.grammatical_focus
     created_at: datetime
 
     # Derived fields
@@ -315,6 +316,7 @@ class ProblemFilters(BaseModel):
     """Filters for problem queries."""
 
     problem_type: ProblemType | None = None
+    focus: GrammarFocus | None = None  # Filter by grammar focus (conjugation/pronouns)
     topic_tags: list[str] | None = None
     target_language_code: str | None = None
     created_after: datetime | None = None

@@ -10,6 +10,7 @@ from src.cli.problems.create import (
     generate_random_problem,
     generate_random_problems_batch,
     get_problem_statistics,
+    get_random_problem,
     list_problems,
 )
 from src.schemas.problems import (
@@ -374,6 +375,64 @@ class TestCLIProblemsListing:
         print_calls = [call[0][0] for call in mock_print.call_args_list]
         assert any("📊 Problem Statistics:" in call for call in print_calls)
         assert any("Total problems: 42" in call for call in print_calls)
+
+
+@pytest.mark.unit
+class TestCLIProblemsRandomWithFocus:
+    """Test cases for get_random_problem with focus filter."""
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_get_random_problem_with_conjugation_focus(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test fetching random problem with conjugation focus filter."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.get_least_recently_served_problem.return_value = sample_problem
+
+        result = await get_random_problem(focus=GrammarFocus.CONJUGATION, display=False)
+
+        assert result == sample_problem
+        mock_service.get_least_recently_served_problem.assert_called_once()
+        # Verify filters were passed with correct focus
+        call_args = mock_service.get_least_recently_served_problem.call_args
+        filters = call_args.kwargs.get("filters")
+        assert filters is not None
+        assert filters.focus == GrammarFocus.CONJUGATION
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_get_random_problem_with_pronouns_focus(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test fetching random problem with pronouns focus filter."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.get_least_recently_served_problem.return_value = sample_problem
+
+        result = await get_random_problem(focus=GrammarFocus.PRONOUNS, display=False)
+
+        assert result == sample_problem
+        call_args = mock_service.get_least_recently_served_problem.call_args
+        filters = call_args.kwargs.get("filters")
+        assert filters is not None
+        assert filters.focus == GrammarFocus.PRONOUNS
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_get_random_problem_without_focus(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test fetching random problem without focus filter."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.get_least_recently_served_problem.return_value = sample_problem
+
+        result = await get_random_problem(focus=None, display=False)
+
+        assert result == sample_problem
+        # Verify no filters passed when focus is None
+        call_args = mock_service.get_least_recently_served_problem.call_args
+        filters = call_args.kwargs.get("filters")
+        assert filters is None
 
 
 @pytest.mark.unit

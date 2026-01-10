@@ -9,6 +9,7 @@ from postgrest import APIError as PostgrestAPIError
 
 from src.core.exceptions import RepositoryError
 from src.schemas.problems import (
+    GrammarFocus,
     Problem,
     ProblemCreate,
     ProblemFilters,
@@ -114,7 +115,7 @@ class ProblemRepository:
         # This avoids the PostgREST function call issue
         select_fields = """
             id, problem_type, title, instructions, correct_answer_index,
-            topic_tags, created_at, statements
+            topic_tags, created_at, statements, metadata
         """
 
         query = self.client.table("problems").select(select_fields, count="exact")
@@ -131,6 +132,19 @@ class ProblemRepository:
                     len(p.get("statements", [])) if p.get("statements") else 0
                 )
 
+                # Extract focus from metadata.grammatical_focus
+                focus = None
+                metadata = p.get("metadata") or {}
+                grammatical_focus = metadata.get("grammatical_focus", [])
+                if grammatical_focus:
+                    # Take the first focus value and validate against enum
+                    focus_value = grammatical_focus[0]
+                    try:
+                        focus = GrammarFocus(focus_value)
+                    except ValueError:
+                        # Not a valid GrammarFocus value, leave as None
+                        pass
+
                 # Create summary data without the statements field (not needed for summary)
                 summary_data = {
                     "id": p["id"],
@@ -139,6 +153,7 @@ class ProblemRepository:
                     "instructions": p["instructions"],
                     "correct_answer_index": p["correct_answer_index"],
                     "topic_tags": p["topic_tags"],
+                    "focus": focus,
                     "created_at": p["created_at"],
                     "statement_count": statement_count,
                 }
@@ -279,21 +294,31 @@ class ProblemRepository:
             else []
         )
 
-    async def get_least_recently_served_problem(self) -> Problem | None:
+    async def get_least_recently_served_problem(
+        self,
+        filters: ProblemFilters | None = None,
+    ) -> Problem | None:
         """
         Get the least recently served problem from the database.
 
         Returns problems that have never been served first (last_served_at IS NULL),
         then problems ordered by oldest last_served_at.
 
+        Args:
+            filters: Optional filters to narrow problem selection (focus, problem_type, etc.)
+
         Returns:
             Problem object if found, None if no problems exist
         """
         try:
+            query = self.client.table("problems").select("*")
+
+            # Apply filters if provided
+            if filters:
+                query = self._apply_filters(query, filters)
+
             response = (
-                await self.client.table("problems")
-                .select("*")
-                .order("last_served_at", desc=False, nullsfirst=True)
+                await query.order("last_served_at", desc=False, nullsfirst=True)
                 .order("created_at", desc=False)  # Tiebreaker: oldest created first
                 .limit(1)
                 .execute()
@@ -307,6 +332,58 @@ class ProblemRepository:
 
         except Exception as e:
             logger.error(f"Error fetching least recently served problem: {e}")
+            raise
+
+    async def get_weighted_random_problem(
+        self,
+        filters: ProblemFilters | None = None,
+        virtual_staleness_days: float = 3.0,
+    ) -> Problem | None:
+        """
+        Get a problem using weighted random selection that favors staleness.
+
+        Uses a PostgreSQL function that applies weighted randomization to avoid
+        batch hotspots while still favoring less-recently-served problems.
+
+        Args:
+            filters: Standard problem filters (problem_type, focus, topic_tags, etc.)
+            virtual_staleness_days: How much "virtual" staleness to give never-served problems.
+                                   Higher = never-served problems favored more strongly.
+                                   Default of 3.0 means never-served compete with 3-day-old problems.
+
+        Returns:
+            Selected problem or None if no problems match filters
+        """
+        try:
+            # Build RPC parameters - only include non-None values
+            params: dict[str, Any] = {
+                "p_virtual_staleness_days": virtual_staleness_days,
+            }
+
+            if filters:
+                if filters.problem_type:
+                    params["p_problem_type"] = filters.problem_type.value
+
+                if filters.focus:
+                    params["p_focus"] = filters.focus.value
+
+                if filters.topic_tags:
+                    params["p_topic_tags"] = filters.topic_tags
+
+                if filters.target_language_code:
+                    params["p_target_language_code"] = filters.target_language_code
+
+            result = await self.client.rpc(
+                "get_weighted_random_problem", params
+            ).execute()
+
+            if not result.data or len(result.data) == 0:
+                return None
+
+            return Problem.model_validate(self._prepare_problem_data(result.data[0]))
+
+        except Exception as e:
+            logger.error(f"Error fetching weighted random problem: {e}")
             raise
 
     async def update_problem_last_served(self, problem_id: UUID) -> bool:
@@ -375,6 +452,13 @@ class ProblemRepository:
         """Apply filters to a Supabase query."""
         if filters.problem_type:
             query = query.eq("problem_type", filters.problem_type.value)
+
+        if filters.focus:
+            # Focus (conjugation/pronouns) is stored in metadata.grammatical_focus
+            # Use JSONB contains operator to check if grammatical_focus contains the focus value
+            query = query.contains(
+                "metadata", {"grammatical_focus": [filters.focus.value]}
+            )
 
         if filters.target_language_code:
             query = query.eq("target_language_code", filters.target_language_code)

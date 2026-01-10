@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from src.api.models.problems import ProblemRandomRequest
 from src.schemas.problems import (
     DifficultyLevel,
+    GrammarFocus,
     GrammarProblemConstraints,
     Problem,
     ProblemBase,
@@ -360,6 +361,53 @@ class TestProblemSummary:
         assert summary.problem_type == ProblemType.GRAMMAR
         assert summary.statement_count == 3
 
+    def test_problem_summary_with_focus(self):
+        """Test that ProblemSummary accepts focus field."""
+        summary_data = {
+            "id": uuid4(),
+            "problem_type": ProblemType.GRAMMAR,
+            "title": "Conjugation Problem",
+            "instructions": "Test instructions",
+            "correct_answer_index": 0,
+            "topic_tags": ["grammar"],
+            "focus": GrammarFocus.CONJUGATION,
+            "created_at": datetime.now(),
+            "statement_count": 4,
+        }
+        summary = ProblemSummary(**summary_data)
+        assert summary.focus == GrammarFocus.CONJUGATION
+
+    def test_problem_summary_focus_optional(self):
+        """Test that ProblemSummary focus is optional and defaults to None."""
+        summary_data = {
+            "id": uuid4(),
+            "problem_type": ProblemType.GRAMMAR,
+            "title": "Test Problem",
+            "instructions": "Test instructions",
+            "correct_answer_index": 0,
+            "topic_tags": ["test"],
+            "created_at": datetime.now(),
+            "statement_count": 3,
+        }
+        summary = ProblemSummary(**summary_data)
+        assert summary.focus is None
+
+    def test_problem_summary_focus_pronouns(self):
+        """Test that ProblemSummary accepts pronouns focus."""
+        summary_data = {
+            "id": uuid4(),
+            "problem_type": ProblemType.GRAMMAR,
+            "title": "Pronouns Problem",
+            "instructions": "Test instructions",
+            "correct_answer_index": 0,
+            "topic_tags": ["grammar"],
+            "focus": GrammarFocus.PRONOUNS,
+            "created_at": datetime.now(),
+            "statement_count": 4,
+        }
+        summary = ProblemSummary(**summary_data)
+        assert summary.focus == GrammarFocus.PRONOUNS
+
 
 @pytest.mark.unit
 class TestProblemConstraints:
@@ -393,6 +441,7 @@ class TestProblemFilters:
         """Test ProblemFilters with default values."""
         filters = ProblemFilters()
         assert filters.problem_type is None
+        assert filters.focus is None
         assert filters.limit == 50
         assert filters.offset == 0
 
@@ -410,6 +459,27 @@ class TestProblemFilters:
         assert filters.target_language_code == "fra"
         assert filters.limit == 100
         assert filters.offset == 25
+
+    def test_problem_filters_with_focus(self):
+        """Test ProblemFilters with focus filter."""
+        filters = ProblemFilters(focus=GrammarFocus.CONJUGATION)
+        assert filters.focus == GrammarFocus.CONJUGATION
+
+        filters = ProblemFilters(focus=GrammarFocus.PRONOUNS)
+        assert filters.focus == GrammarFocus.PRONOUNS
+
+    def test_problem_filters_focus_with_other_filters(self):
+        """Test ProblemFilters combining focus with other filters."""
+        filters = ProblemFilters(
+            problem_type=ProblemType.GRAMMAR,
+            focus=GrammarFocus.CONJUGATION,
+            target_language_code="eng",
+            limit=10,
+        )
+        assert filters.problem_type == ProblemType.GRAMMAR
+        assert filters.focus == GrammarFocus.CONJUGATION
+        assert filters.target_language_code == "eng"
+        assert filters.limit == 10
 
     def test_problem_filters_validation(self):
         """Test ProblemFilters validation."""
