@@ -57,22 +57,26 @@ async def _generate_problem_http(
     return ProblemGenerationEnqueuedResponse(**response.json())
 
 
-async def _get_random_problem_http(
+async def _get_random_grammar_problem_http(
     service_url: str,
     api_key: str,
     include_metadata: bool = False,
-    focus: GrammarFocus | None = None,
+    grammatical_focus: list[str] | None = None,
+    tenses_used: list[str] | None = None,
 ) -> Problem:
-    """Get a random problem from database via HTTP API."""
+    """Get a random grammar problem from database via HTTP API."""
     params = {}
     if include_metadata:
         params["include_metadata"] = "true"
-    if focus:
-        params["focus"] = focus.value
+    if grammatical_focus:
+        # httpx will convert list to multiple query parameters
+        params["grammatical_focus"] = grammatical_focus
+    if tenses_used:
+        params["tenses_used"] = tenses_used
 
     response = await make_api_request(
         method="GET",
-        endpoint="/api/v1/problems/random",
+        endpoint="/api/v1/problems/grammar/random",
         base_url=service_url,
         api_key=api_key,
         params=params,
@@ -164,18 +168,20 @@ async def generate_random_problem(
         raise
 
 
-async def get_random_problem(
-    focus: GrammarFocus | None = None,
+async def get_random_grammar_problem(
+    grammatical_focus: list[str] | None = None,
+    tenses_used: list[str] | None = None,
     display: bool = False,
     detailed: bool = False,
     service_url: str | None = None,
     output_json: bool = False,
     show_trace: bool = False,
 ) -> Problem:
-    """Get a random problem from the database using the ProblemsService or HTTP API."""
+    """Get a random grammar problem from the database using the ProblemsService or HTTP API."""
     try:
         logger.debug(
-            f"🎯 Fetching random problem from database (service_url={service_url}, focus={focus})"
+            f"🎯 Fetching random grammar problem from database "
+            f"(service_url={service_url}, grammatical_focus={grammatical_focus}, tenses_used={tenses_used})"
         )
 
         # Request metadata when JSON output or when trace is requested
@@ -185,29 +191,39 @@ async def get_random_problem(
             # HTTP mode - make API call
             logger.debug(f"📡 Using HTTP mode: {service_url}")
             api_key = get_api_key()
-            problem = await _get_random_problem_http(
+            problem = await _get_random_grammar_problem_http(
                 service_url=service_url,
                 api_key=api_key,
                 include_metadata=include_metadata,
-                focus=focus,
+                grammatical_focus=grammatical_focus,
+                tenses_used=tenses_used,
             )
         else:
             # Direct mode - use service layer
             logger.debug("💾 Using direct service layer mode")
             problems_service = await create_problem_service()
 
-            # Build filters if focus is specified
-            filters = ProblemFilters(focus=focus) if focus else None
-            problem = await problems_service.get_least_recently_served_problem(
-                filters=filters
+            # Use the new type-specific method
+            problem = await problems_service.get_random_grammar_problem(
+                grammatical_focus=grammatical_focus,
+                tenses_used=tenses_used,
+                topic_tags=None,
+                target_language_code=None,
             )
 
             if problem is None:
                 import asyncclick as click
 
-                msg = "No problems available in database"
-                if focus:
-                    msg = f"No problems available with focus '{focus.value}'"
+                msg = "No grammar problems available in database"
+                if grammatical_focus or tenses_used:
+                    filters_desc = []
+                    if grammatical_focus:
+                        filters_desc.append(f"focus: {', '.join(grammatical_focus)}")
+                    if tenses_used:
+                        filters_desc.append(f"tenses: {', '.join(tenses_used)}")
+                    msg = (
+                        f"No grammar problems available with {', '.join(filters_desc)}"
+                    )
                 raise click.ClickException(msg)
 
         if output_json:
@@ -218,11 +234,11 @@ async def get_random_problem(
         elif display:
             display_problem(problem, detailed=detailed, show_trace=show_trace)
 
-        logger.debug(f"✅ Retrieved problem {problem.id}")
+        logger.debug(f"✅ Retrieved grammar problem {problem.id}")
         return problem
 
     except Exception as ex:
-        logger.error(f"Failed to retrieve random problem: {ex}")
+        logger.error(f"Failed to retrieve random grammar problem: {ex}")
         logger.error(traceback.format_exc())
         raise
 
@@ -342,8 +358,8 @@ async def list_problems(
     if verb:
         filters.verb = verb
     if focus:
-        # Filter by grammatical focus in metadata
-        filters.metadata_contains = {"grammatical_focus": [focus]}
+        # Filter by grammatical focus (convert single string to list)
+        filters.grammatical_focus = [focus]
 
     # Always fetch full problems for JSON output (need metadata for extracted fields)
     if output_json or verbose:

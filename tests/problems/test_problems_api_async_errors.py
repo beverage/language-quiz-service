@@ -32,6 +32,18 @@ class ErrorRaisingProblemService:
             raise self.error
         return None  # No problems found
 
+    async def get_random_grammar_problem(
+        self,
+        grammatical_focus=None,
+        tenses_used=None,
+        topic_tags=None,
+        target_language_code=None,
+    ):
+        """Mock that raises the configured error."""
+        if self.error:
+            raise self.error
+        return None  # No problems found
+
     async def get_problem_by_id(self, problem_id):
         """Mock get problem by ID."""
         if self.error:
@@ -116,7 +128,7 @@ class TestAsyncGenerationErrors:
             assert isinstance(data["request_id"], str)
 
     def test_get_random_no_problems_returns_404(self, client, monkeypatch):
-        """Test GET /random returns 404 when no problems exist."""
+        """Test GET /grammar/random returns 404 when no problems exist."""
         from src.core.config import reset_settings
         from src.core.dependencies import get_problem_service
 
@@ -129,18 +141,18 @@ class TestAsyncGenerationErrors:
 
         app.dependency_overrides[get_problem_service] = lambda: mock_service
 
-        response = client.get(f"{PROBLEMS_PREFIX}/random")
+        response = client.get(f"{PROBLEMS_PREFIX}/grammar/random")
 
         assert response.status_code == 404
         data = response.json()
         assert "message" in data
-        assert "No problems available" in data["message"]
+        assert "No grammar problems available" in data["message"]
 
         app.dependency_overrides.clear()
         reset_settings()
 
     def test_get_random_database_error_returns_500(self, client, monkeypatch):
-        """Test GET /random handles database errors gracefully."""
+        """Test GET /grammar/random handles database errors gracefully."""
         from src.core.config import reset_settings
         from src.core.dependencies import get_problem_service
 
@@ -155,7 +167,7 @@ class TestAsyncGenerationErrors:
 
         app.dependency_overrides[get_problem_service] = lambda: mock_service
 
-        response = client.get(f"{PROBLEMS_PREFIX}/random")
+        response = client.get(f"{PROBLEMS_PREFIX}/grammar/random")
 
         assert response.status_code == 500
         data = response.json()

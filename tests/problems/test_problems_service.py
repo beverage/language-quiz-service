@@ -294,7 +294,7 @@ class TestProblemServiceAnalytics:
 
         # Test: Retrieve problems by grammatical focus
         problems = await problem_service.get_problems_by_grammatical_focus(
-            focus, limit=10
+            [focus], limit=10
         )
 
         assert len(problems) > 0
@@ -324,14 +324,20 @@ class TestProblemServiceAnalytics:
             source_statement_ids=[],
             metadata={"grammatical_focus": [unique_focus]},
         )
-        await problem_service.create_problem(problem_data)
+        created_problem = await problem_service.create_problem(problem_data)
 
-        # Test: Retrieve a random problem with the specified unique filter
-        random_problem = await problem_service.get_random_problem(
-            ProblemFilters(metadata_contains={"grammatical_focus": [unique_focus]})
-        )
-        assert random_problem is not None
-        assert unique_focus in random_problem.metadata.get("grammatical_focus", [])
+        try:
+            # Test: Retrieve a random problem with the specified unique filter
+            # Use get_random_grammar_problem which uses RPC function for proper filtering
+            random_problem = await problem_service.get_random_grammar_problem(
+                grammatical_focus=[unique_focus]
+            )
+            assert random_problem is not None
+            assert unique_focus in random_problem.metadata.get("grammatical_focus", [])
+            # Since we have a unique focus, it should be the problem we created
+            assert random_problem.id == created_problem.id
+        finally:
+            await problem_service.delete_problem(created_problem.id)
 
 
 @pytest.mark.asyncio
@@ -400,7 +406,7 @@ class TestWeightedRandomProblemService:
 
         try:
             # Filter by conjugation - should return ANY conjugation problem
-            filters = ProblemFilters(focus=GrammarFocus.CONJUGATION)
+            filters = ProblemFilters(grammatical_focus=["conjugation"])
             result = await service.get_least_recently_served_problem(filters=filters)
 
             assert result is not None
@@ -408,7 +414,7 @@ class TestWeightedRandomProblemService:
             assert "conjugation" in result.metadata.get("grammatical_focus", [])
 
             # Filter by pronouns - should return ANY pronouns problem
-            filters = ProblemFilters(focus=GrammarFocus.PRONOUNS)
+            filters = ProblemFilters(grammatical_focus=["pronouns"])
             result = await service.get_least_recently_served_problem(filters=filters)
 
             assert result is not None
@@ -426,11 +432,184 @@ class TestWeightedRandomProblemService:
 
         # Use impossible filter combination
         filters = ProblemFilters(
-            focus=GrammarFocus.PRONOUNS,
+            grammatical_focus=["pronouns"],
             target_language_code="zzz",  # Non-existent
         )
         result = await service.get_least_recently_served_problem(filters=filters)
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_random_grammar_problem_with_tenses_used(
+        self, problem_repository
+    ):
+        """Test get_random_grammar_problem with tenses_used filter."""
+        service = ProblemService(problem_repository=problem_repository)
+
+        # Create a problem with specific tense
+        futur_data = generate_random_problem_data(
+            title=f"futur_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+            metadata={"tenses_used": ["futur_simple"]},
+        )
+        futur_problem = await service.create_problem(ProblemCreate(**futur_data))
+
+        try:
+            # Get random grammar problem with tenses_used filter
+            result = await service.get_random_grammar_problem(
+                tenses_used=["futur_simple"]
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "tenses_used" in result.metadata
+            assert "futur_simple" in result.metadata["tenses_used"]
+
+        finally:
+            await service.delete_problem(futur_problem.id)
+
+    @pytest.mark.asyncio
+    async def test_get_random_grammar_problem_with_combined_filters(
+        self, problem_repository
+    ):
+        """Test get_random_grammar_problem with combined grammatical_focus and tenses_used."""
+        service = ProblemService(problem_repository=problem_repository)
+
+        # Create a problem with specific focus and tense
+        conj_futur_data = generate_random_problem_data(
+            title=f"conj_futur_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+            metadata={
+                "grammatical_focus": ["conjugation"],
+                "tenses_used": ["futur_simple"],
+            },
+        )
+        conj_futur_problem = await service.create_problem(
+            ProblemCreate(**conj_futur_data)
+        )
+
+        try:
+            # Get random grammar problem with both filters
+            result = await service.get_random_grammar_problem(
+                grammatical_focus=["conjugation"], tenses_used=["futur_simple"]
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "conjugation" in result.metadata.get("grammatical_focus", [])
+            assert "futur_simple" in result.metadata.get("tenses_used", [])
+
+        finally:
+            await service.delete_problem(conj_futur_problem.id)
+
+    @pytest.mark.asyncio
+    async def test_get_random_grammar_problem_with_pronouns_and_tenses(
+        self, problem_repository
+    ):
+        """Test get_random_grammar_problem with pronouns focus and tenses filter."""
+        service = ProblemService(problem_repository=problem_repository)
+
+        # Create a pronoun problem with specific tense
+        pron_present_data = generate_random_problem_data(
+            title=f"pron_present_test_{uuid4().hex[:8]}",
+            focus="pronouns",
+            metadata={
+                "grammatical_focus": ["pronouns"],
+                "tenses_used": ["present"],
+            },
+        )
+        pron_present_problem = await service.create_problem(
+            ProblemCreate(**pron_present_data)
+        )
+
+        try:
+            # Get random grammar problem with pronouns focus and present tense
+            result = await service.get_random_grammar_problem(
+                grammatical_focus=["pronouns"], tenses_used=["present"]
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "pronouns" in result.metadata.get("grammatical_focus", [])
+            assert "present" in result.metadata.get("tenses_used", [])
+
+        finally:
+            await service.delete_problem(pron_present_problem.id)
+
+    @pytest.mark.asyncio
+    async def test_get_random_grammar_problem_with_multiple_focus_values(
+        self, problem_repository
+    ):
+        """Test get_random_grammar_problem with multiple grammatical_focus values (OR logic)."""
+        service = ProblemService(problem_repository=problem_repository)
+
+        # Create problems with different focuses
+        conj_data = generate_random_problem_data(
+            title=f"conj_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+        )
+        pron_data = generate_random_problem_data(
+            title=f"pron_test_{uuid4().hex[:8]}",
+            focus="pronouns",
+        )
+
+        conj_problem = await service.create_problem(ProblemCreate(**conj_data))
+        pron_problem = await service.create_problem(ProblemCreate(**pron_data))
+
+        try:
+            # Get random grammar problem with multiple focuses (OR logic)
+            result = await service.get_random_grammar_problem(
+                grammatical_focus=["conjugation", "pronouns"]
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "grammatical_focus" in result.metadata
+            focus_values = result.metadata["grammatical_focus"]
+            assert "conjugation" in focus_values or "pronouns" in focus_values
+
+        finally:
+            await service.delete_problem(conj_problem.id)
+            await service.delete_problem(pron_problem.id)
+
+    @pytest.mark.asyncio
+    async def test_get_random_grammar_problem_with_multiple_tenses_values(
+        self, problem_repository
+    ):
+        """Test get_random_grammar_problem with multiple tenses_used values (OR logic)."""
+        service = ProblemService(problem_repository=problem_repository)
+
+        # Create problems with different tenses
+        futur_data = generate_random_problem_data(
+            title=f"futur_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+            metadata={"tenses_used": ["futur_simple"]},
+        )
+        imparfait_data = generate_random_problem_data(
+            title=f"imparfait_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+            metadata={"tenses_used": ["imparfait"]},
+        )
+
+        futur_problem = await service.create_problem(ProblemCreate(**futur_data))
+        imparfait_problem = await service.create_problem(
+            ProblemCreate(**imparfait_data)
+        )
+
+        try:
+            # Get random grammar problem with multiple tenses (OR logic)
+            result = await service.get_random_grammar_problem(
+                tenses_used=["futur_simple", "imparfait"]
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "tenses_used" in result.metadata
+            tenses_values = result.metadata["tenses_used"]
+            assert "futur_simple" in tenses_values or "imparfait" in tenses_values
+
+        finally:
+            await service.delete_problem(futur_problem.id)
+            await service.delete_problem(imparfait_problem.id)
 
 
 class TestProblemServiceParameterGeneration:

@@ -97,9 +97,9 @@ class TestProblemsAPIAuthentication:
         response = auth_client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
 
-    def test_random_endpoint_requires_auth(self, auth_client: TestClient):
-        """Test that random endpoint requires authentication."""
-        response = auth_client.get(f"{PROBLEMS_PREFIX}/random")
+    def test_random_grammar_endpoint_requires_auth(self, auth_client: TestClient):
+        """Test that random grammar endpoint requires authentication."""
+        response = auth_client.get(f"{PROBLEMS_PREFIX}/grammar/random")
         assert response.status_code == 401
         data = response.json()
         assert "api key required" in data["message"].lower()
@@ -118,8 +118,8 @@ class TestProblemsAPIValidation:
         """Test that invalid HTTP methods are rejected."""
         test_client, _ = client
 
-        response = test_client.post(f"{PROBLEMS_PREFIX}/random")
-        assert response.status_code in [405, 422]
+        response = test_client.post(f"{PROBLEMS_PREFIX}/grammar/random")
+        assert response.status_code == 405
 
         response = test_client.put(f"{PROBLEMS_PREFIX}/generate")
         assert response.status_code == 405
@@ -224,13 +224,13 @@ class TestProblemsAPIContracts:
         assert isinstance(data["count"], int)
         assert data["count"] == 5
 
-    def test_random_problem_not_found(self, client):
-        """Test random problem endpoint returns 404 if no problems exist."""
+    def test_random_grammar_problem_not_found(self, client):
+        """Test random grammar problem endpoint returns 404 if no problems exist."""
         test_client, _ = client
 
-        response = test_client.get(f"{PROBLEMS_PREFIX}/random")
+        response = test_client.get(f"{PROBLEMS_PREFIX}/grammar/random")
         assert response.status_code == 404
-        assert "no problems available" in response.json()["message"].lower()
+        assert "no grammar problems available" in response.json()["message"].lower()
 
     def test_get_problem_by_id_not_found(self, client):
         """Test get problem by ID returns 404 for non-existent problem."""
@@ -319,33 +319,56 @@ class TestTopicTagsContracts:
 
 
 @pytest.mark.integration
-class TestFocusFilterContracts:
-    """Test focus filter parameter on random problem endpoint."""
+class TestGrammarProblemFilterContracts:
+    """Test filter parameters on grammar random problem endpoint."""
 
-    def test_random_with_focus_parameter_accepted(self, client):
-        """Test that focus parameter is accepted on random endpoint."""
+    def test_grammar_random_with_grammatical_focus_parameter_accepted(self, client):
+        """Test that grammatical_focus parameter is accepted on grammar random endpoint."""
         test_client, _ = client
 
-        # Focus parameter should be accepted (even if no problems match)
-        response = test_client.get(f"{PROBLEMS_PREFIX}/random?focus=conjugation")
+        # grammatical_focus parameter should be accepted (even if no problems match)
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?grammatical_focus=conjugation"
+        )
         # Will be 404 because mock has no problems, but param is accepted
         assert response.status_code == 404
 
-        response = test_client.get(f"{PROBLEMS_PREFIX}/random?focus=pronouns")
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?grammatical_focus=pronouns"
+        )
         assert response.status_code == 404
 
-    def test_random_with_invalid_focus_rejected(self, client):
-        """Test that invalid focus values are rejected with 422."""
+    def test_grammar_random_with_multiple_focus_values(self, client):
+        """Test that multiple grammatical_focus values are accepted."""
         test_client, _ = client
 
-        response = test_client.get(f"{PROBLEMS_PREFIX}/random?focus=invalid_focus")
-        assert response.status_code == 422
-        data = response.json()
-        # Validation error should mention the invalid value
-        assert "detail" in data or "message" in data
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?grammatical_focus=conjugation&grammatical_focus=pronouns"
+        )
+        assert response.status_code == 404  # No problems, but params accepted
 
-    def test_random_with_focus_returns_filtered_problem(self, client):
-        """Test that focus filter returns matching problems when available."""
+    def test_grammar_random_with_tenses_used_parameter(self, client):
+        """Test that tenses_used parameter is accepted."""
+        test_client, _ = client
+
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?tenses_used=futur_simple"
+        )
+        assert response.status_code == 404  # No problems, but param accepted
+
+    def test_grammar_random_with_multiple_tenses(self, client):
+        """Test that multiple tenses_used values are accepted."""
+        test_client, _ = client
+
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?tenses_used=futur_simple&tenses_used=imparfait"
+        )
+        assert response.status_code == 404  # No problems, but params accepted
+
+    def test_grammar_random_with_grammatical_focus_returns_filtered_problem(
+        self, client
+    ):
+        """Test that grammatical_focus filter returns matching problems when available."""
         from datetime import UTC, datetime
 
         from src.schemas.problems import Problem, ProblemType
@@ -371,13 +394,15 @@ class TestFocusFilterContracts:
             updated_at=datetime.now(UTC),
         )
 
-        response = test_client.get(f"{PROBLEMS_PREFIX}/random?focus=conjugation")
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?grammatical_focus=conjugation"
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == str(problem_id)
 
-    def test_random_without_focus_still_works(self, client):
-        """Test that random endpoint works without focus parameter."""
+    def test_grammar_random_without_filters_still_works(self, client):
+        """Test that grammar random endpoint works without filter parameters."""
         from datetime import UTC, datetime
 
         from src.schemas.problems import Problem, ProblemType
@@ -403,7 +428,182 @@ class TestFocusFilterContracts:
             updated_at=datetime.now(UTC),
         )
 
-        response = test_client.get(f"{PROBLEMS_PREFIX}/random")
+        response = test_client.get(f"{PROBLEMS_PREFIX}/grammar/random")
         assert response.status_code == 200
         data = response.json()
         assert "id" in data
+
+    def test_grammar_random_with_tenses_used_returns_filtered_problem(self, client):
+        """Test that tenses_used filter returns matching problems when available."""
+        from datetime import UTC, datetime
+
+        from src.schemas.problems import Problem, ProblemType
+
+        test_client, _ = client
+
+        from src.core.dependencies import get_problem_service
+
+        mock_service = app.dependency_overrides[get_problem_service]()
+        problem_id = uuid4()
+        mock_service.problems[problem_id] = Problem(
+            id=problem_id,
+            problem_type=ProblemType.GRAMMAR,
+            title="Test Futur Simple Problem",
+            instructions="Choose correctly",
+            correct_answer_index=0,
+            target_language_code="eng",
+            statements=[{"content": "Test", "is_correct": True, "translation": "Test"}],
+            topic_tags=["test_data"],
+            metadata={"tenses_used": ["futur_simple"]},
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?tenses_used=futur_simple"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == str(problem_id)
+
+    def test_grammar_random_with_tenses_used_pronoun_problem(self, client):
+        """Test that tenses_used filter works with pronoun problems."""
+        from datetime import UTC, datetime
+
+        from src.schemas.problems import Problem, ProblemType
+
+        test_client, _ = client
+
+        from src.core.dependencies import get_problem_service
+
+        mock_service = app.dependency_overrides[get_problem_service]()
+        problem_id = uuid4()
+        mock_service.problems[problem_id] = Problem(
+            id=problem_id,
+            problem_type=ProblemType.GRAMMAR,
+            title="Test Pronoun Problem with Tense",
+            instructions="Choose correctly",
+            correct_answer_index=0,
+            target_language_code="eng",
+            statements=[{"content": "Test", "is_correct": True, "translation": "Test"}],
+            topic_tags=["test_data"],
+            metadata={
+                "grammatical_focus": ["pronouns"],
+                "tenses_used": ["present"],
+            },
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?tenses_used=present"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == str(problem_id)
+
+    def test_grammar_random_with_combined_filters(self, client):
+        """Test that combining grammatical_focus and tenses_used filters works."""
+        from datetime import UTC, datetime
+
+        from src.schemas.problems import Problem, ProblemType
+
+        test_client, _ = client
+
+        from src.core.dependencies import get_problem_service
+
+        mock_service = app.dependency_overrides[get_problem_service]()
+        problem_id = uuid4()
+        mock_service.problems[problem_id] = Problem(
+            id=problem_id,
+            problem_type=ProblemType.GRAMMAR,
+            title="Test Combined Filter Problem",
+            instructions="Choose correctly",
+            correct_answer_index=0,
+            target_language_code="eng",
+            statements=[{"content": "Test", "is_correct": True, "translation": "Test"}],
+            topic_tags=["test_data"],
+            metadata={
+                "grammatical_focus": ["conjugation"],
+                "tenses_used": ["futur_simple"],
+            },
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?grammatical_focus=conjugation&tenses_used=futur_simple"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == str(problem_id)
+
+    def test_grammar_random_with_multiple_focus_values_or_logic(self, client):
+        """Test that multiple grammatical_focus values use OR logic."""
+        from datetime import UTC, datetime
+
+        from src.schemas.problems import Problem, ProblemType
+
+        test_client, _ = client
+
+        from src.core.dependencies import get_problem_service
+
+        mock_service = app.dependency_overrides[get_problem_service]()
+        # Create a pronouns problem
+        pronouns_problem_id = uuid4()
+        mock_service.problems[pronouns_problem_id] = Problem(
+            id=pronouns_problem_id,
+            problem_type=ProblemType.GRAMMAR,
+            title="Test Pronouns Problem",
+            instructions="Choose correctly",
+            correct_answer_index=0,
+            target_language_code="eng",
+            statements=[{"content": "Test", "is_correct": True, "translation": "Test"}],
+            topic_tags=["test_data"],
+            metadata={"grammatical_focus": ["pronouns"]},
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        # Request either conjugation OR pronouns - should match pronouns problem
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?grammatical_focus=conjugation&grammatical_focus=pronouns"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == str(pronouns_problem_id)
+
+    def test_grammar_random_with_multiple_tenses_or_logic(self, client):
+        """Test that multiple tenses_used values use OR logic."""
+        from datetime import UTC, datetime
+
+        from src.schemas.problems import Problem, ProblemType
+
+        test_client, _ = client
+
+        from src.core.dependencies import get_problem_service
+
+        mock_service = app.dependency_overrides[get_problem_service]()
+        # Create a problem with imparfait
+        imparfait_problem_id = uuid4()
+        mock_service.problems[imparfait_problem_id] = Problem(
+            id=imparfait_problem_id,
+            problem_type=ProblemType.GRAMMAR,
+            title="Test Imparfait Problem",
+            instructions="Choose correctly",
+            correct_answer_index=0,
+            target_language_code="eng",
+            statements=[{"content": "Test", "is_correct": True, "translation": "Test"}],
+            topic_tags=["test_data"],
+            metadata={"tenses_used": ["imparfait"]},
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        # Request either futur_simple OR imparfait - should match imparfait problem
+        response = test_client.get(
+            f"{PROBLEMS_PREFIX}/grammar/random?tenses_used=futur_simple&tenses_used=imparfait"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == str(imparfait_problem_id)

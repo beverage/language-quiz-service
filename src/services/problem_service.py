@@ -690,15 +690,56 @@ class ProblemService:
         return await repo.search_problems_by_metadata(metadata_query, limit)
 
     async def get_problems_by_grammatical_focus(
-        self, focus: str, limit: int = 50
+        self, grammatical_focus: list[str], limit: int = 50
     ) -> list[Problem]:
-        """Get problems by grammatical focus (metadata search)."""
+        """Get problems by grammatical focus (metadata search).
+
+        Note: This method is used for LISTING problems, not for random retrieval.
+        The API/CLI random endpoints (get_random_grammar_problem) use RPC functions
+        and support OR logic correctly.
+
+        This method uses metadata_contains with @> operator as a workaround since
+        PostgREST client doesn't support JSONB array overlap (?|) operator. This
+        requires ALL focus values to match (AND logic), not OR logic.
+        """
         repo = self._get_problem_repository()
+        # Workaround: Use metadata_contains with @> operator
+        # This requires ALL values in grammatical_focus to be present (AND logic)
+        # For OR logic, we'd need to use RPC, but for this use case AND is acceptable
         filters = ProblemFilters(
-            metadata_contains={"grammatical_focus": [focus]}, limit=limit
+            problem_type=ProblemType.GRAMMAR,
+            metadata_contains={"grammatical_focus": grammatical_focus},
+            limit=limit,
         )
         problems, _ = await repo.get_problems(filters)
         return problems
+
+    async def get_random_grammar_problem(
+        self,
+        grammatical_focus: list[str] | None = None,
+        tenses_used: list[str] | None = None,
+        topic_tags: list[str] | None = None,
+        target_language_code: str | None = None,
+    ) -> Problem | None:
+        """Get a random grammar problem with type-specific filters.
+
+        Args:
+            grammatical_focus: Filter by focus areas (e.g., ["conjugation", "pronouns"])
+            tenses_used: Filter by tenses (e.g., ["futur_simple", "imparfait"])
+            topic_tags: Filter by topic tags
+            target_language_code: Filter by target language code
+
+        Returns:
+            Problem object if found, None if no problems match filters
+        """
+        filters = ProblemFilters(
+            problem_type=ProblemType.GRAMMAR,
+            grammatical_focus=grammatical_focus,
+            tenses_used=tenses_used,
+            topic_tags=topic_tags,
+            target_language_code=target_language_code,
+        )
+        return await self.get_least_recently_served_problem(filters=filters)
 
     async def get_least_recently_served_problem(
         self,
@@ -713,7 +754,7 @@ class ProblemService:
         - Avoids batch hotspots through randomization
 
         Args:
-            filters: Optional filters to narrow problem selection (focus, problem_type, etc.)
+            filters: Optional filters to narrow problem selection (grammatical_focus, tenses_used, problem_type, etc.)
 
         Returns:
             Problem object if found, None if no problems exist
@@ -738,9 +779,20 @@ class ProblemService:
         self,
         filters: ProblemFilters | None = None,
     ) -> Problem | None:
-        """Get a random problem, optionally filtered."""
+        """Get a random problem, optionally filtered.
+
+        Note: If filters include grammatical_focus or tenses_used, uses weighted random
+        RPC function for proper OR logic. Otherwise uses simple random selection.
+        """
         repo = self._get_problem_repository()
-        return await repo.get_random_problem(filters or ProblemFilters())
+        filters = filters or ProblemFilters()
+
+        # If filters include JSONB array filters, use weighted random RPC function
+        if filters.grammatical_focus or filters.tenses_used:
+            return await repo.get_weighted_random_problem(filters=filters)
+
+        # Otherwise use simple random selection
+        return await repo.get_random_problem(filters)
 
     async def count_problems(
         self,

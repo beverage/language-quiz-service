@@ -353,7 +353,7 @@ class TestWeightedRandomProblemSelection:
 
         try:
             # Filter by conjugation focus - should return ANY conjugation problem
-            filters = ProblemFilters(focus=GrammarFocus.CONJUGATION)
+            filters = ProblemFilters(grammatical_focus=["conjugation"])
             result = await problem_repository.get_weighted_random_problem(
                 filters=filters
             )
@@ -365,7 +365,7 @@ class TestWeightedRandomProblemSelection:
             assert "conjugation" in result.metadata["grammatical_focus"]
 
             # Filter by pronouns focus - should return ANY pronouns problem
-            filters = ProblemFilters(focus=GrammarFocus.PRONOUNS)
+            filters = ProblemFilters(grammatical_focus=["pronouns"])
             result = await problem_repository.get_weighted_random_problem(
                 filters=filters
             )
@@ -378,6 +378,196 @@ class TestWeightedRandomProblemSelection:
         finally:
             await problem_repository.delete_problem(conjugation_problem.id)
             await problem_repository.delete_problem(pronouns_problem.id)
+
+    @pytest.mark.asyncio
+    async def test_get_weighted_random_problem_with_tenses_used_filter(
+        self, problem_repository
+    ):
+        """Test that tenses_used filter returns problems with matching tenses."""
+        # Create problems with different tenses
+        futur_simple_data = generate_random_problem_data(
+            title=f"futur_simple_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+            metadata={"tenses_used": ["futur_simple"]},
+        )
+        present_data = generate_random_problem_data(
+            title=f"present_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+            metadata={"tenses_used": ["present"]},
+        )
+
+        futur_problem = await problem_repository.create_problem(
+            ProblemCreate(**futur_simple_data)
+        )
+        present_problem = await problem_repository.create_problem(
+            ProblemCreate(**present_data)
+        )
+
+        try:
+            # Filter by futur_simple - should return the futur_simple problem
+            filters = ProblemFilters(tenses_used=["futur_simple"])
+            result = await problem_repository.get_weighted_random_problem(
+                filters=filters
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "tenses_used" in result.metadata
+            assert "futur_simple" in result.metadata["tenses_used"]
+
+            # Filter by present - should return the present problem
+            filters = ProblemFilters(tenses_used=["present"])
+            result = await problem_repository.get_weighted_random_problem(
+                filters=filters
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "tenses_used" in result.metadata
+            assert "present" in result.metadata["tenses_used"]
+
+        finally:
+            await problem_repository.delete_problem(futur_problem.id)
+            await problem_repository.delete_problem(present_problem.id)
+
+    @pytest.mark.asyncio
+    async def test_get_weighted_random_problem_with_combined_filters(
+        self, problem_repository
+    ):
+        """Test that combining grammatical_focus and tenses_used filters works."""
+        # Create problems with different combinations
+        conjugation_futur_data = generate_random_problem_data(
+            title=f"conj_futur_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+            metadata={
+                "grammatical_focus": ["conjugation"],
+                "tenses_used": ["futur_simple"],
+            },
+        )
+        pronouns_present_data = generate_random_problem_data(
+            title=f"pron_present_test_{uuid4().hex[:8]}",
+            focus="pronouns",
+            metadata={
+                "grammatical_focus": ["pronouns"],
+                "tenses_used": ["present"],
+            },
+        )
+
+        conj_futur_problem = await problem_repository.create_problem(
+            ProblemCreate(**conjugation_futur_data)
+        )
+        pron_present_problem = await problem_repository.create_problem(
+            ProblemCreate(**pronouns_present_data)
+        )
+
+        try:
+            # Filter by conjugation AND futur_simple
+            filters = ProblemFilters(
+                grammatical_focus=["conjugation"], tenses_used=["futur_simple"]
+            )
+            result = await problem_repository.get_weighted_random_problem(
+                filters=filters
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "conjugation" in result.metadata.get("grammatical_focus", [])
+            assert "futur_simple" in result.metadata.get("tenses_used", [])
+
+            # Filter by pronouns AND present
+            filters = ProblemFilters(
+                grammatical_focus=["pronouns"], tenses_used=["present"]
+            )
+            result = await problem_repository.get_weighted_random_problem(
+                filters=filters
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "pronouns" in result.metadata.get("grammatical_focus", [])
+            assert "present" in result.metadata.get("tenses_used", [])
+
+        finally:
+            await problem_repository.delete_problem(conj_futur_problem.id)
+            await problem_repository.delete_problem(pron_present_problem.id)
+
+    @pytest.mark.asyncio
+    async def test_get_weighted_random_problem_with_multiple_focus_values(
+        self, problem_repository
+    ):
+        """Test that multiple grammatical_focus values use OR logic."""
+        conjugation_data = generate_random_problem_data(
+            title=f"conj_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+        )
+        pronouns_data = generate_random_problem_data(
+            title=f"pron_test_{uuid4().hex[:8]}",
+            focus="pronouns",
+        )
+
+        conj_problem = await problem_repository.create_problem(
+            ProblemCreate(**conjugation_data)
+        )
+        pron_problem = await problem_repository.create_problem(
+            ProblemCreate(**pronouns_data)
+        )
+
+        try:
+            # Filter by conjugation OR pronouns - should return either
+            filters = ProblemFilters(grammatical_focus=["conjugation", "pronouns"])
+            result = await problem_repository.get_weighted_random_problem(
+                filters=filters
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "grammatical_focus" in result.metadata
+            focus_values = result.metadata["grammatical_focus"]
+            assert "conjugation" in focus_values or "pronouns" in focus_values
+
+        finally:
+            await problem_repository.delete_problem(conj_problem.id)
+            await problem_repository.delete_problem(pron_problem.id)
+
+    @pytest.mark.asyncio
+    async def test_get_weighted_random_problem_with_multiple_tenses_values(
+        self, problem_repository
+    ):
+        """Test that multiple tenses_used values use OR logic."""
+        futur_data = generate_random_problem_data(
+            title=f"futur_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+            metadata={"tenses_used": ["futur_simple"]},
+        )
+        imparfait_data = generate_random_problem_data(
+            title=f"imparfait_test_{uuid4().hex[:8]}",
+            focus="conjugation",
+            metadata={"tenses_used": ["imparfait"]},
+        )
+
+        futur_problem = await problem_repository.create_problem(
+            ProblemCreate(**futur_data)
+        )
+        imparfait_problem = await problem_repository.create_problem(
+            ProblemCreate(**imparfait_data)
+        )
+
+        try:
+            # Filter by futur_simple OR imparfait - should return either
+            filters = ProblemFilters(tenses_used=["futur_simple", "imparfait"])
+            result = await problem_repository.get_weighted_random_problem(
+                filters=filters
+            )
+
+            assert result is not None
+            assert result.metadata is not None
+            assert "tenses_used" in result.metadata
+            tenses_values = result.metadata["tenses_used"]
+            assert "futur_simple" in tenses_values or "imparfait" in tenses_values
+
+        finally:
+            await problem_repository.delete_problem(futur_problem.id)
+            await problem_repository.delete_problem(imparfait_problem.id)
 
     @pytest.mark.asyncio
     async def test_get_weighted_random_problem_no_match_returns_none(
@@ -395,7 +585,7 @@ class TestWeightedRandomProblemSelection:
             # Try to get a pronouns problem when none exist (except test data)
             # First, let's use a very specific filter that won't match
             filters = ProblemFilters(
-                focus=GrammarFocus.PRONOUNS,
+                grammatical_focus=["pronouns"],
                 target_language_code="zzz",  # Non-existent language
             )
             result = await problem_repository.get_weighted_random_problem(

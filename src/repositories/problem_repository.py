@@ -346,7 +346,7 @@ class ProblemRepository:
         batch hotspots while still favoring less-recently-served problems.
 
         Args:
-            filters: Standard problem filters (problem_type, focus, topic_tags, etc.)
+            filters: Standard problem filters (problem_type, grammatical_focus, tenses_used, topic_tags, etc.)
             virtual_staleness_days: How much "virtual" staleness to give never-served problems.
                                    Higher = never-served problems favored more strongly.
                                    Default of 3.0 means never-served compete with 3-day-old problems.
@@ -364,14 +364,31 @@ class ProblemRepository:
                 if filters.problem_type:
                     params["p_problem_type"] = filters.problem_type.value
 
-                if filters.focus:
-                    params["p_focus"] = filters.focus.value
+                if filters.grammatical_focus:
+                    params["p_grammatical_focus"] = filters.grammatical_focus
+
+                if filters.tenses_used:
+                    params["p_tenses_used"] = filters.tenses_used
 
                 if filters.topic_tags:
                     params["p_topic_tags"] = filters.topic_tags
 
                 if filters.target_language_code:
                     params["p_target_language_code"] = filters.target_language_code
+
+                # Handle generic metadata filters fallback
+                if filters.metadata_contains:
+                    # Convert dict to JSONB format for array fields
+                    import json
+
+                    metadata_filters = {}
+                    for key, value in filters.metadata_contains.items():
+                        if isinstance(value, list):
+                            metadata_filters[key] = value
+                    if metadata_filters:
+                        params["p_metadata_array_filters"] = json.dumps(
+                            metadata_filters
+                        )
 
             result = await self.client.rpc(
                 "get_weighted_random_problem", params
@@ -453,12 +470,16 @@ class ProblemRepository:
         if filters.problem_type:
             query = query.eq("problem_type", filters.problem_type.value)
 
-        if filters.focus:
-            # Focus (conjugation/pronouns) is stored in metadata.grammatical_focus
-            # Use JSONB contains operator to check if grammatical_focus contains the focus value
-            query = query.contains(
-                "metadata", {"grammatical_focus": [filters.focus.value]}
-            )
+        # Note: grammatical_focus and tenses_used filtering is not supported in _apply_filters
+        # because PostgREST client doesn't support JSONB array overlap operator (?|) for OR logic.
+        #
+        # IMPORTANT: The API and CLI random endpoints (get_random_grammar_problem) still support
+        # OR logic correctly because they use get_weighted_random_problem which calls the RPC
+        # function. Only get_problems (used for listing) is affected by this limitation.
+        #
+        # For RPC-based methods (get_weighted_random_problem), OR logic works correctly via SQL.
+        # For get_problems (listing), we use metadata_contains with @> operator as a workaround,
+        # which requires ALL values to match (AND logic) - see get_problems_by_grammatical_focus.
 
         if filters.target_language_code:
             query = query.eq("target_language_code", filters.target_language_code)

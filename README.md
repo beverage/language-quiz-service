@@ -89,7 +89,7 @@ The service will be available at:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/api/v1/problems/random` | GET | Get a random problem from the pool (LRU) |
+| `/api/v1/problems/grammar/random` | GET | Get a random grammar problem from the pool (LRU) with optional filters |
 | `/api/v1/problems/{id}` | GET | Get a specific problem by ID |
 | `/api/v1/problems/generate` | POST | Trigger async problem generation |
 | `/api/v1/generation-requests/{id}` | GET | Check generation request status |
@@ -112,8 +112,11 @@ lqs problem generate -c 5
 # Check generation status
 lqs generation status <request-id>
 
-# Get a random problem
-lqs problem random
+# Get a random grammar problem
+lqs problem random grammar
+
+# Get a random grammar problem with filters
+lqs problem random grammar --focus conjugation --tenses futur_simple
 
 # View problem with LLM reasoning trace
 lqs problem get <uuid> --llm-trace

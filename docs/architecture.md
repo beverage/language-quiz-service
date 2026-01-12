@@ -139,7 +139,7 @@ sequenceDiagram
     participant Cache as In-Memory Cache
     participant DB as Supabase
 
-    Client->>API: GET /api/v1/problems/random
+    Client->>API: GET /api/v1/problems/grammar/random?grammatical_focus=conjugation&tenses_used=futur_simple
     
     API->>Cache: Lookup API key by prefix
     alt Cache Hit
@@ -160,10 +160,12 @@ sequenceDiagram
 
 ### LRU Selection Strategy
 
-Problems are served using least-recently-used ordering:
+Problems are served using weighted random selection that favors least-recently-used ordering:
 - Ensures all problems get served before any repeats
 - Provides variety for end users
 - `last_served_at` timestamp updated on each retrieval
+- Supports filtering by `grammatical_focus`, `tenses_used`, `topic_tags`, and `target_language_code`
+- Filters are applied before LRU selection, ensuring filtered results still benefit from staleness weighting
 
 ---
 
@@ -199,7 +201,7 @@ Caches use a **write-through** pattern with database fallback on reads:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/v1/problems/random` | GET | Retrieve LRU problem from pool |
+| `/api/v1/problems/grammar/random` | GET | Retrieve LRU grammar problem from pool with optional filters (grammatical_focus, tenses_used, topic_tags) |
 | `/api/v1/problems/generate` | POST | Trigger async problem generation |
 | `/api/v1/problems/{id}` | GET | Retrieve specific problem by ID |
 | `/api/v1/generation-requests/{id}` | GET | Check generation request status |

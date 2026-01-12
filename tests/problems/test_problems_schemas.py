@@ -441,7 +441,8 @@ class TestProblemFilters:
         """Test ProblemFilters with default values."""
         filters = ProblemFilters()
         assert filters.problem_type is None
-        assert filters.focus is None
+        assert filters.grammatical_focus is None
+        assert filters.tenses_used is None
         assert filters.limit == 50
         assert filters.offset == 0
 
@@ -460,24 +461,37 @@ class TestProblemFilters:
         assert filters.limit == 100
         assert filters.offset == 25
 
-    def test_problem_filters_with_focus(self):
-        """Test ProblemFilters with focus filter."""
-        filters = ProblemFilters(focus=GrammarFocus.CONJUGATION)
-        assert filters.focus == GrammarFocus.CONJUGATION
+    def test_problem_filters_with_grammatical_focus(self):
+        """Test ProblemFilters with grammatical_focus filter."""
+        filters = ProblemFilters(grammatical_focus=["conjugation"])
+        assert filters.grammatical_focus == ["conjugation"]
 
-        filters = ProblemFilters(focus=GrammarFocus.PRONOUNS)
-        assert filters.focus == GrammarFocus.PRONOUNS
+        filters = ProblemFilters(grammatical_focus=["pronouns"])
+        assert filters.grammatical_focus == ["pronouns"]
 
-    def test_problem_filters_focus_with_other_filters(self):
-        """Test ProblemFilters combining focus with other filters."""
+        filters = ProblemFilters(grammatical_focus=["conjugation", "pronouns"])
+        assert filters.grammatical_focus == ["conjugation", "pronouns"]
+
+    def test_problem_filters_with_tenses_used(self):
+        """Test ProblemFilters with tenses_used filter."""
+        filters = ProblemFilters(tenses_used=["futur_simple"])
+        assert filters.tenses_used == ["futur_simple"]
+
+        filters = ProblemFilters(tenses_used=["futur_simple", "imparfait"])
+        assert filters.tenses_used == ["futur_simple", "imparfait"]
+
+    def test_problem_filters_grammatical_focus_with_other_filters(self):
+        """Test ProblemFilters combining grammatical_focus with other filters."""
         filters = ProblemFilters(
             problem_type=ProblemType.GRAMMAR,
-            focus=GrammarFocus.CONJUGATION,
+            grammatical_focus=["conjugation"],
+            tenses_used=["futur_simple"],
             target_language_code="eng",
             limit=10,
         )
         assert filters.problem_type == ProblemType.GRAMMAR
-        assert filters.focus == GrammarFocus.CONJUGATION
+        assert filters.grammatical_focus == ["conjugation"]
+        assert filters.tenses_used == ["futur_simple"]
         assert filters.target_language_code == "eng"
         assert filters.limit == 10
 

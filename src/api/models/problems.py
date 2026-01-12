@@ -67,6 +67,47 @@ class ProblemRandomRequest(BaseModel):
     )
 
 
+class GrammarProblemRandomRequest(BaseModel):
+    """Request model for retrieving random grammar problems."""
+
+    grammatical_focus: list[str] | None = Field(
+        default=None,
+        description="Filter by grammatical focus areas (e.g., conjugation, pronouns). Can specify multiple values.",
+    )
+    tenses_used: list[str] | None = Field(
+        default=None,
+        description="Filter by tenses used (e.g., futur_simple, imparfait). Can specify multiple values.",
+    )
+    topic_tags: list[str] | None = Field(
+        default=None,
+        description="Filter by topic tags. Can specify multiple values.",
+    )
+    target_language_code: str | None = Field(
+        default=None,
+        min_length=3,
+        max_length=3,
+        description="Filter by target language code (ISO 639-3)",
+    )
+    include_metadata: bool = Field(
+        default=False,
+        description="Include source_statement_ids and metadata in response",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "grammatical_focus": ["conjugation", "pronouns"],
+                    "tenses_used": ["futur_simple", "imparfait"],
+                },
+                {"grammatical_focus": ["conjugation"]},
+                {"tenses_used": ["present"]},
+                {},
+            ]
+        }
+    )
+
+
 class ProblemStatementResponse(BaseModel):
     """Response model for problem statements."""
 

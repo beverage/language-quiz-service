@@ -42,7 +42,7 @@ from src.cli.problems.create import (
     generate_random_problem,
     generate_random_problems_batch,
     get_problem_statistics,
-    get_random_problem,
+    get_random_grammar_problem,
     list_problems,
 )
 from src.cli.problems.delete import delete_problem
@@ -172,12 +172,23 @@ async def problem():
     pass
 
 
-@problem.command("random")
+@problem.group("random")
+async def problem_random_group():
+    """Get random problems from the database."""
+    pass
+
+
+@problem_random_group.command("grammar")
 @click.option(
     "--focus",
+    multiple=True,
     type=click.Choice(["conjugation", "pronouns"]),
-    default=None,
-    help="Filter by grammar focus area: conjugation or pronouns",
+    help="Filter by grammatical focus area (can specify multiple: --focus conjugation --focus pronouns)",
+)
+@click.option(
+    "--tenses",
+    multiple=True,
+    help="Filter by tenses used (e.g., futur_simple, imparfait). Can specify multiple.",
 )
 @click.option(
     "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
@@ -186,24 +197,27 @@ async def problem():
     "--llm-trace", "llm_trace", is_flag=True, help="Include LLM generation trace"
 )
 @click.pass_context
-async def problem_random(
+async def problem_random_grammar(
     ctx,
-    focus: str | None,
+    focus: tuple,
+    tenses: tuple,
     output_json: bool,
     llm_trace: bool,
 ):
-    """Get a random problem from the database."""
+    """Get a random grammar problem from the database."""
     try:
         # Get flags from root context
         root_ctx = ctx.find_root()
         detailed = root_ctx.params.get("detailed", False)
         service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
 
-        # Convert focus string to enum if provided
-        grammar_focus = GrammarFocus(focus) if focus else None
+        # Convert tuples to lists
+        focus_list = list(focus) if focus else None
+        tenses_list = list(tenses) if tenses else None
 
-        await get_random_problem(
-            focus=grammar_focus,
+        await get_random_grammar_problem(
+            grammatical_focus=focus_list,
+            tenses_used=tenses_list,
             display=not output_json,
             detailed=detailed,
             service_url=service_url,
@@ -212,7 +226,7 @@ async def problem_random(
         )
 
     except Exception as ex:
-        click.echo(f"❌ Error fetching random problem: {ex}")
+        click.echo(f"❌ Error fetching random grammar problem: {ex}")
 
 
 @problem.command("generate")

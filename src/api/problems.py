@@ -15,7 +15,6 @@ from src.api.models.problems import (
 )
 from src.core.auth import get_current_api_key
 from src.core.dependencies import get_problem_service
-from src.schemas.problems import GrammarFocus, ProblemFilters
 from src.services.problem_service import ProblemService
 from src.services.queue_service import QueueService
 
@@ -44,26 +43,30 @@ async def get_queue_service() -> AsyncGenerator[QueueService, None]:
 
 
 @router.get(
-    "/random",
+    "/grammar/random",
     response_model=ProblemResponse,
-    summary="Get random problem from database",
+    summary="Get random grammar problem from database",
     description="""
-    Retrieve a random problem from the database.
+    Retrieve a random grammar problem from the database.
 
-    This endpoint fetches an existing problem from the database, providing:
+    This endpoint fetches an existing grammar problem from the database, providing:
     - Fast Response: No AI generation delay
     - Consistent Problems: Previously generated and stored problems
     - Multiple Choice: Complete problem with all statements and correct answer
+    - Type-Specific Filtering: Filter by grammatical focus and tenses
 
     Query Parameters:
-    - focus: Filter by grammar focus area (conjugation or pronouns)
+    - grammatical_focus: Filter by focus areas (e.g., conjugation, pronouns). Can specify multiple.
+    - tenses_used: Filter by tenses (e.g., futur_simple, imparfait). Can specify multiple.
+    - topic_tags: Filter by topic tags. Can specify multiple.
+    - target_language_code: Filter by target language code
     - include_metadata: Include source_statement_ids and metadata in response (default: false)
 
     Required Permission: read, write, or admin
     """,
     responses={
         200: {
-            "description": "Random problem retrieved successfully",
+            "description": "Random grammar problem retrieved successfully",
             "content": {
                 "application/json": {
                     "example": {
@@ -93,14 +96,14 @@ async def get_queue_service() -> AsyncGenerator[QueueService, None]:
             },
         },
         404: {
-            "description": "No problems available in database",
+            "description": "No grammar problems available matching filters",
             "content": {
                 "application/json": {
                     "example": {
                         "error": True,
-                        "message": "No problems available",
+                        "message": "No problems available with specified filters",
                         "status_code": 404,
-                        "path": "/api/v1/problems/random",
+                        "path": "/api/v1/problems/grammar/random",
                     }
                 }
             },
@@ -108,39 +111,59 @@ async def get_queue_service() -> AsyncGenerator[QueueService, None]:
     },
 )
 @limiter.limit("100/minute")
-async def get_random_problem(
+async def get_random_grammar_problem(
     request: Request,
-    focus: GrammarFocus | None = Query(
-        None, description="Filter by grammar focus area (conjugation or pronouns)"
+    grammatical_focus: list[str] | None = Query(
+        None,
+        description="Filter by grammatical focus areas (e.g., conjugation, pronouns). Can specify multiple values.",
+    ),
+    tenses_used: list[str] | None = Query(
+        None,
+        description="Filter by tenses used (e.g., futur_simple, imparfait). Can specify multiple values.",
+    ),
+    topic_tags: list[str] | None = Query(
+        None, description="Filter by topic tags. Can specify multiple values."
+    ),
+    target_language_code: str | None = Query(
+        None, description="Filter by target language code (ISO 639-3)"
     ),
     include_metadata: bool = False,
     current_key: dict = Depends(get_current_api_key),
     service: ProblemService = Depends(get_problem_service),
 ) -> ProblemResponse:
     """
-    Get a random problem from the database.
+    Get a random grammar problem from the database.
 
-    Fetches a random existing problem without generating new content.
-    Optionally filter by grammar focus (conjugation or pronouns).
+    Fetches a random existing grammar problem without generating new content.
+    Supports filtering by grammatical focus areas and tenses used.
     """
     try:
-        # Build filters from query parameters
-        filters = ProblemFilters(focus=focus) if focus else None
-
-        # Get least recently served problem with optional filters
-        problem = await service.get_least_recently_served_problem(filters=filters)
+        # Get random grammar problem with filters
+        problem = await service.get_random_grammar_problem(
+            grammatical_focus=grammatical_focus,
+            tenses_used=tenses_used,
+            topic_tags=topic_tags,
+            target_language_code=target_language_code,
+        )
 
         if problem is None:
-            detail = "No problems available"
-            if focus:
-                detail = f"No problems available with focus '{focus.value}'"
+            detail = "No grammar problems available"
+            if grammatical_focus or tenses_used:
+                filters_desc = []
+                if grammatical_focus:
+                    filters_desc.append(f"focus: {', '.join(grammatical_focus)}")
+                if tenses_used:
+                    filters_desc.append(f"tenses: {', '.join(tenses_used)}")
+                detail = f"No grammar problems available with {', '.join(filters_desc)}"
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=detail,
             )
 
+        focus_str = ", ".join(grammatical_focus) if grammatical_focus else "any"
+        tenses_str = ", ".join(tenses_used) if tenses_used else "any"
         logger.info(
-            f"Retrieved LRU problem {problem.id} (focus={focus.value if focus else 'any'}) "
+            f"Retrieved grammar problem {problem.id} (focus={focus_str}, tenses={tenses_str}) "
             f"for API key {current_key.get('name', 'unknown')}"
         )
 
@@ -149,10 +172,12 @@ async def get_random_problem(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error getting random problem: {e}", exc_info=True)
+        logger.error(
+            f"Unexpected error getting random grammar problem: {e}", exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve random problem",
+            detail="Failed to retrieve random grammar problem",
         )
 
 
