@@ -441,14 +441,14 @@ class TestCLIProblemsRandomWithFocus:
         from src.cli.problems.create import get_random_grammar_problem
 
         result = await get_random_grammar_problem(
-            tenses_used=["futur_simple", "imparfait"], display=False
+            tenses_used=["future_simple", "imparfait"], display=False
         )
 
         assert result == sample_problem
         mock_service.get_random_grammar_problem.assert_called_once()
         call_kwargs = mock_service.get_random_grammar_problem.call_args.kwargs
         assert call_kwargs["grammatical_focus"] is None
-        assert call_kwargs["tenses_used"] == ["futur_simple", "imparfait"]
+        assert call_kwargs["tenses_used"] == ["future_simple", "imparfait"]
         assert call_kwargs["topic_tags"] is None
         assert call_kwargs["target_language_code"] is None
 

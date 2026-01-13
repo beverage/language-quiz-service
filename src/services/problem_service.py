@@ -725,7 +725,7 @@ class ProblemService:
 
         Args:
             grammatical_focus: Filter by focus areas (e.g., ["conjugation", "pronouns"])
-            tenses_used: Filter by tenses (e.g., ["futur_simple", "imparfait"])
+            tenses_used: Filter by tenses (e.g., ["future_simple", "imparfait"])
             topic_tags: Filter by topic tags
             target_language_code: Filter by target language code
 

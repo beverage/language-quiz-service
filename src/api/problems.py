@@ -57,7 +57,7 @@ async def get_queue_service() -> AsyncGenerator[QueueService, None]:
 
     Query Parameters:
     - grammatical_focus: Filter by focus areas (e.g., conjugation, pronouns). Can specify multiple.
-    - tenses_used: Filter by tenses (e.g., futur_simple, imparfait). Can specify multiple.
+    - tenses_used: Filter by tenses (e.g., future_simple, imparfait). Can specify multiple.
     - topic_tags: Filter by topic tags. Can specify multiple.
     - target_language_code: Filter by target language code
     - include_metadata: Include source_statement_ids and metadata in response (default: false)
@@ -119,7 +119,7 @@ async def get_random_grammar_problem(
     ),
     tenses_used: list[str] | None = Query(
         None,
-        description="Filter by tenses used (e.g., futur_simple, imparfait). Can specify multiple values.",
+        description="Filter by tenses used (e.g., future_simple, imparfait). Can specify multiple values.",
     ),
     topic_tags: list[str] | None = Query(
         None, description="Filter by topic tags. Can specify multiple values."

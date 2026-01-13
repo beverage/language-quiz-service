@@ -320,7 +320,7 @@ class ProblemFilters(BaseModel):
         None  # Filter by grammar focus areas (e.g., ["conjugation", "pronouns"])
     )
     tenses_used: list[str] | None = (
-        None  # Filter by tenses used (e.g., ["futur_simple", "imparfait"])
+        None  # Filter by tenses used (e.g., ["future_simple", "imparfait"])
     )
     topic_tags: list[str] | None = None
     target_language_code: str | None = None

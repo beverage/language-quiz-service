@@ -76,7 +76,7 @@ class GrammarProblemRandomRequest(BaseModel):
     )
     tenses_used: list[str] | None = Field(
         default=None,
-        description="Filter by tenses used (e.g., futur_simple, imparfait). Can specify multiple values.",
+        description="Filter by tenses used (e.g., future_simple, imparfait). Can specify multiple values.",
     )
     topic_tags: list[str] | None = Field(
         default=None,
@@ -98,7 +98,7 @@ class GrammarProblemRandomRequest(BaseModel):
             "examples": [
                 {
                     "grammatical_focus": ["conjugation", "pronouns"],
-                    "tenses_used": ["futur_simple", "imparfait"],
+                    "tenses_used": ["future_simple", "imparfait"],
                 },
                 {"grammatical_focus": ["conjugation"]},
                 {"tenses_used": ["present"]},

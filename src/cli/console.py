@@ -25,6 +25,7 @@ from src.cli.cloud.service import down as service_down
 from src.cli.cloud.service import up as service_up
 from src.cli.database.clear import clear_database
 from src.cli.database.init import init_verbs
+from src.cli.database.seed import seed_database
 from src.cli.database.wipe import wipe_database
 from src.cli.generation_requests.commands import (
     clean_requests as genreq_clean,
@@ -163,6 +164,7 @@ async def database():
 
 database.add_command(clear_database, name="clean")
 database.add_command(init_verbs, name="init")
+database.add_command(seed_database, name="seed")
 database.add_command(wipe_database, name="wipe")
 
 
@@ -188,7 +190,7 @@ async def problem_random_group():
 @click.option(
     "--tenses",
     multiple=True,
-    help="Filter by tenses used (e.g., futur_simple, imparfait). Can specify multiple.",
+    help="Filter by tenses used (e.g., future_simple, imparfait). Can specify multiple.",
 )
 @click.option(
     "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
