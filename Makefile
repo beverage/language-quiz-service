@@ -1,4 +1,4 @@
-.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev dev-monitored build deploy logs up down start-supabase setup dashboards-deploy dashboards-validate dashboards-export kafka-deploy kafka-logs kafka-status kafka-ssh
+.PHONY: help lint lint-check lint-fix lint-fix-unsafe format test serve dev dev-monitored build deploy logs up down start-supabase setup dashboards-deploy dashboards-validate dashboards-export kafka-deploy kafka-logs kafka-status kafka-ssh redis-deploy redis-logs redis-status redis-health redis-password redis-memory redis-security redis-restart redis-ssh redis-clean
 
 # Default target
 help:
@@ -46,6 +46,17 @@ help:
 	@echo "  kafka-status    - Show Kafka status (ENV=staging|production, default: staging)"
 	@echo "  kafka-ssh       - SSH into Kafka instance (ENV=staging|production, default: staging)"
 	@echo ""
+	@echo "Redis (Infrastructure):"
+	@echo "  redis-deploy    - Deploy Redis (ENV=staging|production, default: staging)"
+	@echo "  redis-logs      - Show Redis logs (ENV=staging|production, default: staging)"
+	@echo "  redis-status    - Show Redis status (ENV=staging|production, default: staging)"
+	@echo "  redis-health    - Check Redis health (ENV=staging|production, default: staging)"
+	@echo "  redis-password  - Set Redis password (ENV=staging|production, default: staging)"
+	@echo "  redis-memory    - Show Redis memory usage (ENV=staging|production, default: staging)"
+	@echo "  redis-security  - Verify Redis is not publicly accessible"
+	@echo "  redis-restart   - Restart Redis (ENV=staging|production, default: staging)"
+	@echo "  redis-ssh       - SSH into Redis instance (ENV=staging|production, default: staging)"
+	@echo ""
 	@echo "Examples:"
 	@echo "  make setup                 # First-time setup"
 	@echo "  make compose-up            # Start with docker-compose (recommended)"
@@ -55,6 +66,7 @@ help:
 	@echo "  make deploy ENV=staging    # Deploy to staging"
 	@echo "  make deploy ENV=production # Deploy to production"
 	@echo "  make kafka-deploy ENV=staging  # Deploy Kafka to staging"
+	@echo "  make redis-deploy ENV=staging  # Deploy Redis to staging"
 
 # Setup targets
 setup:
@@ -284,3 +296,74 @@ kafka-status:
 kafka-ssh:
 	@echo "SSH into Kafka $(ENV) instance..."
 	flyctl ssh console --app language-quiz-kafka-$(ENV)
+
+# Redis deployment targets (for rate limiting)
+redis-deploy:
+	@echo "Deploying Redis to $(ENV) environment..."
+	@if [ "$(ENV)" = "production" ]; then \
+		echo "⚠️  WARNING: Deploying Redis to PRODUCTION"; \
+		read -p "Are you sure? (yes/no): " confirm; \
+		if [ "$$confirm" != "yes" ]; then \
+			echo "Deployment cancelled."; \
+			exit 1; \
+		fi; \
+	fi
+	@echo "1️⃣ Deploying application with flycast networking..."
+	cd infra/redis/$(ENV) && flyctl deploy --flycast -c fly.toml
+	@echo "✅ Redis deployment complete!"
+	@echo "📝 Remember to set the Redis password with: make redis-password ENV=$(ENV)"
+
+redis-logs:
+	@echo "Showing Redis $(ENV) logs..."
+	flyctl logs -c infra/redis/$(ENV)/fly.toml
+
+redis-status:
+	@echo "Checking Redis $(ENV) status..."
+	flyctl status -c infra/redis/$(ENV)/fly.toml
+
+redis-health:
+	@echo "🏥 Redis Health Check ($(ENV))..."
+	flyctl ssh console -c infra/redis/$(ENV)/fly.toml --command "redis-cli -a \$$REDIS_PASSWORD --no-auth-warning PING" && echo "✅ Redis is healthy!"
+
+redis-password:
+	@echo "🔐 Setting new Redis password for $(ENV)..."
+	@NEW_PASSWORD=$$(openssl rand -base64 32); \
+	flyctl secrets set REDIS_PASSWORD="$$NEW_PASSWORD" -c infra/redis/$(ENV)/fly.toml; \
+	echo "✅ Password set! Save this password:"; \
+	echo "$$NEW_PASSWORD"; \
+	echo ""; \
+	echo "Add to your application's secrets:"; \
+	echo "  flyctl secrets set REDIS_HOST=lqs-redis-$(ENV).flycast \\"; \
+	echo "                     REDIS_PORT=6379 \\"; \
+	echo "                     REDIS_PASSWORD='$$NEW_PASSWORD' \\"; \
+	echo "                     -a language-quiz-app-$(ENV)"
+
+redis-memory:
+	@echo "💾 Redis Memory Usage ($(ENV))..."
+	flyctl ssh console -c infra/redis/$(ENV)/fly.toml --command "redis-cli -a \$$REDIS_PASSWORD --no-auth-warning INFO memory"
+
+redis-security:
+	@echo "🔒 Verifying Redis is not publicly accessible..."
+	@bash infra/redis/verify-redis-security.sh
+
+redis-restart:
+	@echo "🔄 Restarting Redis ($(ENV))..."
+	flyctl apps restart lqs-redis-$(ENV)
+
+redis-ssh:
+	@echo "SSH into Redis $(ENV) instance..."
+	flyctl ssh console -c infra/redis/$(ENV)/fly.toml
+
+redis-clean:
+	@if [ "$(ENV)" = "production" ]; then \
+		echo "❌ Cannot clean production Redis (FLUSHALL is disabled)"; \
+		exit 1; \
+	fi
+	@echo "🧹 Clearing all data in $(ENV) Redis..."
+	@read -p "⚠️  This will delete all data. Continue? (y/N): " confirm; \
+	if [ "$$confirm" = "y" ]; then \
+		flyctl ssh console -c infra/redis/$(ENV)/fly.toml --command "redis-cli -a \$$REDIS_PASSWORD --no-auth-warning FLUSHALL"; \
+		echo "✅ Redis cleared!"; \
+	else \
+		echo "Cancelled."; \
+	fi

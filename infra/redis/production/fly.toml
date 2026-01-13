@@ -1,0 +1,42 @@
+# Redis Rate Limiting - Production Configuration
+# Language Quiz Service
+app = "language-quiz-redis-production"
+primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ENVIRONMENT = "production"
+
+# Flycast network configuration - completely private
+[experimental]
+  flycast = true
+
+# Internal services - accessible to other Fly.io apps via .flycast hostname
+[[services]]
+  internal_port = 6379
+  protocol = "tcp"
+  processes = ["app"]
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  
+  [[services.ports]]
+    port = 6379
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
+  
+[deploy]
+  strategy = "immediate"
+
+[processes]
+  app = "/start-redis.sh"
+
+# Enable metrics collection
+[metrics]
+  port = 9091
+  path = "/metrics"

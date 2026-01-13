@@ -1,0 +1,49 @@
+# fly.toml app configuration file generated for language-quiz-redis-staging on 2026-01-13T15:45:07+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'language-quiz-redis-staging'
+primary_region = 'ams'
+
+[experimental]
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[deploy]
+  strategy = 'immediate'
+
+[env]
+  ENVIRONMENT = 'staging'
+
+[processes]
+  app = '/start-redis.sh'
+
+[http_service]
+  internal_port = 6379
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 6379
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  [[services.ports]]
+    port = 6379
+
+[[vm]]
+  memory = '256mb'
+  cpus = 1
+  memory_mb = 256
+
+[[metrics]]
+  port = 9091
+  path = '/metrics'

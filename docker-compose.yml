@@ -1,4 +1,24 @@
 services:
+  # Redis for rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: redis-local
+    networks:
+      - observability
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=dev_password_123
+    command: redis-server --requirepass dev_password_123 --maxmemory 64mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "dev_password_123", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
   # Language Quiz Service - FastAPI app with OpenTelemetry
   app:
     build:
@@ -33,6 +53,10 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       # Worker configuration - Number of concurrent Kafka consumers (max 10 due to topic partition count)
       - WORKER_COUNT=2
+      # Redis configuration (for rate limiting)
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=dev_password_123
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
       interval: 30s
@@ -40,6 +64,8 @@ services:
       retries: 3
       start_period: 10s
     depends_on:
+      redis:
+        condition: service_healthy
       kafka:
         condition: service_healthy
       otel-collector:
@@ -148,6 +174,20 @@ services:
         condition: service_healthy
     restart: "no"  # Only run once per docker compose up
 
+  # Redis CLI for debugging (optional)
+  redis-cli:
+    image: redis:7-alpine
+    container_name: redis-cli-local
+    networks:
+      - observability
+    depends_on:
+      - redis
+    environment:
+      - REDISCLI_AUTH=dev_password_123
+    command: ["redis-cli", "-h", "redis", "-p", "6379"]
+    profiles:
+      - debug
+
 networks:
   supabase_network:
     external: true
@@ -156,6 +196,7 @@ networks:
     driver: bridge
 
 volumes:
+  redis-data:
   prometheus-data:
   grafana-data:
   kafka-data:
