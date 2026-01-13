@@ -162,11 +162,12 @@ from .core.exceptions import (  # noqa: E402
 
 settings = get_settings()
 
-# Configure rate limiter
+# Configure rate limiter with Redis or in-memory storage
+_rate_limit_storage = settings.redis_url or "memory://"
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[f"{settings.rate_limit_requests}/minute"],
-    storage_uri="memory://",
+    storage_uri=_rate_limit_storage,
 )
 
 
@@ -174,7 +175,10 @@ limiter = Limiter(
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info("🚀 Starting Language Quiz Service...")
-    logger.info(f"📊 Rate limiting: {settings.rate_limit_requests} requests/minute")
+    rate_limit_storage = "Redis" if settings.redis_url else "in-memory"
+    logger.info(
+        f"📊 Rate limiting: {settings.rate_limit_requests} requests/minute ({rate_limit_storage})"
+    )
     logger.info(f"🌐 Environment: {settings.environment}")
 
     # Initialize in-memory caches

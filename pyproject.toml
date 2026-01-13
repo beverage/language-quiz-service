@@ -41,6 +41,7 @@ opentelemetry-instrumentation-httpx = ">=0.59b0"
 opentelemetry-instrumentation-asgi = ">=0.59b0"
 opentelemetry-semantic-conventions = ">=0.59b0"
 opentelemetry-util-http = ">=0.59b0"
+redis = "^7.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.2.2"

@@ -35,6 +35,28 @@ class Settings(BaseSettings):
         default=60, description="Rate limit window in seconds"
     )
 
+    # Redis (for rate limiting storage)
+    redis_host: str | None = Field(
+        default=None,
+        alias="REDIS_HOST",
+        description="Redis host (leave empty for in-memory rate limiting)",
+    )
+    redis_port: int = Field(
+        default=6379,
+        alias="REDIS_PORT",
+        description="Redis port",
+    )
+    redis_password: str | None = Field(
+        default=None,
+        alias="REDIS_PASSWORD",
+        description="Redis password",
+    )
+    redis_ssl: bool = Field(
+        default=False,
+        alias="REDIS_SSL",
+        description="Use SSL for Redis connection (use False for flycast internal network)",
+    )
+
     # Problem Selection
     virtual_staleness_days: float = Field(
         default=3.0,
@@ -118,6 +140,26 @@ class Settings(BaseSettings):
     def should_require_auth(self) -> bool:
         """Determine if authentication should be required."""
         return self.require_auth or self.is_production or self.is_staging
+
+    @property
+    def redis_url(self) -> str | None:
+        """
+        Build Redis URL for rate limiting storage.
+
+        Returns None if redis_host is not configured (use in-memory storage).
+        Uses rediss:// scheme for SSL connections, redis:// for non-SSL.
+        Password is URL-encoded to handle special characters like / and =.
+        """
+        if not self.redis_host:
+            return None
+
+        from urllib.parse import quote
+
+        scheme = "rediss" if self.redis_ssl else "redis"
+        if self.redis_password:
+            encoded_password = quote(self.redis_password, safe="")
+            return f"{scheme}://:{encoded_password}@{self.redis_host}:{self.redis_port}"
+        return f"{scheme}://{self.redis_host}:{self.redis_port}"
 
     @property
     def production_cors_origins(self) -> list[str]:
