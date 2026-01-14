@@ -66,7 +66,7 @@ def service_api_key(request) -> str:
 def auth_headers(service_api_key: str) -> dict[str, str]:
     """HTTP headers with API key authentication."""
     return {
-        "X-API-Key": service_api_key,
+        "Authorization": f"Bearer {service_api_key}",
         "Content-Type": "application/json",
     }
 

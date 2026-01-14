@@ -88,7 +88,7 @@ class TestVerbsAPIAuthentication:
 
     def test_invalid_api_key_rejected(self, auth_client: TestClient):
         """Test that invalid API keys are rejected."""
-        headers = {"X-API-Key": "invalid-key-12345"}
+        headers = {"Authorization": "Bearer invalid-key-12345"}
         response = auth_client.get(f"{VERBS_PREFIX}/random", headers=headers)
 
         assert response.status_code == 401

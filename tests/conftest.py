@@ -209,22 +209,22 @@ async def test_keys():
 @pytest.fixture
 def admin_headers(test_keys):
     """HTTP headers with admin API key for authenticated requests."""
-    return {"X-API-Key": test_keys["admin"]}
+    return {"Authorization": f"Bearer {test_keys['admin']}"}
 
 
 @pytest.fixture
 def write_headers(test_keys):
     """HTTP headers with write API key for authenticated requests."""
-    return {"X-API-Key": test_keys["write"]}
+    return {"Authorization": f"Bearer {test_keys['write']}"}
 
 
 @pytest.fixture
 def read_headers(test_keys):
     """HTTP headers with read-only API key for authenticated requests."""
-    return {"X-API-Key": test_keys["read"]}
+    return {"Authorization": f"Bearer {test_keys['read']}"}
 
 
 @pytest.fixture
 def inactive_headers(test_keys):
     """HTTP headers with inactive API key for testing auth failures."""
-    return {"X-API-Key": test_keys["inactive"]}
+    return {"Authorization": f"Bearer {test_keys['inactive']}"}

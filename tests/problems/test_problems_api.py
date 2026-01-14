@@ -73,7 +73,7 @@ class TestProblemsAPIAuthentication:
 
     def test_invalid_auth_header(self, auth_client: TestClient):
         """Test that requests with invalid auth headers are rejected."""
-        headers = {"X-API-Key": "invalid_key"}
+        headers = {"Authorization": "Bearer invalid_key"}
         response = auth_client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
         data = response.json()
@@ -87,7 +87,7 @@ class TestProblemsAPIAuthentication:
 
     def test_empty_auth_header(self, auth_client: TestClient):
         """Test that requests with empty auth headers are rejected."""
-        headers = {"X-API-Key": ""}
+        headers = {"Authorization": "Bearer "}
         response = auth_client.post(f"{PROBLEMS_PREFIX}/generate", headers=headers)
         assert response.status_code == 401
 

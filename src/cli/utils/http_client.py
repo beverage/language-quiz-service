@@ -92,12 +92,14 @@ async def make_api_request(
     url = f"{base_url}{endpoint}"
 
     headers = {
-        "X-API-Key": api_key,
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
 
     logger.debug(f"Making {method} request to {url}")
-    logger.debug(f"Headers: X-API-Key={api_key[:10]}..., Content-Type=application/json")
+    logger.debug(
+        f"Headers: Authorization=Bearer {api_key[:10]}..., Content-Type=application/json"
+    )
 
     async with httpx.AsyncClient() as client:
         try:

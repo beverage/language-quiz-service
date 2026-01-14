@@ -128,8 +128,11 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
             return path.startswith(("/health", "/metrics", "/"))
 
     def _extract_api_key(self, request: Request) -> str | None:
-        """Extract API key from X-API-Key header."""
-        return request.headers.get("X-API-Key")
+        """Extract API key from Authorization: Bearer header."""
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            return auth_header[7:]  # Strip "Bearer " prefix
+        return None
 
     def _get_client_ip(self, request: Request) -> str:
         """Extract the client IP address from the request."""

@@ -7,9 +7,10 @@ import os
 from uuid import UUID
 
 import asyncclick as click
-import httpx
 from rich.console import Console
 from rich.table import Table
+
+from src.cli.utils.http_client import make_api_request
 
 
 def get_api_key_from_env_or_flag(api_key_flag: str | None) -> str:
@@ -44,67 +45,6 @@ def get_api_base_url() -> str:
     """Get the API base URL from environment variable SERVICE_URL or default to localhost."""
     base_url = os.getenv("SERVICE_URL", "http://localhost:8000")
     return base_url
-
-
-async def make_api_request(
-    method: str,
-    endpoint: str,
-    api_key: str,
-    json_data: dict | None = None,
-    params: dict | None = None,
-) -> httpx.Response:
-    """
-    Make an authenticated API request.
-
-    Args:
-        method: HTTP method (GET, POST, etc.)
-        endpoint: API endpoint path
-        api_key: API key for authentication
-        json_data: JSON data for POST requests
-        params: Query parameters
-
-    Returns:
-        Response object
-
-    Raises:
-        click.ClickException: If request fails
-    """
-    base_url = get_api_base_url()
-    url = f"{base_url}{endpoint}"
-
-    headers = {
-        "X-API-Key": api_key,
-        "Content-Type": "application/json",
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                json=json_data,
-                params=params,
-                timeout=30.0,
-            )
-
-            # Check for HTTP errors
-            if response.status_code >= 400:
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("detail", f"HTTP {response.status_code}")
-                except (ValueError, Exception):
-                    error_msg = f"HTTP {response.status_code}: {response.text}"
-                raise click.ClickException(f"API request failed: {error_msg}")
-
-            return response
-
-        except httpx.RequestError as e:
-            raise click.ClickException(f"Network error connecting to {url}: {e}")
-        except httpx.TimeoutException:
-            raise click.ClickException(
-                f"Request timeout connecting to {url} - is the API server running?"
-            )
 
 
 @click.command()
@@ -156,8 +96,13 @@ async def create(
         request_data["allowed_ips"] = allowed_ips_list
 
     # Make API request
+    base_url = get_api_base_url()
     response = await make_api_request(
-        method="POST", endpoint="/api-keys/", api_key=auth_key, json_data=request_data
+        method="POST",
+        endpoint="/api-keys/",
+        base_url=base_url,
+        api_key=auth_key,
+        json_data=request_data,
     )
 
     # Display result
@@ -182,8 +127,9 @@ async def list_keys(output_json: bool, api_key: str | None):
     auth_key = get_api_key_from_env_or_flag(api_key)
 
     # Make API request
+    base_url = get_api_base_url()
     response = await make_api_request(
-        method="GET", endpoint="/api-keys/", api_key=auth_key
+        method="GET", endpoint="/api-keys/", base_url=base_url, api_key=auth_key
     )
 
     keys = response.json()
@@ -254,8 +200,12 @@ async def revoke(key_id: str, api_key: str | None):
         raise click.ClickException(f"Invalid UUID format: {key_id}")
 
     # Make API request
+    base_url = get_api_base_url()
     await make_api_request(
-        method="POST", endpoint=f"/api-keys/{key_id}/revoke", api_key=auth_key
+        method="POST",
+        endpoint=f"/api-keys/{key_id}/revoke",
+        base_url=base_url,
+        api_key=auth_key,
     )
 
     # Display result

@@ -6,7 +6,6 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from fastapi.security import HTTPBearer
 
 from src.api.models.api_keys import ApiKeyUpdateRequest
 from src.core.auth import get_current_api_key
@@ -32,7 +31,6 @@ API_PREFIX = "/api-keys"
 ROUTER_PREFIX = f"/api/v1{API_PREFIX}"
 
 router = APIRouter(prefix=API_PREFIX, tags=["API Keys"])
-security = HTTPBearer()
 
 
 @router.post(

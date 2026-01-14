@@ -1,5 +1,5 @@
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import asyncclick as click
 import httpx
@@ -11,9 +11,9 @@ from src.cli.api_keys.commands import (
     get_api_base_url,
     get_api_key_from_env_or_flag,
     list_keys,
-    make_api_request,
     revoke,
 )
+from src.cli.utils.http_client import make_api_request
 
 
 class TestAPIKeyHelpers:
@@ -60,12 +60,9 @@ class TestAPIKeyHelpers:
 class TestMakeAPIRequest:
     """Test the make_api_request function."""
 
-    @patch("src.cli.api_keys.commands.get_api_base_url")
     @patch("httpx.AsyncClient")
-    async def test_make_api_request_success(self, mock_client_class, mock_get_base_url):
+    async def test_make_api_request_success(self, mock_client_class):
         """Test successful API request."""
-        mock_get_base_url.return_value = "http://localhost:8000"
-
         # Mock the response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -80,6 +77,7 @@ class TestMakeAPIRequest:
         result = await make_api_request(
             method="GET",
             endpoint="/test",
+            base_url="http://localhost:8000",
             api_key="test_key",
             json_data={"test": "data"},
             params={"param": "value"},
@@ -90,7 +88,7 @@ class TestMakeAPIRequest:
             method="GET",
             url="http://localhost:8000/test",
             headers={
-                "X-API-Key": "test_key",
+                "Authorization": "Bearer test_key",
                 "Content-Type": "application/json",
             },
             json={"test": "data"},
@@ -100,14 +98,9 @@ class TestMakeAPIRequest:
 
         assert result == mock_response
 
-    @patch("src.cli.api_keys.commands.get_api_base_url")
     @patch("httpx.AsyncClient")
-    async def test_make_api_request_http_error(
-        self, mock_client_class, mock_get_base_url
-    ):
+    async def test_make_api_request_http_error(self, mock_client_class):
         """Test API request with HTTP error."""
-        mock_get_base_url.return_value = "http://localhost:8000"
-
         # Mock error response
         mock_response = MagicMock()
         mock_response.status_code = 400
@@ -118,42 +111,34 @@ class TestMakeAPIRequest:
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
         with pytest.raises(click.ClickException) as excinfo:
-            await make_api_request("GET", "/test", "test_key")
+            await make_api_request("GET", "/test", "http://localhost:8000", "test_key")
 
         assert "API request failed: Bad request" in str(excinfo.value)
 
-    @patch("src.cli.api_keys.commands.get_api_base_url")
     @patch("httpx.AsyncClient")
-    async def test_make_api_request_network_error(
-        self, mock_client_class, mock_get_base_url
-    ):
+    async def test_make_api_request_network_error(self, mock_client_class):
         """Test API request with network error."""
-        mock_get_base_url.return_value = "http://localhost:8000"
-
         mock_client = MagicMock()
         mock_client.request = AsyncMock(side_effect=httpx.RequestError("Network error"))
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
         with pytest.raises(click.ClickException) as excinfo:
-            await make_api_request("GET", "/test", "test_key")
+            await make_api_request("GET", "/test", "http://localhost:8000", "test_key")
 
         assert (
             "Network error connecting to http://localhost:8000/test: Network error"
             in str(excinfo.value)
         )
 
-    @patch("src.cli.api_keys.commands.get_api_base_url")
     @patch("httpx.AsyncClient")
-    async def test_make_api_request_timeout(self, mock_client_class, mock_get_base_url):
+    async def test_make_api_request_timeout(self, mock_client_class):
         """Test API request with timeout."""
-        mock_get_base_url.return_value = "http://localhost:8000"
-
         mock_client = MagicMock()
         mock_client.request = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
         with pytest.raises(click.ClickException) as excinfo:
-            await make_api_request("GET", "/test", "test_key")
+            await make_api_request("GET", "/test", "http://localhost:8000", "test_key")
 
         assert "Network error connecting to http://localhost:8000/test: Timeout" in str(
             excinfo.value
@@ -206,6 +191,7 @@ class TestCreateCommand:
         mock_make_request.assert_called_once_with(
             method="POST",
             endpoint="/api-keys/",
+            base_url=ANY,
             api_key="auth_key",
             json_data={
                 "name": "test-key",
@@ -256,6 +242,7 @@ class TestCreateCommand:
         mock_make_request.assert_called_once_with(
             method="POST",
             endpoint="/api-keys/",
+            base_url=ANY,
             api_key="auth_key",
             json_data={
                 "name": "test-key",
@@ -315,7 +302,7 @@ class TestListKeysCommand:
         assert output_data[0]["name"] == "test-key"
 
         mock_make_request.assert_called_once_with(
-            method="GET", endpoint="/api-keys/", api_key="auth_key"
+            method="GET", endpoint="/api-keys/", base_url=ANY, api_key="auth_key"
         )
 
     @patch("src.cli.api_keys.commands.make_api_request")
@@ -392,7 +379,10 @@ class TestRevokeCommand:
         assert f"API key {key_id} revoked successfully!" in result.output
 
         mock_make_request.assert_called_once_with(
-            method="POST", endpoint=f"/api-keys/{key_id}/revoke", api_key="auth_key"
+            method="POST",
+            endpoint=f"/api-keys/{key_id}/revoke",
+            base_url=ANY,
+            api_key="auth_key",
         )
 
     @pytest.mark.asyncio
