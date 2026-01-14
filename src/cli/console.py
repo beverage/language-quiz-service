@@ -14,6 +14,9 @@ from src.cli.api_keys.commands import (
 from src.cli.api_keys.commands import (
     revoke as api_keys_revoke,
 )
+from src.cli.api_keys.commands import (
+    update as api_keys_update,
+)
 from src.cli.cache.commands import (
     cache_stats,
     reload_cache,
@@ -438,6 +441,7 @@ async def api_keys():
 # Add API key commands to the group
 api_keys.add_command(api_keys_create, name="create")
 api_keys.add_command(api_keys_list, name="list")
+api_keys.add_command(api_keys_update, name="update")
 api_keys.add_command(api_keys_revoke, name="revoke")
 
 

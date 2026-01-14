@@ -587,6 +587,7 @@ async def update_api_key(
     Update an API key.
 
     Requires 'admin' permission to update keys.
+    Keys cannot modify themselves (self-modification protection).
     """
     # Check permissions
     permissions = current_key.get("permissions_scope", [])
@@ -596,6 +597,18 @@ async def update_api_key(
             detail="Admin permission required to update API keys",
         )
 
+    # Prevent self-modification
+    current_key_id = current_key.get("id")
+    if current_key_id and str(current_key_id) == str(api_key_id):
+        logger.warning(
+            f"Self-modification attempt blocked: key {current_key.get('name')} "
+            f"({current_key_id}) tried to modify itself"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API keys cannot modify themselves. Use a different admin key.",
+        )
+
     update_data = api_key_data.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(
@@ -603,9 +616,38 @@ async def update_api_key(
             detail="No update data provided",
         )
 
+    # Log sensitive changes with extra detail
+    sensitive_fields = {
+        "permissions_scope",
+        "is_active",
+        "allowed_ips",
+        "rate_limit_rpm",
+    }
+    changed_sensitive = sensitive_fields.intersection(update_data.keys())
+    if changed_sensitive:
+        logger.info(
+            f"🔐 Sensitive API key update: {api_key_id} by {current_key.get('name')} "
+            f"({current_key_id}). Fields: {changed_sensitive}",
+            extra={
+                "target_key_id": str(api_key_id),
+                "actor_key_id": str(current_key_id),
+                "actor_key_name": current_key.get("name"),
+                "sensitive_fields": list(changed_sensitive),
+                "update_data": {
+                    k: v for k, v in update_data.items() if k in changed_sensitive
+                },
+            },
+        )
+
     try:
         update_schema = ApiKeyUpdate(**update_data)
-        return await service.update_api_key(api_key_id, update_schema)
+        result = await service.update_api_key(api_key_id, update_schema)
+
+        logger.info(
+            f"API key updated: {result.name} ({api_key_id}) by {current_key.get('name')}"
+        )
+
+        return result
     except NotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except (RepositoryError, ServiceError) as e:
@@ -629,6 +671,7 @@ async def revoke_api_key(
     Revoke (deactivate) an API key.
 
     Requires 'admin' permission.
+    Keys cannot revoke themselves (self-revocation protection).
     """
     # Check permissions
     permissions = current_key.get("permissions_scope", [])
@@ -636,6 +679,18 @@ async def revoke_api_key(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin permission required to revoke API keys",
+        )
+
+    # Prevent self-revocation
+    current_key_id = current_key.get("id")
+    if current_key_id and str(current_key_id) == str(api_key_id):
+        logger.warning(
+            f"Self-revocation attempt blocked: key {current_key.get('name')} "
+            f"({current_key_id}) tried to revoke itself"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API keys cannot revoke themselves. Use a different admin key.",
         )
 
     try:
@@ -649,7 +704,12 @@ async def revoke_api_key(
             )
 
         logger.info(
-            f"API key {api_key_id} revoked by {current_key.get('name', 'unknown')}"
+            f"🔐 API key revoked: {api_key_id} by {current_key.get('name')} ({current_key_id})",
+            extra={
+                "target_key_id": str(api_key_id),
+                "actor_key_id": str(current_key_id),
+                "actor_key_name": current_key.get("name"),
+            },
         )
         return {"message": f"API key {api_key_id} has been revoked."}
 
