@@ -1,8 +1,8 @@
-"""In-memory cache for conjugations."""
+"""Redis-backed cache for conjugations."""
 
-import asyncio
 import logging
 
+import redis.asyncio as aioredis
 from opentelemetry import trace
 
 from src.schemas.verbs import Conjugation, Tense
@@ -13,97 +13,109 @@ tracer = trace.get_tracer(__name__)
 
 class ConjugationCache:
     """
-    In-memory cache for conjugations.
+    Redis-backed cache for conjugations.
 
-    Indexed by (infinitive, auxiliary, reflexive, tense) for fast lookup.
-    Also provides bulk lookup by verb.
+    Uses Redis for:
+    - Primary index: conj:{infinitive}:{auxiliary}:{reflexive}:{tense} -> Conjugation JSON
+    - Verb set: conj:verb:{infinitive}:{auxiliary}:{reflexive} -> Set of tense values
+
+    This is a thin wrapper around Redis - no in-memory state is kept.
+    Create instances as needed via dependency injection.
+
+    Args:
+        redis_client: The Redis client to use for storage.
+        namespace: Optional namespace prefix for key isolation (useful for testing).
     """
 
-    def __init__(self):
-        # Index: (infinitive, auxiliary, reflexive, tense) -> Conjugation
-        self._conjugations: dict[tuple[str, str, bool, str], Conjugation] = {}
+    BASE_PREFIX = "conj"
 
-        # Index: (infinitive, auxiliary, reflexive) -> list[Conjugation]
-        self._by_verb: dict[tuple[str, str, bool], list[Conjugation]] = {}
-
+    def __init__(self, redis_client: aioredis.Redis, namespace: str = ""):
+        self._redis = redis_client
         self._loaded = False
-        self._lock = asyncio.Lock()
+        self._namespace = namespace
+        self.PREFIX = f"{namespace}{self.BASE_PREFIX}" if namespace else self.BASE_PREFIX
 
-        # Metrics
+        # Metrics (per-instance, mainly for debugging)
         self._hits = 0
         self._misses = 0
+        self._conjugation_count = 0
+        self._verb_count = 0
 
-    async def load(self, repository):
-        """Load all conjugations into cache at startup."""
+    def _conj_key(
+        self, infinitive: str, auxiliary: str, reflexive: bool, tense: str
+    ) -> str:
+        """Key for conjugation lookup."""
+        return f"{self.PREFIX}:{infinitive}:{auxiliary}:{reflexive}:{tense}"
+
+    def _verb_set_key(self, infinitive: str, auxiliary: str, reflexive: bool) -> str:
+        """Key for set of tenses for a verb."""
+        return f"{self.PREFIX}:verb:{infinitive}:{auxiliary}:{reflexive}"
+
+    async def load(self, repository) -> None:
+        """Load all conjugations into Redis cache at startup."""
         with tracer.start_as_current_span("conjugation_cache.load"):
-            async with self._lock:
-                # Duck typing: check for the methods we need instead of isinstance
-                if not hasattr(repository, "get_all_conjugations"):
-                    raise TypeError("Repository must have get_all_conjugations method")
+            if not hasattr(repository, "get_all_conjugations"):
+                raise TypeError("Repository must have get_all_conjugations method")
 
-                logger.info("Loading conjugations into cache...")
+            logger.info("Loading conjugations into Redis cache...")
 
-                # Fetch all conjugations in a single query (avoids N+1 problem)
-                conjugations = await repository.get_all_conjugations(limit=10000)
+            # Fetch all conjugations in a single query
+            conjugations = await repository.get_all_conjugations(limit=10000)
 
-                self._conjugations.clear()
-                self._by_verb.clear()
+            # Clear existing conjugation keys
+            await self._clear_cache()
 
-                for conj in conjugations:
-                    self._add_conjugation_to_indexes(conj)
+            # Track unique verbs
+            verbs = set()
 
-                self._loaded = True
-                logger.info(
-                    f"✅ Loaded {len(conjugations)} conjugations into cache "
-                    f"({len(self._by_verb)} unique verbs)"
+            # Use pipeline for batch operations
+            pipe = self._redis.pipeline()
+
+            for conj in conjugations:
+                key = self._conj_key(
+                    conj.infinitive,
+                    conj.auxiliary.value,
+                    conj.reflexive,
+                    conj.tense.value,
+                )
+                verb_set_key = self._verb_set_key(
+                    conj.infinitive, conj.auxiliary.value, conj.reflexive
                 )
 
-    def _add_conjugation_to_indexes(self, conjugation: Conjugation):
-        """Add a conjugation to all indexes (internal helper)."""
-        # Primary index
-        key = (
-            conjugation.infinitive,
-            conjugation.auxiliary.value,
-            conjugation.reflexive,
-            conjugation.tense.value,
-        )
-        self._conjugations[key] = conjugation
+                # Store conjugation JSON
+                pipe.set(key, conj.model_dump_json())
 
-        # Verb index
-        verb_key = (
-            conjugation.infinitive,
-            conjugation.auxiliary.value,
-            conjugation.reflexive,
-        )
-        if verb_key not in self._by_verb:
-            self._by_verb[verb_key] = []
+                # Add tense to verb's set
+                pipe.sadd(verb_set_key, conj.tense.value)
 
-        # Replace if already exists, otherwise append
-        existing = [c for c in self._by_verb[verb_key] if c.tense != conjugation.tense]
-        existing.append(conjugation)
-        self._by_verb[verb_key] = existing
+                verbs.add((conj.infinitive, conj.auxiliary.value, conj.reflexive))
 
-    def _remove_conjugation_from_indexes(self, conjugation: Conjugation):
-        """Remove a conjugation from all indexes (internal helper)."""
-        # Primary index
-        key = (
-            conjugation.infinitive,
-            conjugation.auxiliary.value,
-            conjugation.reflexive,
-            conjugation.tense.value,
-        )
-        self._conjugations.pop(key, None)
+            await pipe.execute()
 
-        # Verb index
-        verb_key = (
-            conjugation.infinitive,
-            conjugation.auxiliary.value,
-            conjugation.reflexive,
-        )
-        if verb_key in self._by_verb:
-            self._by_verb[verb_key] = [
-                c for c in self._by_verb[verb_key] if c.tense != conjugation.tense
-            ]
+            self._loaded = True
+            self._conjugation_count = len(conjugations)
+            self._verb_count = len(verbs)
+            logger.info(
+                f"✅ Loaded {len(conjugations)} conjugations into Redis cache "
+                f"({len(verbs)} unique verbs)"
+            )
+
+    async def _clear_cache(self) -> None:
+        """Clear all conjugation cache keys using SCAN (non-blocking)."""
+        cursor = 0
+        while True:
+            cursor, keys = await self._redis.scan(
+                cursor, match=f"{self.PREFIX}:*", count=100
+            )
+            if keys:
+                await self._redis.delete(*keys)
+            if cursor == 0:
+                break
+
+    async def is_loaded(self) -> bool:
+        """Check if cache has data by checking if any conjugation keys exist."""
+        cursor, keys = await self._redis.scan(0, match=f"{self.PREFIX}:*", count=1)
+        return len(keys) > 0
 
     async def get_conjugation(
         self,
@@ -113,17 +125,15 @@ class ConjugationCache:
         tense: Tense,
     ) -> Conjugation | None:
         """Get a specific conjugation from cache."""
-        if not self._loaded:
-            self._misses += 1
-            return None
+        key = self._conj_key(infinitive, auxiliary, reflexive, tense.value)
+        data = await self._redis.get(key)
 
-        key = (infinitive, auxiliary, reflexive, tense.value)
-        conj = self._conjugations.get(key)
-        if conj:
+        if data:
             self._hits += 1
-        else:
-            self._misses += 1
-        return conj
+            return Conjugation.model_validate_json(data)
+
+        self._misses += 1
+        return None
 
     async def get_conjugations_for_verb(
         self,
@@ -132,45 +142,81 @@ class ConjugationCache:
         reflexive: bool,
     ) -> list[Conjugation]:
         """Get all conjugations for a verb from cache."""
-        if not self._loaded:
+        verb_set_key = self._verb_set_key(infinitive, auxiliary, reflexive)
+
+        # Get all tenses for this verb
+        tenses = await self._redis.smembers(verb_set_key)
+        if not tenses:
             return []
 
-        verb_key = (infinitive, auxiliary, reflexive)
-        conjs = self._by_verb.get(verb_key, [])
-        if conjs:
+        # Fetch all conjugations in parallel using pipeline
+        pipe = self._redis.pipeline()
+        for tense in tenses:
+            key = self._conj_key(infinitive, auxiliary, reflexive, tense)
+            pipe.get(key)
+
+        results = await pipe.execute()
+
+        conjugations = []
+        for data in results:
+            if data:
+                conjugations.append(Conjugation.model_validate_json(data))
+
+        if conjugations:
             self._hits += 1
-        return conjs.copy()  # Return a copy to prevent external modification
 
-    async def refresh_conjugation(self, conjugation: Conjugation):
+        return conjugations
+
+    async def refresh_conjugation(self, conjugation: Conjugation) -> None:
         """Add or update a conjugation in the cache."""
-        async with self._lock:
-            # Remove old version if it exists
-            self._remove_conjugation_from_indexes(conjugation)
+        key = self._conj_key(
+            conjugation.infinitive,
+            conjugation.auxiliary.value,
+            conjugation.reflexive,
+            conjugation.tense.value,
+        )
+        verb_set_key = self._verb_set_key(
+            conjugation.infinitive, conjugation.auxiliary.value, conjugation.reflexive
+        )
 
-            # Add new version
-            self._add_conjugation_to_indexes(conjugation)
-            logger.debug(
-                f"Refreshed conjugation {conjugation.infinitive} "
-                f"({conjugation.tense.value}) in cache"
-            )
+        pipe = self._redis.pipeline()
+        pipe.set(key, conjugation.model_dump_json())
+        pipe.sadd(verb_set_key, conjugation.tense.value)
+        await pipe.execute()
+
+        logger.debug(
+            f"Refreshed conjugation {conjugation.infinitive} "
+            f"({conjugation.tense.value}) in cache"
+        )
 
     async def invalidate_verb_conjugations(
         self,
         infinitive: str,
         auxiliary: str,
         reflexive: bool,
-    ):
+    ) -> None:
         """Remove all conjugations for a verb from cache."""
-        async with self._lock:
-            verb_key = (infinitive, auxiliary, reflexive)
-            if verb_key in self._by_verb:
-                conjugations = self._by_verb[verb_key]
-                for conj in conjugations:
-                    self._remove_conjugation_from_indexes(conj)
-                logger.debug(f"Invalidated conjugations for {infinitive} from cache")
+        verb_set_key = self._verb_set_key(infinitive, auxiliary, reflexive)
 
-    async def reload(self, repository):
-        """Reload all conjugations from database (for NOTIFY/LISTEN)."""
+        # Get all tenses for this verb
+        tenses = await self._redis.smembers(verb_set_key)
+
+        if tenses:
+            pipe = self._redis.pipeline()
+
+            # Delete each conjugation
+            for tense in tenses:
+                key = self._conj_key(infinitive, auxiliary, reflexive, tense)
+                pipe.delete(key)
+
+            # Delete the verb set
+            pipe.delete(verb_set_key)
+
+            await pipe.execute()
+            logger.debug(f"Invalidated conjugations for {infinitive} from cache")
+
+    async def reload(self, repository) -> None:
+        """Reload all conjugations from database."""
         logger.info("Reloading conjugation cache from database...")
         await self.load(repository)
 
@@ -181,13 +227,9 @@ class ConjugationCache:
 
         return {
             "loaded": self._loaded,
-            "total_conjugations": len(self._conjugations),
-            "unique_verbs": len(self._by_verb),
+            "total_conjugations": self._conjugation_count,
+            "unique_verbs": self._verb_count,
             "hits": self._hits,
             "misses": self._misses,
             "hit_rate": f"{hit_rate:.2f}%",
         }
-
-
-# Global singleton instance
-conjugation_cache = ConjugationCache()

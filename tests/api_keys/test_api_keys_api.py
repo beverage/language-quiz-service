@@ -20,9 +20,9 @@ API_KEY_PREFIX = f"{ROUTER_PREFIX}{API_PREFIX}"
 
 
 @pytest.fixture
-def client():
-    """Create a test client for the FastAPI app."""
-    return TestClient(app)
+def client(test_client_with_lifespan):
+    """Provide a test client for the FastAPI app with lifespan run."""
+    return test_client_with_lifespan
 
 
 # Note: admin_headers, write_headers, read_headers, and inactive_headers

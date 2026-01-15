@@ -6,6 +6,7 @@ import os
 import subprocess
 
 import pytest
+import redis.asyncio as aioredis
 
 # Force reset of Settings after environment override
 # This is crucial for the FastAPI app to load with the correct test settings
@@ -98,6 +99,11 @@ def _setup_test_environment():
         "SUPABASE_API_URL": "http://127.0.0.1:54321",
         "SUPABASE_ANON_KEY": service_role_key,  # Use service key for anon key in tests
         "REQUIRE_AUTH": "true",  # Always require auth in tests
+        # Redis for cache tests (local docker-compose uses dev_password_123)
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379",
+        "REDIS_PASSWORD": "dev_password_123",
+        "REDIS_SSL": "false",
     }
 
     for key, value in test_env_vars.items():
@@ -108,6 +114,22 @@ def _setup_test_environment():
 _setup_test_environment()
 
 reset_settings()
+
+
+@pytest.fixture(autouse=True)
+def reset_supabase_singleton():
+    """Reset the Supabase singleton before each test.
+
+    This prevents 'Event loop is closed' errors when tests use the module-level
+    singleton which may be bound to a closed event loop from a previous test.
+    """
+    import src.clients.supabase as supabase_module
+
+    # Clear the singleton before each test
+    supabase_module._supabase_client = None
+    yield
+    # Clear again after test to ensure clean state
+    supabase_module._supabase_client = None
 
 
 @pytest.fixture
@@ -122,6 +144,37 @@ async def test_supabase_client() -> Client:
         )
 
     return await create_test_supabase_client(supabase_url, service_role_key)
+
+
+@pytest.fixture
+def app_with_state():
+    """Provide app with TestClient that runs lifespan handlers.
+
+    By using TestClient as a context manager, the lifespan handlers
+    are properly executed, setting up app.state.supabase and app.state.redis.
+    """
+    from fastapi.testclient import TestClient
+
+    from src.main import app
+
+    # Use TestClient as context manager to run lifespan handlers
+    with TestClient(app) as client:
+        # The lifespan handler has now run and set up app.state
+        yield app
+
+
+@pytest.fixture
+def test_client_with_lifespan():
+    """Provide a TestClient that runs lifespan handlers.
+
+    Use this when you need the actual TestClient, not just the app.
+    """
+    from fastapi.testclient import TestClient
+
+    from src.main import app
+
+    with TestClient(app) as client:
+        yield client
 
 
 @pytest.fixture(scope="session")
@@ -228,3 +281,62 @@ def read_headers(test_keys):
 def inactive_headers(test_keys):
     """HTTP headers with inactive API key for testing auth failures."""
     return {"Authorization": f"Bearer {test_keys['inactive']}"}
+
+
+@pytest.fixture
+async def redis_client(request):
+    """Fixture to provide a Redis client with isolated namespace for cache tests.
+
+    Uses local Redis from docker-compose (localhost:6379).
+    Each test gets a unique namespace to prevent interference when running in parallel.
+    Cleans up only this test's keys before and after.
+    """
+    import uuid
+
+    from src.core.config import get_settings
+
+    settings = get_settings()
+
+    if not settings.redis_url:
+        pytest.skip("Redis not configured - set REDIS_HOST to run cache tests")
+
+    client = aioredis.from_url(settings.redis_url, decode_responses=True)
+
+    # Generate unique namespace for this test
+    test_id = uuid.uuid4().hex[:8]
+    namespace = f"test_{test_id}:"
+
+    # Store namespace on client for access by other fixtures
+    client._test_namespace = namespace
+
+    # Clean up any leftover keys from this namespace (shouldn't exist, but just in case)
+    for base_prefix in ["verb", "conj", "apikey"]:
+        prefix = f"{namespace}{base_prefix}:*"
+        cursor = 0
+        while True:
+            cursor, keys = await client.scan(cursor, match=prefix, count=100)
+            if keys:
+                await client.delete(*keys)
+            if cursor == 0:
+                break
+
+    yield client
+
+    # Clean up this test's keys after test
+    for base_prefix in ["verb", "conj", "apikey"]:
+        prefix = f"{namespace}{base_prefix}:*"
+        cursor = 0
+        while True:
+            cursor, keys = await client.scan(cursor, match=prefix, count=100)
+            if keys:
+                await client.delete(*keys)
+            if cursor == 0:
+                break
+
+    await client.aclose()
+
+
+@pytest.fixture
+def redis_namespace(redis_client) -> str:
+    """Get the unique namespace for this test's Redis keys."""
+    return redis_client._test_namespace

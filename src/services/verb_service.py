@@ -8,7 +8,8 @@ from uuid import UUID
 from opentelemetry import trace
 from pydantic import ValidationError
 
-from src.cache import conjugation_cache, verb_cache
+from src.cache.conjugation_cache import ConjugationCache
+from src.cache.verb_cache import VerbCache
 from src.clients.abstract_llm_client import AbstractLLMClient
 from src.core.config import settings
 from src.core.exceptions import ContentGenerationError
@@ -35,16 +36,22 @@ class VerbService:
         self,
         llm_client: AbstractLLMClient,
         verb_repository: VerbRepository | None = None,
+        verb_cache: VerbCache | None = None,
+        conjugation_cache: ConjugationCache | None = None,
     ):
         """Initialize the verb service with injectable dependencies.
 
         Args:
             llm_client: Required LLM client for AI operations.
             verb_repository: Optional repository (can be set later for lazy init).
+            verb_cache: Optional VerbCache for caching verbs.
+            conjugation_cache: Optional ConjugationCache for caching conjugations.
         """
         self.llm_client: AbstractLLMClient = llm_client
         self.verb_prompt_generator: VerbPromptGenerator = VerbPromptGenerator()
         self.verb_repository: VerbRepository | None = verb_repository
+        self.verb_cache: VerbCache | None = verb_cache
+        self.conjugation_cache: ConjugationCache | None = conjugation_cache
 
     def set_repository(self, verb_repository: VerbRepository) -> None:
         """Set the verb repository (for cases requiring lazy initialization)."""
@@ -66,7 +73,8 @@ class VerbService:
         verb = await repo.create_verb(verb_data)
 
         # Refresh cache with new verb
-        await verb_cache.refresh_verb(verb)
+        if self.verb_cache:
+            await self.verb_cache.refresh_verb(verb)
 
         return verb
 
@@ -90,12 +98,14 @@ class VerbService:
 
         if success:
             # Invalidate caches
-            await verb_cache.invalidate_verb(verb_id)
-            await conjugation_cache.invalidate_verb_conjugations(
-                verb.infinitive,
-                verb.auxiliary.value,
-                verb.reflexive,
-            )
+            if self.verb_cache:
+                await self.verb_cache.invalidate_verb(verb_id)
+            if self.conjugation_cache:
+                await self.conjugation_cache.invalidate_verb_conjugations(
+                    verb.infinitive,
+                    verb.auxiliary.value,
+                    verb.reflexive,
+                )
 
         return success
 
@@ -121,7 +131,10 @@ class VerbService:
             requires_cod: If True, only return verbs that can have direct objects
             requires_coi: If True, only return verbs that can have indirect objects
         """
-        verb = await verb_cache.get_random_verb(
+        if not self.verb_cache:
+            return None
+
+        verb = await self.verb_cache.get_random_verb(
             target_language_code,
             requires_cod=requires_cod,
             requires_coi=requires_coi,
@@ -142,17 +155,18 @@ class VerbService:
     async def get_verb(self, verb_id: UUID) -> Verb | None:
         """Get a verb by ID."""
         # Try cache first
-        verb = await verb_cache.get_by_id(verb_id)
-        if verb:
-            return verb
+        if self.verb_cache:
+            verb = await self.verb_cache.get_by_id(verb_id)
+            if verb:
+                return verb
 
         # Cache miss - fetch from database
         repo = self._get_verb_repository()
         verb = await repo.get_verb(verb_id)
 
         # Warm cache for next time
-        if verb:
-            await verb_cache.refresh_verb(verb)
+        if verb and self.verb_cache:
+            await self.verb_cache.refresh_verb(verb)
 
         return verb
 
@@ -166,41 +180,20 @@ class VerbService:
         """
         Get a verb by infinitive and optional parameters.
 
-        The infinitive should include "se " prefix for reflexive verbs (e.g., "se coucher").
-        Additional parameters (auxiliary, reflexive) can be used for exact matching if needed.
+        Queries the database directly since this is not on the hot path
+        (only used by non-public admin endpoints).
         """
         with tracer.start_as_current_span(
             "verb_service.get_verb_by_infinitive",
             attributes={"infinitive": infinitive},
         ):
-            # Try cache first with simple infinitive lookup
-            verb = await verb_cache.get_by_infinitive_simple(
-                infinitive, target_language_code
-            )
-            if verb:
-                # If we have additional filters, verify they match
-                if auxiliary is not None and verb.auxiliary.value != auxiliary:
-                    verb = None
-                elif reflexive is not None and verb.reflexive != reflexive:
-                    verb = None
-
-                if verb:
-                    return verb
-
-            # Cache miss or filter mismatch - fetch from database
             repo = self._get_verb_repository()
-            verb = await repo.get_verb_by_infinitive(
+            return await repo.get_verb_by_infinitive(
                 infinitive=infinitive,
                 auxiliary=auxiliary,
                 reflexive=reflexive,
                 target_language_code=target_language_code,
             )
-
-            # Warm cache for next time
-            if verb:
-                await verb_cache.refresh_verb(verb)
-
-            return verb
 
     async def get_verbs_by_infinitive(self, infinitive: str) -> list[Verb]:
         """Get all verb variants with the same infinitive."""
@@ -213,8 +206,8 @@ class VerbService:
         verb = await repo.update_verb(verb_id, verb_data)
 
         # Refresh cache with updated verb
-        if verb:
-            await verb_cache.refresh_verb(verb)
+        if verb and self.verb_cache:
+            await self.verb_cache.refresh_verb(verb)
 
         return verb
 
@@ -226,7 +219,8 @@ class VerbService:
         conj = await repo.create_conjugation(conjugation)
 
         # Refresh cache with new conjugation
-        await conjugation_cache.refresh_conjugation(conj)
+        if self.conjugation_cache:
+            await self.conjugation_cache.refresh_conjugation(conj)
 
         return conj
 
@@ -235,11 +229,12 @@ class VerbService:
     ) -> list[Conjugation]:
         """Get all conjugations for a verb."""
         # Try cache first
-        conjugations = await conjugation_cache.get_conjugations_for_verb(
-            infinitive, auxiliary, reflexive
-        )
-        if conjugations:
-            return conjugations
+        if self.conjugation_cache:
+            conjugations = await self.conjugation_cache.get_conjugations_for_verb(
+                infinitive, auxiliary, reflexive
+            )
+            if conjugations:
+                return conjugations
 
         # Cache miss - fetch from database
         repo = self._get_verb_repository()
@@ -248,8 +243,9 @@ class VerbService:
         )
 
         # Warm cache for next time
-        for conj in conjugations:
-            await conjugation_cache.refresh_conjugation(conj)
+        if self.conjugation_cache:
+            for conj in conjugations:
+                await self.conjugation_cache.refresh_conjugation(conj)
 
         return conjugations
 
@@ -285,8 +281,8 @@ class VerbService:
         )
 
         # Refresh cache with updated conjugation
-        if conj:
-            await conjugation_cache.refresh_conjugation(conj)
+        if conj and self.conjugation_cache:
+            await self.conjugation_cache.refresh_conjugation(conj)
 
         return conj
 
@@ -477,7 +473,8 @@ class VerbService:
                 await self._process_conjugations(verb, verb_payload.tenses, repo)
 
             # Refresh cache with updated verb data
-            await verb_cache.refresh_verb(verb)
+            if self.verb_cache:
+                await self.verb_cache.refresh_verb(verb)
 
             return verb
 
@@ -584,7 +581,8 @@ class VerbService:
                 logger.warning(f"No tenses returned by LLM for {infinitive}")
 
             # Refresh verb cache to ensure updated last_used_at and any other metadata
-            await verb_cache.refresh_verb(verb)
+            if self.verb_cache:
+                await self.verb_cache.refresh_verb(verb)
 
             # Fetch and return the verb with all conjugations
             conjugations = await self.get_conjugations(
@@ -620,4 +618,5 @@ class VerbService:
             conj = await repo.upsert_conjugation(conj_create)
 
             # Refresh cache with new/updated conjugation
-            await conjugation_cache.refresh_conjugation(conj)
+            if self.conjugation_cache:
+                await self.conjugation_cache.refresh_conjugation(conj)

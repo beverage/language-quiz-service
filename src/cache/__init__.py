@@ -1,14 +1,15 @@
-"""Cache module for in-memory data caching."""
+"""Cache module for Redis-backed data caching.
 
-from src.cache.api_key_cache import ApiKeyCache, api_key_cache
-from src.cache.conjugation_cache import ConjugationCache, conjugation_cache
-from src.cache.verb_cache import VerbCache, verb_cache
+All cache classes require a Redis client to be passed in the constructor.
+Use FastAPI dependencies (src.core.dependencies) to get cache instances.
+"""
+
+from src.cache.api_key_cache import ApiKeyCache
+from src.cache.conjugation_cache import ConjugationCache
+from src.cache.verb_cache import VerbCache
 
 __all__ = [
     "VerbCache",
-    "verb_cache",
     "ConjugationCache",
-    "conjugation_cache",
     "ApiKeyCache",
-    "api_key_cache",
 ]

@@ -1,9 +1,10 @@
-"""In-memory cache for verbs with multiple access patterns."""
+"""Redis-backed cache for verbs with multiple access patterns."""
 
-import asyncio
 import logging
+import random
 from uuid import UUID
 
+import redis.asyncio as aioredis
 from opentelemetry import trace
 
 from src.schemas.verbs import Verb
@@ -14,167 +15,123 @@ tracer = trace.get_tracer(__name__)
 
 class VerbCache:
     """
-    In-memory cache for verbs with multiple indexes for different access patterns.
+    Redis-backed cache for verbs with multiple indexes for different access patterns.
 
-    Thread-safe using asyncio.Lock for concurrent access.
+    Uses Redis for:
+    - Primary index: verb:{id} -> verb JSON
+    - Language sets: verb:lang:{code}:all -> Set of verb IDs (non-test only)
+    - COD filter: verb:lang:{code}:cod -> Set of verb IDs that can have COD
+    - COI filter: verb:lang:{code}:coi -> Set of verb IDs that can have COI
+
+    This is a thin wrapper around Redis - no in-memory state is kept.
+    Create instances as needed via dependency injection.
+
+    Args:
+        redis_client: The Redis client to use for storage.
+        namespace: Optional namespace prefix for key isolation (useful for testing).
     """
 
-    def __init__(self):
-        # Primary index: by UUID
-        self._verbs_by_id: dict[UUID, Verb] = {}
+    BASE_PREFIX = "verb"
 
-        # Secondary index: by (infinitive, auxiliary, reflexive, target_language_code)
-        self._verbs_by_key: dict[tuple[str, str, bool, str], Verb] = {}
-
-        # Index for random selection: by target_language_code
-        self._verbs_by_language: dict[str, list[Verb]] = {}
-
+    def __init__(self, redis_client: aioredis.Redis, namespace: str = ""):
+        self._redis = redis_client
         self._loaded = False
-        self._lock = asyncio.Lock()
+        self._namespace = namespace
+        self.PREFIX = f"{namespace}{self.BASE_PREFIX}" if namespace else self.BASE_PREFIX
 
-        # Metrics
+        # Metrics (per-instance, mainly for debugging)
         self._hits = 0
         self._misses = 0
+        self._verb_count = 0
+        self._language_count = 0
 
-    async def load(self, repository):
-        """Load all verbs into cache at startup."""
+    def _id_key(self, verb_id: UUID) -> str:
+        """Key for verb lookup by ID."""
+        return f"{self.PREFIX}:id:{verb_id}"
+
+    def _lang_all_key(self, lang: str) -> str:
+        """Key for set of all verb IDs for a language (non-test only)."""
+        return f"{self.PREFIX}:lang:{lang}:all"
+
+    def _lang_cod_key(self, lang: str) -> str:
+        """Key for set of verb IDs that can have COD."""
+        return f"{self.PREFIX}:lang:{lang}:cod"
+
+    def _lang_coi_key(self, lang: str) -> str:
+        """Key for set of verb IDs that can have COI."""
+        return f"{self.PREFIX}:lang:{lang}:coi"
+
+    async def load(self, repository) -> None:
+        """Load all verbs into Redis cache at startup."""
         with tracer.start_as_current_span("verb_cache.load"):
-            async with self._lock:
-                # Duck typing: check for the method we need instead of isinstance
-                if not hasattr(repository, "get_all_verbs"):
-                    raise TypeError("Repository must have get_all_verbs method")
+            if not hasattr(repository, "get_all_verbs"):
+                raise TypeError("Repository must have get_all_verbs method")
 
-                logger.info("Loading verbs into cache...")
-                verbs = await repository.get_all_verbs(limit=10000)
+            logger.info("Loading verbs into Redis cache...")
+            verbs = await repository.get_all_verbs()
 
-                self._verbs_by_id.clear()
-                self._verbs_by_key.clear()
-                self._verbs_by_language.clear()
+            # Clear existing verb keys (use SCAN to avoid blocking)
+            await self._clear_cache()
 
-                for verb in verbs:
-                    self._add_verb_to_indexes(verb)
+            # Track languages for stats
+            languages = set()
 
-                self._loaded = True
-                logger.info(
-                    f"✅ Loaded {len(verbs)} verbs into cache "
-                    f"({len(self._verbs_by_language)} languages)"
-                )
+            # Use pipeline for batch operations
+            pipe = self._redis.pipeline()
 
-    def _add_verb_to_indexes(self, verb: Verb):
-        """Add a verb to all indexes (internal helper)."""
-        # Primary index
-        self._verbs_by_id[verb.id] = verb
+            for verb in verbs:
+                verb_id_str = str(verb.id)
+                lang = verb.target_language_code
 
-        # Secondary index
-        key = (
-            verb.infinitive,
-            verb.auxiliary.value,
-            verb.reflexive,
-            verb.target_language_code,
-        )
-        self._verbs_by_key[key] = verb
+                # Store verb JSON by ID
+                pipe.set(self._id_key(verb.id), verb.model_dump_json())
 
-        # Language index
-        if verb.target_language_code not in self._verbs_by_language:
-            self._verbs_by_language[verb.target_language_code] = []
-        self._verbs_by_language[verb.target_language_code].append(verb)
+                # Add to language sets (exclude test verbs from random selection)
+                if not verb.is_test:
+                    pipe.sadd(self._lang_all_key(lang), verb_id_str)
 
-    def _remove_verb_from_indexes(self, verb: Verb):
-        """Remove a verb from all indexes (internal helper)."""
-        # Primary index
-        self._verbs_by_id.pop(verb.id, None)
+                    if verb.can_have_cod:
+                        pipe.sadd(self._lang_cod_key(lang), verb_id_str)
 
-        # Secondary index
-        key = (
-            verb.infinitive,
-            verb.auxiliary.value,
-            verb.reflexive,
-            verb.target_language_code,
-        )
-        self._verbs_by_key.pop(key, None)
+                    if verb.can_have_coi:
+                        pipe.sadd(self._lang_coi_key(lang), verb_id_str)
 
-        # Language index
-        if verb.target_language_code in self._verbs_by_language:
-            lang_list = self._verbs_by_language[verb.target_language_code]
-            self._verbs_by_language[verb.target_language_code] = [
-                v for v in lang_list if v.id != verb.id
-            ]
+                languages.add(lang)
+
+            await pipe.execute()
+
+            self._loaded = True
+            self._verb_count = len(verbs)
+            self._language_count = len(languages)
+            logger.info(f"✅ Loaded {len(verbs)} verbs into Redis cache")
+
+    async def _clear_cache(self) -> None:
+        """Clear all verb cache keys using SCAN (non-blocking)."""
+        cursor = 0
+        while True:
+            cursor, keys = await self._redis.scan(
+                cursor, match=f"{self.PREFIX}:*", count=100
+            )
+            if keys:
+                await self._redis.delete(*keys)
+            if cursor == 0:
+                break
+
+    async def is_loaded(self) -> bool:
+        """Check if cache has data by checking if any verb keys exist."""
+        cursor, keys = await self._redis.scan(0, match=f"{self.PREFIX}:id:*", count=1)
+        return len(keys) > 0
 
     async def get_by_id(self, verb_id: UUID) -> Verb | None:
         """Get a verb by ID from cache."""
-        if not self._loaded:
-            self._misses += 1
-            return None
+        data = await self._redis.get(self._id_key(verb_id))
 
-        verb = self._verbs_by_id.get(verb_id)
-        if verb:
+        if data:
             self._hits += 1
-        else:
-            self._misses += 1
-        return verb
-
-    async def get_by_infinitive(
-        self,
-        infinitive: str,
-        auxiliary: str,
-        reflexive: bool,
-        target_language_code: str,
-    ) -> Verb | None:
-        """Get a verb by its unique key from cache."""
-        if not self._loaded:
-            self._misses += 1
-            return None
-
-        key = (infinitive, auxiliary, reflexive, target_language_code)
-        verb = self._verbs_by_key.get(key)
-        if verb:
-            self._hits += 1
-        else:
-            self._misses += 1
-        return verb
-
-    async def get_by_infinitive_simple(
-        self, infinitive: str, target_language_code: str = "eng"
-    ) -> Verb | None:
-        """
-        Get a verb by infinitive alone, without needing auxiliary/reflexive parameters.
-
-        For reflexive verbs, the infinitive should include "se " prefix (e.g., "se coucher").
-        For non-reflexive verbs, use the base infinitive (e.g., "coucher", "appeler").
-
-        Handles both reflexive and non-reflexive forms of the same verb (e.g., "appeler" vs "se appeler").
-        """
-        if not self._loaded:
-            self._misses += 1
-            return None
-
-        # Check if this is a reflexive verb (starts with "se ")
-        is_reflexive_query = infinitive.startswith("se ")
-        base_infinitive = infinitive[3:] if is_reflexive_query else infinitive
-
-        # Search through all verbs for this language
-        verbs = self._verbs_by_language.get(target_language_code, [])
-        for verb in verbs:
-            # Match based on base infinitive and reflexive flag
-            if (
-                verb.infinitive == base_infinitive
-                and verb.reflexive == is_reflexive_query
-            ):
-                self._hits += 1
-                return verb
+            return Verb.model_validate_json(data)
 
         self._misses += 1
         return None
-
-    async def get_all_by_language(self, target_language_code: str) -> list[Verb]:
-        """Get all verbs for a language from cache."""
-        if not self._loaded:
-            return []
-
-        verbs = self._verbs_by_language.get(target_language_code, [])
-        if verbs:
-            self._hits += 1
-        return verbs.copy()  # Return a copy to prevent external modification
 
     async def get_random_verb(
         self,
@@ -191,51 +148,105 @@ class VerbCache:
 
         Excludes test verbs (is_test=True) from selection.
         """
-        if not self._loaded:
-            self._misses += 1
-            return None
+        # Determine which sets to intersect
+        sets_to_intersect = [self._lang_all_key(target_language_code)]
 
-        all_verbs = self._verbs_by_language.get(target_language_code, [])
-        # Filter out test verbs
-        verbs = [v for v in all_verbs if not v.is_test]
-
-        # Filter by COD/COI capability if required
         if requires_cod:
-            verbs = [v for v in verbs if v.can_have_cod]
-        if requires_coi:
-            verbs = [v for v in verbs if v.can_have_coi]
+            sets_to_intersect.append(self._lang_cod_key(target_language_code))
 
-        if not verbs:
+        if requires_coi:
+            sets_to_intersect.append(self._lang_coi_key(target_language_code))
+
+        # Get random verb ID from intersection
+        if len(sets_to_intersect) == 1:
+            # No filtering needed, use SRANDMEMBER directly
+            verb_id_str = await self._redis.srandmember(sets_to_intersect[0])
+        else:
+            # Need to intersect, then pick random
+            members = await self._redis.sinter(*sets_to_intersect)
+            if not members:
+                self._misses += 1
+                return None
+            verb_id_str = random.choice(list(members))
+
+        if not verb_id_str:
             self._misses += 1
             return None
 
-        import random
+        # Fetch the full verb
+        verb = await self.get_by_id(UUID(verb_id_str))
+        if verb:
+            return verb
 
-        self._hits += 1
-        return random.choice(verbs)
+        self._misses += 1
+        return None
 
-    async def refresh_verb(self, verb: Verb):
+    async def refresh_verb(self, verb: Verb) -> None:
         """Add or update a verb in the cache."""
-        async with self._lock:
-            # Remove old version if it exists
-            if verb.id in self._verbs_by_id:
-                old_verb = self._verbs_by_id[verb.id]
-                self._remove_verb_from_indexes(old_verb)
+        verb_id_str = str(verb.id)
+        lang = verb.target_language_code
 
-            # Add new version
-            self._add_verb_to_indexes(verb)
-            logger.debug(f"Refreshed verb {verb.infinitive} in cache")
+        # Check if verb already exists (for proper set management)
+        existing_data = await self._redis.get(self._id_key(verb.id))
+        if existing_data:
+            old_verb = Verb.model_validate_json(existing_data)
+            # Remove from old language sets if language changed
+            if old_verb.target_language_code != lang:
+                old_lang = old_verb.target_language_code
+                await self._redis.srem(self._lang_all_key(old_lang), verb_id_str)
+                await self._redis.srem(self._lang_cod_key(old_lang), verb_id_str)
+                await self._redis.srem(self._lang_coi_key(old_lang), verb_id_str)
 
-    async def invalidate_verb(self, verb_id: UUID):
+        pipe = self._redis.pipeline()
+
+        # Store verb JSON
+        pipe.set(self._id_key(verb.id), verb.model_dump_json())
+
+        # Update language sets (exclude test verbs)
+        if not verb.is_test:
+            pipe.sadd(self._lang_all_key(lang), verb_id_str)
+
+            # Update COD set
+            if verb.can_have_cod:
+                pipe.sadd(self._lang_cod_key(lang), verb_id_str)
+            else:
+                pipe.srem(self._lang_cod_key(lang), verb_id_str)
+
+            # Update COI set
+            if verb.can_have_coi:
+                pipe.sadd(self._lang_coi_key(lang), verb_id_str)
+            else:
+                pipe.srem(self._lang_coi_key(lang), verb_id_str)
+        else:
+            # Test verb - remove from all selection sets
+            pipe.srem(self._lang_all_key(lang), verb_id_str)
+            pipe.srem(self._lang_cod_key(lang), verb_id_str)
+            pipe.srem(self._lang_coi_key(lang), verb_id_str)
+
+        await pipe.execute()
+        logger.debug(f"Refreshed verb {verb.infinitive} in cache")
+
+    async def invalidate_verb(self, verb_id: UUID) -> None:
         """Remove a verb from the cache."""
-        async with self._lock:
-            if verb_id in self._verbs_by_id:
-                verb = self._verbs_by_id[verb_id]
-                self._remove_verb_from_indexes(verb)
-                logger.debug(f"Invalidated verb {verb_id} from cache")
+        verb_id_str = str(verb_id)
 
-    async def reload(self, repository):
-        """Reload all verbs from database (for NOTIFY/LISTEN)."""
+        # Get verb first to know which sets to remove from
+        data = await self._redis.get(self._id_key(verb_id))
+        if data:
+            verb = Verb.model_validate_json(data)
+            lang = verb.target_language_code
+
+            pipe = self._redis.pipeline()
+            pipe.delete(self._id_key(verb_id))
+            pipe.srem(self._lang_all_key(lang), verb_id_str)
+            pipe.srem(self._lang_cod_key(lang), verb_id_str)
+            pipe.srem(self._lang_coi_key(lang), verb_id_str)
+            await pipe.execute()
+
+            logger.debug(f"Invalidated verb {verb_id} from cache")
+
+    async def reload(self, repository) -> None:
+        """Reload all verbs from database."""
         logger.info("Reloading verb cache from database...")
         await self.load(repository)
 
@@ -246,13 +257,9 @@ class VerbCache:
 
         return {
             "loaded": self._loaded,
-            "total_verbs": len(self._verbs_by_id),
-            "languages": len(self._verbs_by_language),
+            "total_verbs": self._verb_count,
+            "languages": self._language_count,
             "hits": self._hits,
             "misses": self._misses,
             "hit_rate": f"{hit_rate:.2f}%",
         }
-
-
-# Global singleton instance
-verb_cache = VerbCache()

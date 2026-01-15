@@ -9,8 +9,10 @@ from fastapi.responses import JSONResponse
 from opentelemetry import trace
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from src.cache.api_key_cache import ApiKeyCache
 from src.core.config import get_settings
-from src.core.factories import create_api_key_service
+from src.repositories.api_keys_repository import ApiKeyRepository
+from src.services.api_key_service import ApiKeyService
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -64,7 +66,9 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
                 # Validate API key and get key info (includes IP checking and usage tracking)
                 with tracer.start_as_current_span("validate_api_key"):
                     client_ip = self._get_client_ip(request)
-                    key_info = await self._validate_api_key_with_ip(api_key, client_ip)
+                    key_info = await self._validate_api_key_with_ip(
+                        api_key, client_ip, request
+                    )
                     if not key_info:
                         raise HTTPException(
                             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -153,12 +157,21 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         return "unknown"
 
     async def _validate_api_key_with_ip(
-        self, api_key: str, client_ip: str
+        self, api_key: str, client_ip: str, request: Request
     ) -> dict | None:
         """Validate API key against database with IP checking and return key info if valid."""
         try:
-            # Use the ApiKeyService for validation (handles IP checking and usage tracking)
-            service = await create_api_key_service()
+            # Get shared clients from app.state (created once at startup)
+            supabase_client = request.app.state.supabase
+            redis_client = getattr(request.app.state, "redis", None)
+
+            # Create service with shared clients (no new connections)
+            repository = ApiKeyRepository(client=supabase_client)
+            api_key_cache = ApiKeyCache(redis_client) if redis_client else None
+            service = ApiKeyService(
+                api_key_repository=repository, api_key_cache=api_key_cache
+            )
+
             result = await service.authenticate_api_key(api_key, client_ip)
 
             if result:
@@ -184,9 +197,7 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
                 # Re-raise to let the outer handler return 500
                 raise
 
-            # For other exceptions (including Supabase client creation failures),
-            # log but return None to indicate authentication failure (401)
-            # This prevents infrastructure issues from being exposed as auth failures
+            # For other exceptions, log but return None to indicate auth failure
             logger.warning(
                 f"Error during API key validation (treated as auth failure): {e}",
                 exc_info=True,

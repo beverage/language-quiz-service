@@ -2,16 +2,16 @@
 Factory functions for manual service instantiation.
 
 These functions create service and repository instances without FastAPI's dependency injection,
-suitable for use in middleware, background tasks, CLI, testing, and other contexts where
+suitable for use in CLI commands, background workers, testing, and other contexts where
 FastAPI's DI system is not available.
 
 Key differences from dependencies.py:
 - No Depends() parameters
 - Manual instantiation of all dependencies
 - Can be called from anywhere in "Pure Python World"
-- Fresh instances created each time to avoid event loop binding issues
+- Uses module-level singleton for Supabase client (shared across calls)
 
-For FastAPI routes, use dependencies.py instead.
+For FastAPI routes, use dependencies.py instead (which uses app.state).
 """
 
 from typing import Any
@@ -35,31 +35,31 @@ from src.services.verb_service import VerbService
 
 
 async def create_verb_repository() -> VerbRepository:
-    """Create verb repository instance using shared connection."""
+    """Create verb repository instance using singleton Supabase client."""
     client = await get_supabase_client()
     return VerbRepository(client=client)
 
 
 async def create_sentence_repository() -> SentenceRepository:
-    """Create sentence repository instance using shared connection."""
+    """Create sentence repository instance using singleton Supabase client."""
     client = await get_supabase_client()
     return SentenceRepository(client=client)
 
 
 async def create_problem_repository() -> ProblemRepository:
-    """Create problem repository instance using shared connection."""
+    """Create problem repository instance using singleton Supabase client."""
     client = await get_supabase_client()
     return ProblemRepository(client=client)
 
 
 async def create_api_key_repository() -> ApiKeyRepository:
-    """Create API key repository instance using shared connection."""
+    """Create API key repository instance using singleton Supabase client."""
     client = await get_supabase_client()
     return ApiKeyRepository(client=client)
 
 
 async def create_generation_request_repository() -> GenerationRequestRepository:
-    """Create generation request repository instance using shared connection."""
+    """Create generation request repository instance using singleton Supabase client."""
     client = await get_supabase_client()
     return GenerationRequestRepository(client=client)
 
@@ -69,15 +69,40 @@ async def create_generation_request_repository() -> GenerationRequestRepository:
 # =============================================================================
 
 
+async def get_redis_client():
+    """Get Redis client for CLI/worker contexts.
+
+    Returns None if Redis is not configured.
+    """
+    import redis.asyncio as aioredis
+
+    from src.core.config import settings
+
+    if not settings.redis_url:
+        return None
+    return aioredis.from_url(settings.redis_url, decode_responses=True)
+
+
 async def create_verb_service() -> VerbService:
-    """Create fresh verb service instance.
+    """Create fresh verb service instance with cache support.
 
     Each call creates a new instance to avoid event loop binding issues.
+    Includes Redis cache if Redis is configured.
     """
+    from src.cache.conjugation_cache import ConjugationCache
+    from src.cache.verb_cache import VerbCache
+
     repository = await create_verb_repository()
+    redis_client = await get_redis_client()
+
+    verb_cache = VerbCache(redis_client) if redis_client else None
+    conjugation_cache = ConjugationCache(redis_client) if redis_client else None
+
     return VerbService(
         llm_client=get_client(),
         verb_repository=repository,
+        verb_cache=verb_cache,
+        conjugation_cache=conjugation_cache,
     )
 
 
@@ -110,15 +135,22 @@ async def create_problem_service() -> ProblemService:
     )
 
 
-async def create_api_key_service() -> ApiKeyService:
-    """Create fresh API key service instance.
+async def create_api_key_service(
+    redis_client=None,
+) -> ApiKeyService:
+    """Create API key service instance for CLI/worker contexts.
 
-    Each call creates a new instance to avoid event loop binding issues.
-    This is particularly important for middleware usage where event loops
-    may differ between requests.
+    Uses singleton Supabase client. For FastAPI routes, use dependencies.py instead.
+
+    Args:
+        redis_client: Optional Redis client for caching. If not provided,
+            the service will work without caching (database-only).
     """
+    from src.cache.api_key_cache import ApiKeyCache
+
     repository = await create_api_key_repository()
-    return ApiKeyService(api_key_repository=repository)
+    api_key_cache = ApiKeyCache(redis_client) if redis_client else None
+    return ApiKeyService(api_key_repository=repository, api_key_cache=api_key_cache)
 
 
 async def create_generation_request_service() -> GenerationRequestService:
@@ -140,7 +172,7 @@ async def create_generation_request_service() -> GenerationRequestService:
 
 
 async def create_repositories_bundle() -> dict[str, Any]:
-    """Create all repositories using shared connection."""
+    """Create all repositories using singleton Supabase client."""
     client = await get_supabase_client()
     return {
         "verb": VerbRepository(client=client),

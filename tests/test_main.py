@@ -10,9 +10,9 @@ from src.main import app
 
 
 @pytest.fixture
-def client():
-    """Create a test client for the FastAPI app."""
-    return TestClient(app)
+def client(test_client_with_lifespan):
+    """Provide a test client for the FastAPI app with lifespan run."""
+    return test_client_with_lifespan
 
 
 @pytest.mark.functional

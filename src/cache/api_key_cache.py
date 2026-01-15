@@ -1,9 +1,9 @@
-"""In-memory cache for API keys."""
+"""Redis-backed cache for API keys."""
 
-import asyncio
 import logging
 from uuid import UUID
 
+import redis.asyncio as aioredis
 from opentelemetry import trace
 
 from src.schemas.api_keys import ApiKey
@@ -14,135 +14,183 @@ tracer = trace.get_tracer(__name__)
 
 class ApiKeyCache:
     """
-    In-memory cache for API keys.
+    Redis-backed cache for API keys.
 
-    Optimized for authentication lookups by key_prefix.
-    This is the hottest path in the application.
+    Uses Redis for:
+    - Primary index: apikey:id:{uuid} -> ApiKey JSON
+    - Prefix index: apikey:prefix:{prefix} -> ApiKey JSON
+    - Hash index: apikey:hash:{hash} -> ApiKey JSON
+
+    Optimized for authentication lookups by key_prefix (hottest path).
+    This is a thin wrapper around Redis - no in-memory state is kept.
+    Create instances as needed via dependency injection.
+
+    Args:
+        redis_client: The Redis client to use for storage.
+        namespace: Optional namespace prefix for key isolation (useful for testing).
     """
 
-    def __init__(self):
-        # Primary index: by UUID
-        self._keys_by_id: dict[UUID, ApiKey] = {}
+    BASE_PREFIX = "apikey"
 
-        # Authentication index: by key_prefix (first 12 chars)
-        self._keys_by_prefix: dict[str, ApiKey] = {}
-
-        # Authentication index: by key_hash (for verification)
-        self._keys_by_hash: dict[str, ApiKey] = {}
-
+    def __init__(self, redis_client: aioredis.Redis, namespace: str = ""):
+        self._redis = redis_client
         self._loaded = False
-        self._lock = asyncio.Lock()
+        self._namespace = namespace
+        self.PREFIX = f"{namespace}{self.BASE_PREFIX}" if namespace else self.BASE_PREFIX
 
-        # Metrics
+        # Metrics (per-instance, mainly for debugging)
         self._hits = 0
         self._misses = 0
+        self._key_count = 0
+        self._active_count = 0
 
-    async def load(self, repository):
-        """Load all API keys into cache at startup."""
+    def _id_key(self, key_id: UUID) -> str:
+        """Key for lookup by UUID."""
+        return f"{self.PREFIX}:id:{key_id}"
+
+    def _prefix_key(self, key_prefix: str) -> str:
+        """Key for lookup by prefix (authentication hot path)."""
+        return f"{self.PREFIX}:prefix:{key_prefix}"
+
+    def _hash_key(self, key_hash: str) -> str:
+        """Key for lookup by hash."""
+        return f"{self.PREFIX}:hash:{key_hash}"
+
+    async def load(self, repository) -> None:
+        """Load all API keys into Redis cache at startup."""
         with tracer.start_as_current_span("api_key_cache.load"):
-            async with self._lock:
-                # Duck typing: check for the method we need instead of isinstance
-                if not hasattr(repository, "get_all_api_keys"):
-                    raise TypeError("Repository must have get_all_api_keys method")
+            if not hasattr(repository, "get_all_api_keys"):
+                raise TypeError("Repository must have get_all_api_keys method")
 
-                logger.info("Loading API keys into cache...")
-                api_keys = await repository.get_all_api_keys(
-                    limit=1000, include_inactive=True
-                )
+            logger.info("Loading API keys into Redis cache...")
+            api_keys = await repository.get_all_api_keys(limit=1000, include_inactive=True)
 
-                self._keys_by_id.clear()
-                self._keys_by_prefix.clear()
-                self._keys_by_hash.clear()
+            # Clear existing keys
+            await self._clear_cache()
 
-                for key in api_keys:
-                    self._add_key_to_indexes(key)
+            # Use pipeline for batch operations
+            pipe = self._redis.pipeline()
+            active_count = 0
 
-                self._loaded = True
-                active_count = sum(1 for k in api_keys if k.is_active)
-                logger.info(
-                    f"✅ Loaded {len(api_keys)} API keys into cache "
-                    f"({active_count} active)"
-                )
+            for key in api_keys:
+                key_json = key.model_dump_json()
 
-    def _add_key_to_indexes(self, api_key: ApiKey):
-        """Add an API key to all indexes (internal helper)."""
-        self._keys_by_id[api_key.id] = api_key
-        self._keys_by_prefix[api_key.key_prefix] = api_key
-        self._keys_by_hash[api_key.key_hash] = api_key
+                # Store in all indexes
+                pipe.set(self._id_key(key.id), key_json)
+                pipe.set(self._prefix_key(key.key_prefix), key_json)
+                pipe.set(self._hash_key(key.key_hash), key_json)
 
-    def _remove_key_from_indexes(self, api_key: ApiKey):
-        """Remove an API key from all indexes (internal helper)."""
-        self._keys_by_id.pop(api_key.id, None)
-        self._keys_by_prefix.pop(api_key.key_prefix, None)
-        self._keys_by_hash.pop(api_key.key_hash, None)
+                if key.is_active:
+                    active_count += 1
+
+            await pipe.execute()
+
+            self._loaded = True
+            self._key_count = len(api_keys)
+            self._active_count = active_count
+            logger.info(
+                f"✅ Loaded {len(api_keys)} API keys into Redis cache "
+                f"({active_count} active)"
+            )
+
+    async def _clear_cache(self) -> None:
+        """Clear all API key cache keys using SCAN (non-blocking)."""
+        cursor = 0
+        while True:
+            cursor, keys = await self._redis.scan(
+                cursor, match=f"{self.PREFIX}:*", count=100
+            )
+            if keys:
+                await self._redis.delete(*keys)
+            if cursor == 0:
+                break
+
+    async def is_loaded(self) -> bool:
+        """Check if cache has data by checking if any API key keys exist."""
+        cursor, keys = await self._redis.scan(0, match=f"{self.PREFIX}:id:*", count=1)
+        return len(keys) > 0
 
     async def get_by_id(self, key_id: UUID) -> ApiKey | None:
         """Get an API key by ID from cache."""
-        if not self._loaded:
-            self._misses += 1
-            return None
+        data = await self._redis.get(self._id_key(key_id))
 
-        key = self._keys_by_id.get(key_id)
-        if key:
+        if data:
             self._hits += 1
-        else:
-            self._misses += 1
-        return key
+            return ApiKey.model_validate_json(data)
+
+        self._misses += 1
+        return None
 
     async def get_by_prefix(self, key_prefix: str) -> ApiKey | None:
         """
         Get an API key by prefix from cache.
 
         This is the most common lookup path during authentication.
+        Only returns active keys.
         """
-        if not self._loaded:
-            self._misses += 1
-            return None
+        data = await self._redis.get(self._prefix_key(key_prefix))
 
-        key = self._keys_by_prefix.get(key_prefix)
-        if key and key.is_active:
-            self._hits += 1
-            return key
+        if data:
+            key = ApiKey.model_validate_json(data)
+            if key.is_active:
+                self._hits += 1
+                return key
 
         self._misses += 1
         return None
 
     async def get_by_hash(self, key_hash: str) -> ApiKey | None:
-        """Get an API key by hash from cache."""
-        if not self._loaded:
-            self._misses += 1
-            return None
+        """Get an API key by hash from cache. Only returns active keys."""
+        data = await self._redis.get(self._hash_key(key_hash))
 
-        key = self._keys_by_hash.get(key_hash)
-        if key and key.is_active:
-            self._hits += 1
-            return key
+        if data:
+            key = ApiKey.model_validate_json(data)
+            if key.is_active:
+                self._hits += 1
+                return key
 
         self._misses += 1
         return None
 
-    async def refresh_key(self, api_key: ApiKey):
+    async def refresh_key(self, api_key: ApiKey) -> None:
         """Add or update an API key in the cache."""
-        async with self._lock:
-            # Remove old version if it exists
-            if api_key.id in self._keys_by_id:
-                old_key = self._keys_by_id[api_key.id]
-                self._remove_key_from_indexes(old_key)
+        # Get old key if exists (to remove old prefix/hash if they changed)
+        old_data = await self._redis.get(self._id_key(api_key.id))
+        if old_data:
+            old_key = ApiKey.model_validate_json(old_data)
+            # Remove old indexes if they differ
+            if old_key.key_prefix != api_key.key_prefix:
+                await self._redis.delete(self._prefix_key(old_key.key_prefix))
+            if old_key.key_hash != api_key.key_hash:
+                await self._redis.delete(self._hash_key(old_key.key_hash))
 
-            # Add new version
-            self._add_key_to_indexes(api_key)
-            logger.debug(f"Refreshed API key {api_key.name} in cache")
+        # Store in all indexes
+        key_json = api_key.model_dump_json()
+        pipe = self._redis.pipeline()
+        pipe.set(self._id_key(api_key.id), key_json)
+        pipe.set(self._prefix_key(api_key.key_prefix), key_json)
+        pipe.set(self._hash_key(api_key.key_hash), key_json)
+        await pipe.execute()
 
-    async def invalidate_key(self, key_id: UUID):
+        logger.debug(f"Refreshed API key {api_key.name} in cache")
+
+    async def invalidate_key(self, key_id: UUID) -> None:
         """Remove an API key from the cache."""
-        async with self._lock:
-            if key_id in self._keys_by_id:
-                key = self._keys_by_id[key_id]
-                self._remove_key_from_indexes(key)
-                logger.debug(f"Invalidated API key {key_id} from cache")
+        # Get key first to know which indexes to remove
+        data = await self._redis.get(self._id_key(key_id))
+        if data:
+            key = ApiKey.model_validate_json(data)
 
-    async def reload(self, repository):
-        """Reload all API keys from database (for NOTIFY/LISTEN)."""
+            pipe = self._redis.pipeline()
+            pipe.delete(self._id_key(key_id))
+            pipe.delete(self._prefix_key(key.key_prefix))
+            pipe.delete(self._hash_key(key.key_hash))
+            await pipe.execute()
+
+            logger.debug(f"Invalidated API key {key_id} from cache")
+
+    async def reload(self, repository) -> None:
+        """Reload all API keys from database."""
         logger.info("Reloading API key cache from database...")
         await self.load(repository)
 
@@ -151,17 +199,11 @@ class ApiKeyCache:
         total = self._hits + self._misses
         hit_rate = (self._hits / total * 100) if total > 0 else 0
 
-        active_keys = sum(1 for k in self._keys_by_id.values() if k.is_active)
-
         return {
             "loaded": self._loaded,
-            "total_keys": len(self._keys_by_id),
-            "active_keys": active_keys,
+            "total_keys": self._key_count,
+            "active_keys": self._active_count,
             "hits": self._hits,
             "misses": self._misses,
             "hit_rate": f"{hit_rate:.2f}%",
         }
-
-
-# Global singleton instance
-api_key_cache = ApiKeyCache()

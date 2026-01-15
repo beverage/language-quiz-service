@@ -64,12 +64,15 @@ class ErrorRaisingProblemService:
 def client(monkeypatch):
     """Create a test client with auth disabled."""
     from src.core.config import reset_settings
+    from src.main import app
 
     monkeypatch.setenv("REQUIRE_AUTH", "false")
     monkeypatch.setenv("ENVIRONMENT", "development")
     reset_settings()
 
-    yield TestClient(app)
+    # Use context manager to run lifespan
+    with TestClient(app) as test_client:
+        yield test_client
 
     app.dependency_overrides.clear()
     reset_settings()

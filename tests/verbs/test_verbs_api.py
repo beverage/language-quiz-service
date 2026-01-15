@@ -29,6 +29,7 @@ def client(monkeypatch):
     """Create a test client with auth disabled and services mocked."""
     from src.core.config import reset_settings
     from src.core.dependencies import get_verb_service
+    from src.main import app
     from tests.api.conftest import MockVerbService
 
     # Disable auth for contract testing
@@ -39,16 +40,18 @@ def client(monkeypatch):
     mock_service = MockVerbService()
     app.dependency_overrides[get_verb_service] = lambda: mock_service
 
-    yield TestClient(app)
+    # Use context manager to run lifespan
+    with TestClient(app) as test_client:
+        yield test_client
 
     app.dependency_overrides.clear()
     reset_settings()
 
 
 @pytest.fixture
-def auth_client():
-    """Create a test client with real auth enabled for auth tests."""
-    return TestClient(app)
+def auth_client(test_client_with_lifespan):
+    """Provide a test client with real auth enabled for auth tests."""
+    return test_client_with_lifespan
 
 
 # =============================================================================
