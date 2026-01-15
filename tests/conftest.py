@@ -1,12 +1,14 @@
 # tests/conftest.py
-"""Shared fixtures for the test suite using local Supabase."""
+"""Shared fixtures for the test suite using local Supabase and Redis testcontainers."""
 
 import json
 import os
 import subprocess
 
+import filelock
 import pytest
 import redis.asyncio as aioredis
+from testcontainers.redis import RedisContainer
 
 # Force reset of Settings after environment override
 # This is crucial for the FastAPI app to load with the correct test settings
@@ -93,17 +95,13 @@ def _setup_test_environment():
         )
 
     # Set test environment variables immediately
+    # Note: Redis is provided by testcontainers, not environment variables
     test_env_vars = {
         "SUPABASE_URL": "http://127.0.0.1:54321",
         "SUPABASE_SERVICE_ROLE_KEY": service_role_key,
         "SUPABASE_API_URL": "http://127.0.0.1:54321",
         "SUPABASE_ANON_KEY": service_role_key,  # Use service key for anon key in tests
         "REQUIRE_AUTH": "true",  # Always require auth in tests
-        # Redis for cache tests (local docker-compose uses dev_password_123)
-        "REDIS_HOST": "localhost",
-        "REDIS_PORT": "6379",
-        "REDIS_PASSWORD": "dev_password_123",
-        "REDIS_SSL": "false",
     }
 
     for key, value in test_env_vars.items():
@@ -158,7 +156,7 @@ def app_with_state():
     from src.main import app
 
     # Use TestClient as context manager to run lifespan handlers
-    with TestClient(app) as client:
+    with TestClient(app):
         # The lifespan handler has now run and set up app.state
         yield app
 
@@ -283,24 +281,79 @@ def inactive_headers(test_keys):
     return {"Authorization": f"Bearer {test_keys['inactive']}"}
 
 
+# =============================================================================
+# Redis Testcontainers Fixtures
+# =============================================================================
+
+
+def _get_redis_url(container: RedisContainer) -> str:
+    """Build Redis URL from container host and port."""
+    host = container.get_container_host_ip()
+    port = container.get_exposed_port(container.port)
+    return f"redis://{host}:{port}"
+
+
+@pytest.fixture(scope="session")
+def redis_container(tmp_path_factory, worker_id):
+    """Start a Redis container for the test session.
+
+    Uses testcontainers to spin up Redis automatically.
+    Handles pytest-xdist parallel workers by sharing a single container
+    across all workers using file-based coordination.
+    """
+    if worker_id == "master":
+        # Not running with xdist, start container normally
+        container = RedisContainer()
+        container.start()
+
+        # Create wrapper that provides get_connection_url()
+        class ContainerWrapper:
+            def __init__(self, c):
+                self._container = c
+
+            def get_connection_url(self):
+                return _get_redis_url(self._container)
+
+        yield ContainerWrapper(container)
+        container.stop()
+    else:
+        # Running with xdist, use shared container across workers
+        root_tmp_dir = tmp_path_factory.getbasetemp().parent
+        lock_file = root_tmp_dir / "redis_container.lock"
+        url_file = root_tmp_dir / "redis_url.txt"
+
+        with filelock.FileLock(lock_file):
+            if not url_file.exists():
+                # First worker starts the container
+                container = RedisContainer()
+                container.start()
+                # Write connection URL for other workers
+                redis_url = _get_redis_url(container)
+                url_file.write_text(redis_url)
+                # Store container reference to prevent garbage collection
+                # The container will be stopped when the process exits
+
+        # Create a simple object that provides get_connection_url()
+        class SharedContainer:
+            def get_connection_url(self):
+                return url_file.read_text()
+
+        yield SharedContainer()
+
+
 @pytest.fixture
-async def redis_client(request):
+async def redis_client(redis_container):
     """Fixture to provide a Redis client with isolated namespace for cache tests.
 
-    Uses local Redis from docker-compose (localhost:6379).
+    Uses testcontainers Redis (started automatically).
     Each test gets a unique namespace to prevent interference when running in parallel.
     Cleans up only this test's keys before and after.
     """
     import uuid
 
-    from src.core.config import get_settings
-
-    settings = get_settings()
-
-    if not settings.redis_url:
-        pytest.skip("Redis not configured - set REDIS_HOST to run cache tests")
-
-    client = aioredis.from_url(settings.redis_url, decode_responses=True)
+    # Get connection URL from testcontainer
+    redis_url = redis_container.get_connection_url()
+    client = aioredis.from_url(redis_url, decode_responses=True)
 
     # Generate unique namespace for this test
     test_id = uuid.uuid4().hex[:8]

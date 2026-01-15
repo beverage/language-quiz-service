@@ -33,7 +33,9 @@ class ConjugationCache:
         self._redis = redis_client
         self._loaded = False
         self._namespace = namespace
-        self.PREFIX = f"{namespace}{self.BASE_PREFIX}" if namespace else self.BASE_PREFIX
+        self.PREFIX = (
+            f"{namespace}{self.BASE_PREFIX}" if namespace else self.BASE_PREFIX
+        )
 
         # Metrics (per-instance, mainly for debugging)
         self._hits = 0

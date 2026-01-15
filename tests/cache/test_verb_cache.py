@@ -94,7 +94,9 @@ class TestVerbCache:
         assert stats["loaded"] is False
         assert stats["total_verbs"] == 0
 
-    async def test_load_verbs(self, redis_client, cache_namespace, mock_repository, sample_verbs):
+    async def test_load_verbs(
+        self, redis_client, cache_namespace, mock_repository, sample_verbs
+    ):
         """Should load verbs into Redis cache."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -104,7 +106,9 @@ class TestVerbCache:
         assert stats["total_verbs"] == len(sample_verbs)
         assert stats["languages"] == 1
 
-    async def test_get_by_id_hit(self, redis_client, cache_namespace, mock_repository, sample_verbs):
+    async def test_get_by_id_hit(
+        self, redis_client, cache_namespace, mock_repository, sample_verbs
+    ):
         """Should return verb from cache by ID."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -129,7 +133,9 @@ class TestVerbCache:
         assert stats["hits"] == 0
         assert stats["misses"] == 1
 
-    async def test_refresh_verb_new(self, redis_client, cache_namespace, mock_repository):
+    async def test_refresh_verb_new(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should add new verb to cache."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -159,7 +165,9 @@ class TestVerbCache:
         assert verb is not None
         assert verb.infinitive == "finir"
 
-    async def test_refresh_verb_update(self, redis_client, cache_namespace, mock_repository, sample_verbs):
+    async def test_refresh_verb_update(
+        self, redis_client, cache_namespace, mock_repository, sample_verbs
+    ):
         """Should update existing verb in cache."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -189,7 +197,9 @@ class TestVerbCache:
         verb = await cache.get_by_id(sample_verbs[0].id)
         assert verb.translation == "to speak fluently"
 
-    async def test_invalidate_verb(self, redis_client, cache_namespace, mock_repository, sample_verbs):
+    async def test_invalidate_verb(
+        self, redis_client, cache_namespace, mock_repository, sample_verbs
+    ):
         """Should remove verb from cache."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -205,7 +215,9 @@ class TestVerbCache:
         verb = await cache.get_by_id(sample_verbs[0].id)
         assert verb is None
 
-    async def test_hit_rate_calculation(self, redis_client, cache_namespace, mock_repository, sample_verbs):
+    async def test_hit_rate_calculation(
+        self, redis_client, cache_namespace, mock_repository, sample_verbs
+    ):
         """Should calculate hit rate correctly."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -235,7 +247,9 @@ class TestVerbCache:
         assert stats["misses"] == 1
         assert stats["loaded"] is False
 
-    async def test_get_random_verb_hit(self, redis_client, cache_namespace, mock_repository, sample_verbs):
+    async def test_get_random_verb_hit(
+        self, redis_client, cache_namespace, mock_repository, sample_verbs
+    ):
         """Should return a random verb from cache."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -259,7 +273,9 @@ class TestVerbCache:
         assert stats["misses"] == 1
         assert stats["loaded"] is False
 
-    async def test_get_random_verb_miss_no_language(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_random_verb_miss_no_language(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should return None if no verbs for specified language."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -270,7 +286,9 @@ class TestVerbCache:
         stats = cache.get_stats()
         assert stats["misses"] >= 1
 
-    async def test_get_random_verb_distribution(self, redis_client, cache_namespace, mock_repository, sample_verbs):
+    async def test_get_random_verb_distribution(
+        self, redis_client, cache_namespace, mock_repository, sample_verbs
+    ):
         """Should randomly select from available verbs."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -286,7 +304,9 @@ class TestVerbCache:
         # With 3 verbs and 20 selections, we should see at least 2 different ones
         assert len(selected_verbs) >= 2
 
-    async def test_get_random_verb_requires_cod_filters_verbs(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_random_verb_requires_cod_filters_verbs(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should only return verbs with can_have_cod=True when requires_cod=True."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -299,7 +319,9 @@ class TestVerbCache:
             # "parler" is the only verb in sample_verbs with can_have_cod=True
             assert verb.infinitive == "parler"
 
-    async def test_get_random_verb_requires_coi_filters_verbs(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_random_verb_requires_coi_filters_verbs(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should only return verbs with can_have_coi=True when requires_coi=True."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -312,7 +334,9 @@ class TestVerbCache:
             # "parler" is the only verb in sample_verbs with can_have_coi=True
             assert verb.infinitive == "parler"
 
-    async def test_get_random_verb_requires_both_cod_and_coi(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_random_verb_requires_both_cod_and_coi(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should only return verbs with both can_have_cod and can_have_coi when both required."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -327,7 +351,9 @@ class TestVerbCache:
             assert verb.can_have_coi is True
             assert verb.infinitive == "parler"
 
-    async def test_get_random_verb_no_matching_cod_verbs_returns_none(self, redis_client, cache_namespace):
+    async def test_get_random_verb_no_matching_cod_verbs_returns_none(
+        self, redis_client, cache_namespace
+    ):
         """Should return None if no verbs match COD requirement."""
         now = datetime.now(UTC)
         # Create verbs that all have can_have_cod=False
@@ -360,7 +386,9 @@ class TestVerbCache:
         verb = await cache.get_random_verb("eng", requires_cod=True)
         assert verb is None
 
-    async def test_get_random_verb_no_matching_coi_verbs_returns_none(self, redis_client, cache_namespace):
+    async def test_get_random_verb_no_matching_coi_verbs_returns_none(
+        self, redis_client, cache_namespace
+    ):
         """Should return None if no verbs match COI requirement."""
         now = datetime.now(UTC)
         # Create verbs that all have can_have_coi=False
@@ -393,7 +421,9 @@ class TestVerbCache:
         verb = await cache.get_random_verb("eng", requires_coi=True)
         assert verb is None
 
-    async def test_invalidated_verb_not_in_random_selection(self, redis_client, cache_namespace, mock_repository, sample_verbs):
+    async def test_invalidated_verb_not_in_random_selection(
+        self, redis_client, cache_namespace, mock_repository, sample_verbs
+    ):
         """Invalidated verbs should not appear in random selection."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -408,7 +438,9 @@ class TestVerbCache:
             assert verb is not None
             assert verb.infinitive == "parler"
 
-    async def test_reload_clears_and_repopulates(self, redis_client, cache_namespace, mock_repository, sample_verbs):
+    async def test_reload_clears_and_repopulates(
+        self, redis_client, cache_namespace, mock_repository, sample_verbs
+    ):
         """Reload should clear existing data and repopulate from repository."""
         cache = VerbCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)

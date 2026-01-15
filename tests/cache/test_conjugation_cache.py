@@ -129,7 +129,9 @@ class TestConjugationCache:
         assert stats["total_conjugations"] == len(sample_conjugations)
         assert stats["unique_verbs"] == 1
 
-    async def test_get_conjugation_hit(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_conjugation_hit(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should return conjugation from cache."""
         cache = ConjugationCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -149,7 +151,9 @@ class TestConjugationCache:
         assert stats["hits"] == 1
         assert stats["misses"] == 0
 
-    async def test_get_conjugation_miss(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_conjugation_miss(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should return None for non-existent conjugation."""
         cache = ConjugationCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -183,7 +187,9 @@ class TestConjugationCache:
         assert len(conjs) == len(sample_conjugations)
         assert all(c.infinitive == "parler" for c in conjs)
 
-    async def test_refresh_conjugation_new(self, redis_client, cache_namespace, mock_repository):
+    async def test_refresh_conjugation_new(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should add new conjugation to cache."""
         cache = ConjugationCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -217,7 +223,9 @@ class TestConjugationCache:
         assert conj is not None
         assert conj.first_person_singular == "je parlais"
 
-    async def test_refresh_conjugation_update(self, redis_client, cache_namespace, mock_repository):
+    async def test_refresh_conjugation_update(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should update existing conjugation in cache."""
         cache = ConjugationCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -250,7 +258,9 @@ class TestConjugationCache:
         )
         assert conj.first_person_singular == "je parle bien"
 
-    async def test_invalidate_verb_conjugations(self, redis_client, cache_namespace, mock_repository):
+    async def test_invalidate_verb_conjugations(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should remove all conjugations for a verb."""
         cache = ConjugationCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -278,7 +288,9 @@ class TestConjugationCache:
         )
         assert len(conjs) == 0
 
-    async def test_hit_rate_calculation(self, redis_client, cache_namespace, mock_repository):
+    async def test_hit_rate_calculation(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should calculate hit rate correctly."""
         cache = ConjugationCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)

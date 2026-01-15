@@ -79,7 +79,9 @@ async def get_cache_stats(
     unavailable = {"loaded": False, "error": "Redis not available"}
     return {
         "verb_cache": verb_cache.get_stats() if verb_cache else unavailable,
-        "conjugation_cache": conjugation_cache.get_stats() if conjugation_cache else unavailable,
+        "conjugation_cache": conjugation_cache.get_stats()
+        if conjugation_cache
+        else unavailable,
         "api_key_cache": api_key_cache.get_stats() if api_key_cache else unavailable,
     }
 
@@ -131,7 +133,9 @@ async def reload_caches(
 
     # Check if Redis is available
     if not verb_cache or not conjugation_cache or not api_key_cache:
-        raise HTTPException(status_code=503, detail="Redis not available for cache reload")
+        raise HTTPException(
+            status_code=503, detail="Redis not available for cache reload"
+        )
 
     # Get database client and repositories
     client = await get_supabase_client()

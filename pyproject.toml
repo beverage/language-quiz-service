@@ -51,7 +51,8 @@ ruff = "^0.4.8"
 pip-audit = "^2.9.0"
 faker = "^37.4.0"
 pytest-xdist = "^3.8.0"
-testcontainers = {extras = ["kafka"], version = "^4.9.0"}
+testcontainers = {extras = ["kafka", "redis"], version = "^4.9.0"}
+filelock = "^3.16.0"
 
 [tool.poetry.scripts]
 lqs = "src.cli.console:main"

@@ -87,7 +87,9 @@ class TestApiKeyCache:
         assert stats["loaded"] is False
         assert stats["total_keys"] == 0
 
-    async def test_load_api_keys(self, redis_client, cache_namespace, mock_repository, sample_api_keys):
+    async def test_load_api_keys(
+        self, redis_client, cache_namespace, mock_repository, sample_api_keys
+    ):
         """Should load API keys into cache."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -97,7 +99,9 @@ class TestApiKeyCache:
         assert stats["total_keys"] == len(sample_api_keys)
         assert stats["active_keys"] == 2  # Only 2 are active
 
-    async def test_get_by_id_hit(self, redis_client, cache_namespace, mock_repository, sample_api_keys):
+    async def test_get_by_id_hit(
+        self, redis_client, cache_namespace, mock_repository, sample_api_keys
+    ):
         """Should return API key from cache by ID."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -109,7 +113,9 @@ class TestApiKeyCache:
         stats = cache.get_stats()
         assert stats["hits"] == 1
 
-    async def test_get_by_prefix_hit(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_by_prefix_hit(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should return API key from cache by prefix."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -119,7 +125,9 @@ class TestApiKeyCache:
         assert key.name == "Test Key 1"
         assert key.is_active is True
 
-    async def test_get_by_prefix_inactive(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_by_prefix_inactive(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should return None for inactive key by prefix."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -131,7 +139,9 @@ class TestApiKeyCache:
         stats = cache.get_stats()
         assert stats["misses"] == 1
 
-    async def test_get_by_hash_hit(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_by_hash_hit(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should return API key from cache by hash."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -140,7 +150,9 @@ class TestApiKeyCache:
         assert key is not None
         assert key.name == "Test Key 1"
 
-    async def test_get_by_hash_inactive(self, redis_client, cache_namespace, mock_repository):
+    async def test_get_by_hash_inactive(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should return None for inactive key by hash."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -148,7 +160,9 @@ class TestApiKeyCache:
         key = await cache.get_by_hash("$2b$12$test_hash_3")
         assert key is None
 
-    async def test_refresh_key_new(self, redis_client, cache_namespace, mock_repository):
+    async def test_refresh_key_new(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should add new API key to cache."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -207,7 +221,9 @@ class TestApiKeyCache:
         assert key.name == "Updated Key Name"
         assert "admin" in key.permissions_scope
 
-    async def test_invalidate_key(self, redis_client, cache_namespace, mock_repository, sample_api_keys):
+    async def test_invalidate_key(
+        self, redis_client, cache_namespace, mock_repository, sample_api_keys
+    ):
         """Should remove API key from cache."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -227,7 +243,9 @@ class TestApiKeyCache:
         key = await cache.get_by_prefix(sample_api_keys[0].key_prefix)
         assert key is None
 
-    async def test_hit_rate_calculation(self, redis_client, cache_namespace, mock_repository):
+    async def test_hit_rate_calculation(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should calculate hit rate correctly."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)
@@ -243,7 +261,9 @@ class TestApiKeyCache:
         assert stats["misses"] == 1
         assert stats["hit_rate"] == "75.00%"
 
-    async def test_stats_active_key_count(self, redis_client, cache_namespace, mock_repository):
+    async def test_stats_active_key_count(
+        self, redis_client, cache_namespace, mock_repository
+    ):
         """Should correctly count active keys."""
         cache = ApiKeyCache(redis_client, namespace=cache_namespace)
         await cache.load(mock_repository)

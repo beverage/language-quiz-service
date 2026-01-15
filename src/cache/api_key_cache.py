@@ -36,7 +36,9 @@ class ApiKeyCache:
         self._redis = redis_client
         self._loaded = False
         self._namespace = namespace
-        self.PREFIX = f"{namespace}{self.BASE_PREFIX}" if namespace else self.BASE_PREFIX
+        self.PREFIX = (
+            f"{namespace}{self.BASE_PREFIX}" if namespace else self.BASE_PREFIX
+        )
 
         # Metrics (per-instance, mainly for debugging)
         self._hits = 0
@@ -63,7 +65,9 @@ class ApiKeyCache:
                 raise TypeError("Repository must have get_all_api_keys method")
 
             logger.info("Loading API keys into Redis cache...")
-            api_keys = await repository.get_all_api_keys(limit=1000, include_inactive=True)
+            api_keys = await repository.get_all_api_keys(
+                limit=1000, include_inactive=True
+            )
 
             # Clear existing keys
             await self._clear_cache()

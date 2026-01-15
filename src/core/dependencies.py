@@ -9,7 +9,6 @@ For non-FastAPI contexts (CLI, workers, tests), use factories.py instead.
 
 import redis.asyncio as aioredis
 from fastapi import Depends, Request
-from supabase import AsyncClient
 
 from src.cache.api_key_cache import ApiKeyCache
 from src.cache.conjugation_cache import ConjugationCache
@@ -25,7 +24,7 @@ from src.services.generation_request_service import GenerationRequestService
 from src.services.problem_service import ProblemService
 from src.services.sentence_service import SentenceService
 from src.services.verb_service import VerbService
-
+from supabase import AsyncClient
 
 # =============================================================================
 # Supabase and Redis Client Dependencies

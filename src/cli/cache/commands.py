@@ -83,7 +83,9 @@ async def cache_stats(ctx):
             click.echo(
                 f"   Total Conjugations: {conj_stats.get('total_conjugations', 'N/A')}"
             )
-            click.echo(f"   Unique Verbs:       {conj_stats.get('unique_verbs', 'N/A')}")
+            click.echo(
+                f"   Unique Verbs:       {conj_stats.get('unique_verbs', 'N/A')}"
+            )
             click.echo(f"   Hits:               {conj_stats.get('hits', 'N/A')}")
             click.echo(f"   Misses:             {conj_stats.get('misses', 'N/A')}")
             click.echo(f"   Hit Rate:           {conj_stats.get('hit_rate', 'N/A')}")

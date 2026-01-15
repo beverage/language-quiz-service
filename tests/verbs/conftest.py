@@ -1,12 +1,10 @@
 """Shared fixtures for verb domain tests."""
 
 import pytest
-import redis.asyncio as aioredis
 
 from src.cache.conjugation_cache import ConjugationCache
 from src.cache.verb_cache import VerbCache
 from src.clients.supabase import get_supabase_client
-from src.core.config import get_settings
 from src.repositories.verb_repository import VerbRepository
 
 
