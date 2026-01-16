@@ -1,49 +1,51 @@
-# fly.toml app configuration file generated for language-quiz-redis-staging on 2026-01-13T15:45:07+01:00
+# Redis Cache - Staging Configuration
+# Language Quiz Service
 #
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+# IMPORTANT: This must run as a SINGLE INSTANCE
+# Multiple Redis instances do not share state - the app loads caches at startup
+# into whichever Redis it connects to. Multiple instances = cache inconsistency.
+# 
+# To verify single instance: flyctl machines list --app language-quiz-redis-staging
+# If more than one exists, destroy extras: flyctl machines destroy <id> --force
 #
-
-app = 'language-quiz-redis-staging'
-primary_region = 'ams'
-
-[experimental]
+app = "language-quiz-redis-staging"
+primary_region = "ams"
 
 [build]
-  dockerfile = 'Dockerfile'
-
-[deploy]
-  strategy = 'immediate'
+  dockerfile = "Dockerfile"
 
 [env]
-  ENVIRONMENT = 'staging'
+  ENVIRONMENT = "staging"
 
-[processes]
-  app = '/start-redis.sh'
+# Private networking only - no public access
+[experimental]
+  flycast = true
 
-[http_service]
-  internal_port = 6379
-  force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
-
+# Internal TCP service on port 6379
+# CRITICAL: auto_stop MUST be "off" - Redis must always be available
 [[services]]
-  protocol = 'tcp'
   internal_port = 6379
-  auto_stop_machines = 'off'
+  protocol = "tcp"
+  processes = ["app"]
+  auto_stop_machines = "off"
   auto_start_machines = true
   min_machines_running = 1
-  processes = ['app']
 
   [[services.ports]]
     port = 6379
 
 [[vm]]
-  memory = '256mb'
+  cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256
+  memory_mb = 512
 
-[[metrics]]
+[deploy]
+  strategy = "immediate"
+
+[processes]
+  app = "/start-redis.sh"
+
+# Prometheus metrics endpoint
+[metrics]
   port = 9091
-  path = '/metrics'
+  path = "/metrics"

@@ -1,5 +1,13 @@
-# Redis Rate Limiting - Production Configuration
+# Redis Cache - Production Configuration
 # Language Quiz Service
+#
+# IMPORTANT: This must run as a SINGLE INSTANCE
+# Multiple Redis instances do not share state - the app loads caches at startup
+# into whichever Redis it connects to. Multiple instances = cache inconsistency.
+# 
+# To verify single instance: flyctl machines list --app language-quiz-redis-production
+# If more than one exists, destroy extras: flyctl machines destroy <id> --force
+#
 app = "language-quiz-redis-production"
 primary_region = "ams"
 
@@ -9,11 +17,12 @@ primary_region = "ams"
 [env]
   ENVIRONMENT = "production"
 
-# Flycast network configuration - completely private
+# Private networking only - no public access
 [experimental]
   flycast = true
 
-# Internal services - accessible to other Fly.io apps via .flycast hostname
+# Internal TCP service on port 6379
+# CRITICAL: auto_stop MUST be "off" - Redis must always be available
 [[services]]
   internal_port = 6379
   protocol = "tcp"
@@ -21,22 +30,22 @@ primary_region = "ams"
   auto_stop_machines = "off"
   auto_start_machines = true
   min_machines_running = 1
-  
+
   [[services.ports]]
     port = 6379
 
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256
-  
+  memory_mb = 512
+
 [deploy]
   strategy = "immediate"
 
 [processes]
   app = "/start-redis.sh"
 
-# Enable metrics collection
+# Prometheus metrics endpoint
 [metrics]
   port = 9091
   path = "/metrics"
