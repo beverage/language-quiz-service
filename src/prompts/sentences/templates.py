@@ -3,6 +3,33 @@
 from src.schemas.sentences import DirectObject, IndirectObject, Negation
 from src.schemas.verbs import Tense, Verb
 
+# Anti-meta-commentary rules for explanations
+# Prevents LLM from including reasoning, prompt references, or alternatives
+EXPLANATION_RULES = """IMPORTANT for explanation:
+- Write as if explaining to a student learning French
+- 1-2 sentences maximum
+- Do NOT mention the prompt, constraints, or alternative constructions
+- Do NOT include your reasoning process
+- Simply state: what is wrong → what it should be"""
+
+
+def build_explanation_section(template: str) -> str:
+    """Build the explanation section with anti-meta-commentary rules.
+
+    Args:
+        template: The specific explanation template for this error type
+
+    Returns:
+        Complete explanation section with rules and template
+    """
+    return f"""
+EXPLANATION:
+{EXPLANATION_RULES}
+
+Write: "{template}"
+"""
+
+
 # Compound tenses that require auxiliary verb (avoir/être)
 # Extend this set when adding tenses like plus-que-parfait, futur antérieur, etc.
 COMPOUND_TENSES = frozenset([Tense.PASSE_COMPOSE, Tense.PLUS_QUE_PARFAIT])

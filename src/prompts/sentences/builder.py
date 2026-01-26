@@ -15,7 +15,10 @@ from src.prompts.sentences.pronoun_prompt import (
 from src.prompts.sentences.templates import COMPOUND_TENSES
 from src.schemas.problems import GrammarFocus
 from src.schemas.sentences import DirectObject, IndirectObject, SentenceBase
-from src.schemas.verbs import Verb
+from src.schemas.verbs import Tense, Verb
+
+# French vowels (including accented) for elision check
+FRENCH_VOWELS = frozenset("aeiouyàâäéèêëïîôùûüÿæœ")
 
 # Error types by focus area
 CONJUGATION_ERRORS = {ErrorType.WRONG_CONJUGATION, ErrorType.WRONG_AUXILIARY}
@@ -26,6 +29,52 @@ PRONOUN_ERRORS = {
     ErrorType.WRONG_GENDER,
     ErrorType.WRONG_NUMBER,
 }
+
+# Pronoun enum value to conjugation attribute mapping
+PRONOUN_TO_FORM = {
+    "first_person": "first_person_singular",
+    "second_person": "second_person_singular",
+    "third_person": "third_person_singular",
+    "first_person_plural": "first_person_plural",
+    "second_person_plural": "second_person_plural",
+    "third_person_plural": "third_person_plural",
+}
+
+
+def _conjugation_starts_with_vowel(
+    tense: Tense, pronoun_value: str, conjugations: list
+) -> bool:
+    """Check if the conjugation form for a given tense/pronoun starts with a vowel.
+
+    This is used to detect when elision would occur (le/la → l'), making
+    gender errors invisible.
+
+    Args:
+        tense: The tense being used
+        pronoun_value: The pronoun enum value (e.g., "first_singular")
+        conjugations: List of conjugation objects for the verb
+
+    Returns:
+        True if the conjugation starts with a vowel, False otherwise
+    """
+    # Find the conjugation for this tense
+    tense_conjugation = next((c for c in conjugations if c.tense == tense), None)
+    if not tense_conjugation:
+        return False  # Can't determine, assume no vowel
+
+    # Get the form attribute name
+    form_attr = PRONOUN_TO_FORM.get(pronoun_value)
+    if not form_attr:
+        return False
+
+    # Get the conjugation form
+    conjugation_form = getattr(tense_conjugation, form_attr, None)
+    if not conjugation_form:
+        return False
+
+    # Check if first character is a vowel
+    first_char = conjugation_form[0].lower()
+    return first_char in FRENCH_VOWELS
 
 
 class SentencePromptBuilder:
@@ -40,6 +89,7 @@ class SentencePromptBuilder:
         verb: Verb,
         focus: GrammarFocus = GrammarFocus.CONJUGATION,
         count: int = 3,
+        conjugations: list | None = None,
     ) -> list[ErrorType]:
         """Select appropriate error types for this sentence/verb/focus combination.
 
@@ -48,6 +98,7 @@ class SentencePromptBuilder:
             verb: The verb being used
             focus: The grammar focus area (conjugation or pronouns)
             count: Number of error types to select (default 3)
+            conjugations: List of conjugation objects (needed for vowel checks)
 
         Returns:
             List of selected error types
@@ -90,10 +141,19 @@ class SentencePromptBuilder:
 
             # WRONG_GENDER: only valid for COD (le vs la distinction)
             # COI has no gender distinction (lui for both masc/fem)
-            # Also: compound tenses use avoir (ai/as/a/avons/avez/ont/avais/etc.)
-            # which ALL start with vowels → le/la become l' → gender invisible!
+            # Exclusions for elision (le/la → l' makes gender invisible):
+            # 1. Compound tenses: auxiliaries start with vowels (ai/as/a/avons/etc.)
+            # 2. Simple tenses: verb conjugation itself starts with vowel (aient, ont, etc.)
             is_compound_tense = sentence.tense in COMPOUND_TENSES
-            if has_cod and verb.can_have_cod and not is_compound_tense:
+            conjugation_has_vowel = conjugations and _conjugation_starts_with_vowel(
+                sentence.tense, sentence.pronoun.value, conjugations
+            )
+            if (
+                has_cod
+                and verb.can_have_cod
+                and not is_compound_tense
+                and not conjugation_has_vowel
+            ):
                 available_errors.append(ErrorType.WRONG_GENDER)
 
             # WRONG_NUMBER: valid for both COD (le/la vs les) and COI (lui vs leur)

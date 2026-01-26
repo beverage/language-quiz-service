@@ -3,108 +3,13 @@ API Keys CLI commands for managing API keys via the API.
 """
 
 import json
-import os
 from uuid import UUID
 
 import asyncclick as click
-import httpx
 from rich.console import Console
 from rich.table import Table
 
-
-def get_api_key_from_env_or_flag(api_key_flag: str | None) -> str:
-    """
-    Get API key from environment variable or CLI flag.
-
-    Args:
-        api_key_flag: API key from --api-key flag
-
-    Returns:
-        API key string
-
-    Raises:
-        click.ClickException: If no API key is found
-    """
-    # Check environment variable first
-    env_key = os.getenv("SERVICE_API_KEY")
-    if env_key:
-        return env_key
-
-    # Fall back to CLI flag
-    if api_key_flag:
-        return api_key_flag
-
-    # Fail with helpful error
-    raise click.ClickException(
-        "No API key provided. Set SERVICE_API_KEY environment variable or use --api-key flag."
-    )
-
-
-def get_api_base_url() -> str:
-    """Get the API base URL from environment variable SERVICE_URL or default to localhost."""
-    base_url = os.getenv("SERVICE_URL", "http://localhost:8000")
-    return base_url
-
-
-async def make_api_request(
-    method: str,
-    endpoint: str,
-    api_key: str,
-    json_data: dict | None = None,
-    params: dict | None = None,
-) -> httpx.Response:
-    """
-    Make an authenticated API request.
-
-    Args:
-        method: HTTP method (GET, POST, etc.)
-        endpoint: API endpoint path
-        api_key: API key for authentication
-        json_data: JSON data for POST requests
-        params: Query parameters
-
-    Returns:
-        Response object
-
-    Raises:
-        click.ClickException: If request fails
-    """
-    base_url = get_api_base_url()
-    url = f"{base_url}{endpoint}"
-
-    headers = {
-        "X-API-Key": api_key,
-        "Content-Type": "application/json",
-    }
-
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                json=json_data,
-                params=params,
-                timeout=30.0,
-            )
-
-            # Check for HTTP errors
-            if response.status_code >= 400:
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("detail", f"HTTP {response.status_code}")
-                except (ValueError, Exception):
-                    error_msg = f"HTTP {response.status_code}: {response.text}"
-                raise click.ClickException(f"API request failed: {error_msg}")
-
-            return response
-
-        except httpx.RequestError as e:
-            raise click.ClickException(f"Network error connecting to {url}: {e}")
-        except httpx.TimeoutException:
-            raise click.ClickException(
-                f"Request timeout connecting to {url} - is the API server running?"
-            )
+from src.cli.utils.http_client import get_api_key, make_api_request
 
 
 @click.command()
@@ -118,20 +23,28 @@ async def make_api_request(
 )
 @click.option("--rate-limit", type=int, default=100, help="Requests per minute limit")
 @click.option("--allowed-ips", help="Comma-separated IP addresses or CIDR blocks")
-@click.option("--api-key", help="API key for authentication (or set SERVICE_API_KEY)")
+@click.pass_context
 async def create(
+    ctx,
     name: str,
     description: str | None,
     client_name: str | None,
     permissions: str,
     rate_limit: int,
     allowed_ips: str | None,
-    api_key: str | None,
 ):
     """Create a new API key."""
+    # Get service URL from root context
+    root_ctx = ctx.find_root()
+    service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
+
+    if not service_url:
+        raise click.ClickException(
+            "Service URL not configured. This should not happen - please report a bug."
+        )
 
     # Get API key for authentication
-    auth_key = get_api_key_from_env_or_flag(api_key)
+    api_key = get_api_key()
 
     # Parse permissions
     permissions_list = [p.strip() for p in permissions.split(",") if p.strip()]
@@ -157,7 +70,11 @@ async def create(
 
     # Make API request
     response = await make_api_request(
-        method="POST", endpoint="/api-keys/", api_key=auth_key, json_data=request_data
+        method="POST",
+        endpoint="/api/v1/api-keys/",
+        base_url=service_url,
+        api_key=api_key,
+        json_data=request_data,
     )
 
     # Display result
@@ -174,16 +91,27 @@ async def create(
 
 @click.command()
 @click.option("--json", "output_json", is_flag=True, help="Output in JSON format")
-@click.option("--api-key", help="API key for authentication (or set SERVICE_API_KEY)")
-async def list_keys(output_json: bool, api_key: str | None):
+@click.pass_context
+async def list_keys(ctx, output_json: bool):
     """List all API keys."""
+    # Get service URL from root context
+    root_ctx = ctx.find_root()
+    service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
+
+    if not service_url:
+        raise click.ClickException(
+            "Service URL not configured. This should not happen - please report a bug."
+        )
 
     # Get API key for authentication
-    auth_key = get_api_key_from_env_or_flag(api_key)
+    api_key = get_api_key()
 
     # Make API request
     response = await make_api_request(
-        method="GET", endpoint="/api-keys/", api_key=auth_key
+        method="GET",
+        endpoint="/api/v1/api-keys/",
+        base_url=service_url,
+        api_key=api_key,
     )
 
     keys = response.json()
@@ -199,6 +127,7 @@ async def list_keys(output_json: bool, api_key: str | None):
 
     # Create rich table
     table = Table(title="API Keys", show_header=True)
+    table.add_column("ID", style="dim", no_wrap=True)
     table.add_column("Key Prefix", style="cyan")
     table.add_column("Name", style="bold")
     table.add_column("Active", justify="center")
@@ -223,6 +152,7 @@ async def list_keys(output_json: bool, api_key: str | None):
         permissions = ", ".join(key.get("permissions_scope", []))
 
         table.add_row(
+            key.get("id", "N/A"),
             key.get("key_prefix", ""),
             key.get("name", ""),
             "✅" if key.get("is_active", False) else "❌",
@@ -240,12 +170,146 @@ async def list_keys(output_json: bool, api_key: str | None):
 
 @click.command()
 @click.argument("key_id", type=str)
-@click.option("--api-key", help="API key for authentication (or set SERVICE_API_KEY)")
-async def revoke(key_id: str, api_key: str | None):
-    """Revoke an API key by UUID."""
+@click.option("--name", help="Update the key's name")
+@click.option("--description", help="Update the description")
+@click.option("--client-name", help="Update the client application name")
+@click.option(
+    "--permissions",
+    help="Update permissions (comma-separated: read,write,admin)",
+)
+@click.option(
+    "--rate-limit", type=int, help="Update requests per minute limit (1-10000)"
+)
+@click.option(
+    "--allowed-ips", help="Update IP allowlist (comma-separated, or 'none' to clear)"
+)
+@click.option(
+    "--activate/--deactivate",
+    "is_active",
+    default=None,
+    help="Activate or deactivate the key",
+)
+@click.option("--json", "output_json", is_flag=True, help="Output in JSON format")
+@click.pass_context
+async def update(
+    ctx,
+    key_id: str,
+    name: str | None,
+    description: str | None,
+    client_name: str | None,
+    permissions: str | None,
+    rate_limit: int | None,
+    allowed_ips: str | None,
+    is_active: bool | None,
+    output_json: bool,
+):
+    """Update an API key's properties.
+
+    KEY_ID is the UUID of the API key to update.
+
+    Note: API keys cannot modify themselves (use a different admin key).
+
+    Examples:
+        lqs api-keys update <key-id> --name "New Name"
+        lqs api-keys update <key-id> --permissions read,write
+        lqs api-keys update <key-id> --deactivate
+        lqs api-keys update <key-id> --rate-limit 500 --allowed-ips 192.168.1.0/24
+    """
+    # Get service URL from root context
+    root_ctx = ctx.find_root()
+    service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
+
+    if not service_url:
+        raise click.ClickException(
+            "Service URL not configured. This should not happen - please report a bug."
+        )
 
     # Get API key for authentication
-    auth_key = get_api_key_from_env_or_flag(api_key)
+    api_key = get_api_key()
+
+    # Validate UUID format
+    try:
+        UUID(key_id)
+    except ValueError:
+        raise click.ClickException(f"Invalid UUID format: {key_id}")
+
+    # Build request data from provided options
+    request_data = {}
+
+    if name is not None:
+        request_data["name"] = name
+    if description is not None:
+        request_data["description"] = description
+    if client_name is not None:
+        request_data["client_name"] = client_name
+    if permissions is not None:
+        request_data["permissions_scope"] = [
+            p.strip() for p in permissions.split(",") if p.strip()
+        ]
+    if rate_limit is not None:
+        request_data["rate_limit_rpm"] = rate_limit
+    if allowed_ips is not None:
+        if allowed_ips.lower() == "none":
+            request_data["allowed_ips"] = []
+        else:
+            request_data["allowed_ips"] = [
+                ip.strip() for ip in allowed_ips.split(",") if ip.strip()
+            ]
+    if is_active is not None:
+        request_data["is_active"] = is_active
+
+    if not request_data:
+        raise click.ClickException(
+            "No update options provided. Use --help to see available options."
+        )
+
+    # Make API request
+    response = await make_api_request(
+        method="PUT",
+        endpoint=f"/api/v1/api-keys/{key_id}",
+        base_url=service_url,
+        api_key=api_key,
+        json_data=request_data,
+    )
+
+    result = response.json()
+
+    if output_json:
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    # Display result
+    click.echo("✅ API key updated successfully!")
+    click.echo(f"   Name: {result.get('name')}")
+    click.echo(f"   Prefix: {result.get('key_prefix')}")
+    click.echo(f"   Active: {'Yes' if result.get('is_active') else 'No'}")
+    click.echo(f"   Permissions: {', '.join(result.get('permissions_scope', []))}")
+    click.echo(f"   Rate Limit: {result.get('rate_limit_rpm')} RPM")
+    if result.get("allowed_ips"):
+        click.echo(f"   Allowed IPs: {', '.join(result.get('allowed_ips'))}")
+    else:
+        click.echo("   Allowed IPs: All (no restrictions)")
+
+
+@click.command()
+@click.argument("key_id", type=str)
+@click.pass_context
+async def revoke(ctx, key_id: str):
+    """Revoke an API key by UUID.
+
+    Note: API keys cannot revoke themselves (use a different admin key).
+    """
+    # Get service URL from root context
+    root_ctx = ctx.find_root()
+    service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
+
+    if not service_url:
+        raise click.ClickException(
+            "Service URL not configured. This should not happen - please report a bug."
+        )
+
+    # Get API key for authentication
+    api_key = get_api_key()
 
     # Validate UUID format
     try:
@@ -255,7 +319,10 @@ async def revoke(key_id: str, api_key: str | None):
 
     # Make API request
     await make_api_request(
-        method="POST", endpoint=f"/api-keys/{key_id}/revoke", api_key=auth_key
+        method="DELETE",
+        endpoint=f"/api/v1/api-keys/{key_id}",
+        base_url=service_url,
+        api_key=api_key,
     )
 
     # Display result

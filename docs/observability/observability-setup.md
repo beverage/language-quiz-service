@@ -96,7 +96,7 @@ Generate some traffic to populate metrics:
 curl http://localhost:8000/health
 
 # Random verb (requires API key)
-curl -H "X-API-Key: your-api-key" http://localhost:8000/api/v1/verbs/random
+curl -H "Authorization: Bearer your-api-key" http://localhost:8000/api/v1/verbs/random
 
 # Or use a simple loop
 for i in {1..100}; do curl http://localhost:8000/health; sleep 0.1; done
@@ -332,7 +332,7 @@ while true; do
   curl -s http://localhost:8000/health > /dev/null
   
   # Random verb
-  curl -s -H "X-API-Key: $API_KEY" \
+  curl -s -H "Authorization: Bearer $API_KEY" \
     http://localhost:8000/api/v1/verbs/random > /dev/null
   
   # Simulate some errors (invalid endpoint)

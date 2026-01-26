@@ -10,9 +10,11 @@ from src.cli.problems.create import (
     generate_random_problem,
     generate_random_problems_batch,
     get_problem_statistics,
+    get_random_grammar_problem,
     list_problems,
 )
 from src.schemas.problems import (
+    GrammarFocus,
     GrammarProblemConstraints,
     Problem,
     ProblemSummary,
@@ -158,6 +160,67 @@ class TestCLIProblemsCreation:
 
         with pytest.raises(ValueError, match="Service error"):
             await generate_random_problem(statement_count=4)
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_generate_random_problem_with_conjugation_focus(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test problem generation with explicit conjugation focus."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.create_random_grammar_problem.return_value = sample_problem
+
+        result = await generate_random_problem(
+            statement_count=4, focus=GrammarFocus.CONJUGATION, display=False
+        )
+
+        assert result == sample_problem
+        mock_service.create_random_grammar_problem.assert_called_once_with(
+            constraints=None,
+            statement_count=4,
+            focus=GrammarFocus.CONJUGATION,
+        )
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_generate_random_problem_with_pronouns_focus(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test problem generation with explicit pronouns focus."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.create_random_grammar_problem.return_value = sample_problem
+
+        result = await generate_random_problem(
+            statement_count=4, focus=GrammarFocus.PRONOUNS, display=False
+        )
+
+        assert result == sample_problem
+        mock_service.create_random_grammar_problem.assert_called_once_with(
+            constraints=None,
+            statement_count=4,
+            focus=GrammarFocus.PRONOUNS,
+        )
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_generate_random_problem_none_focus_passes_to_service(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test that None focus is passed to service for random selection."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.create_random_grammar_problem.return_value = sample_problem
+
+        result = await generate_random_problem(
+            statement_count=4, focus=None, display=False
+        )
+
+        assert result == sample_problem
+        # Verify focus=None is explicitly passed (service does random selection)
+        mock_service.create_random_grammar_problem.assert_called_once_with(
+            constraints=None,
+            statement_count=4,
+            focus=None,
+        )
 
     @patch("src.cli.utils.queues.parallel_execute")
     async def test_generate_random_problems_batch_success(
@@ -312,6 +375,103 @@ class TestCLIProblemsListing:
         print_calls = [call[0][0] for call in mock_print.call_args_list]
         assert any("📊 Problem Statistics:" in call for call in print_calls)
         assert any("Total problems: 42" in call for call in print_calls)
+
+
+@pytest.mark.unit
+class TestCLIProblemsRandomWithFocus:
+    """Test cases for get_random_grammar_problem with filters."""
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_get_random_grammar_problem_with_conjugation_focus(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test fetching random grammar problem with conjugation focus filter."""
+        mock_service = AsyncMock()
+        # create_problem_service is async, so make the mock return the service when awaited
+        mock_create_problem_service.return_value = mock_service
+        mock_service.get_random_grammar_problem.return_value = sample_problem
+
+        from src.cli.problems.create import get_random_grammar_problem
+
+        result = await get_random_grammar_problem(
+            grammatical_focus=["conjugation"], display=False
+        )
+
+        assert result == sample_problem
+        # Verify the service method was called with correct parameters
+        mock_service.get_random_grammar_problem.assert_called_once()
+        call_kwargs = mock_service.get_random_grammar_problem.call_args.kwargs
+        assert call_kwargs["grammatical_focus"] == ["conjugation"]
+        assert call_kwargs["tenses_used"] is None
+        assert call_kwargs["topic_tags"] is None
+        assert call_kwargs["target_language_code"] is None
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_get_random_grammar_problem_with_pronouns_focus(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test fetching random grammar problem with pronouns focus filter."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.get_random_grammar_problem.return_value = sample_problem
+
+        from src.cli.problems.create import get_random_grammar_problem
+
+        result = await get_random_grammar_problem(
+            grammatical_focus=["pronouns"], display=False
+        )
+
+        assert result == sample_problem
+        mock_service.get_random_grammar_problem.assert_called_once()
+        call_kwargs = mock_service.get_random_grammar_problem.call_args.kwargs
+        assert call_kwargs["grammatical_focus"] == ["pronouns"]
+        assert call_kwargs["tenses_used"] is None
+        assert call_kwargs["topic_tags"] is None
+        assert call_kwargs["target_language_code"] is None
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_get_random_grammar_problem_with_tenses(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test fetching random grammar problem with tenses filter."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.get_random_grammar_problem.return_value = sample_problem
+
+        from src.cli.problems.create import get_random_grammar_problem
+
+        result = await get_random_grammar_problem(
+            tenses_used=["future_simple", "imparfait"], display=False
+        )
+
+        assert result == sample_problem
+        mock_service.get_random_grammar_problem.assert_called_once()
+        call_kwargs = mock_service.get_random_grammar_problem.call_args.kwargs
+        assert call_kwargs["grammatical_focus"] is None
+        assert call_kwargs["tenses_used"] == ["future_simple", "imparfait"]
+        assert call_kwargs["topic_tags"] is None
+        assert call_kwargs["target_language_code"] is None
+
+    @patch("src.cli.problems.create.create_problem_service")
+    async def test_get_random_grammar_problem_without_filters(
+        self, mock_create_problem_service: MagicMock, sample_problem: Problem
+    ):
+        """Test fetching random grammar problem without filters."""
+        mock_service = AsyncMock()
+        mock_create_problem_service.return_value = mock_service
+        mock_service.get_random_grammar_problem.return_value = sample_problem
+
+        from src.cli.problems.create import get_random_grammar_problem
+
+        result = await get_random_grammar_problem(display=False)
+
+        assert result == sample_problem
+        mock_service.get_random_grammar_problem.assert_called_once()
+        call_kwargs = mock_service.get_random_grammar_problem.call_args.kwargs
+        assert call_kwargs["grammatical_focus"] is None
+        assert call_kwargs["tenses_used"] is None
+        assert call_kwargs["topic_tags"] is None
+        assert call_kwargs["target_language_code"] is None
 
 
 @pytest.mark.unit

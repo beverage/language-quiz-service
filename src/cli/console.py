@@ -14,6 +14,9 @@ from src.cli.api_keys.commands import (
 from src.cli.api_keys.commands import (
     revoke as api_keys_revoke,
 )
+from src.cli.api_keys.commands import (
+    update as api_keys_update,
+)
 from src.cli.cache.commands import (
     cache_stats,
     reload_cache,
@@ -25,6 +28,7 @@ from src.cli.cloud.service import down as service_down
 from src.cli.cloud.service import up as service_up
 from src.cli.database.clear import clear_database
 from src.cli.database.init import init_verbs
+from src.cli.database.seed import seed_database
 from src.cli.database.wipe import wipe_database
 from src.cli.generation_requests.commands import (
     clean_requests as genreq_clean,
@@ -42,7 +46,7 @@ from src.cli.problems.create import (
     generate_random_problem,
     generate_random_problems_batch,
     get_problem_statistics,
-    get_random_problem,
+    get_random_grammar_problem,
     list_problems,
 )
 from src.cli.problems.delete import delete_problem
@@ -163,6 +167,7 @@ async def database():
 
 database.add_command(clear_database, name="clean")
 database.add_command(init_verbs, name="init")
+database.add_command(seed_database, name="seed")
 database.add_command(wipe_database, name="wipe")
 
 
@@ -172,7 +177,24 @@ async def problem():
     pass
 
 
-@problem.command("random")
+@problem.group("random")
+async def problem_random_group():
+    """Get random problems from the database."""
+    pass
+
+
+@problem_random_group.command("grammar")
+@click.option(
+    "--focus",
+    multiple=True,
+    type=click.Choice(["conjugation", "pronouns"]),
+    help="Filter by grammatical focus area (can specify multiple: --focus conjugation --focus pronouns)",
+)
+@click.option(
+    "--tenses",
+    multiple=True,
+    help="Filter by tenses used (e.g., future_simple, imparfait). Can specify multiple.",
+)
 @click.option(
     "--json", "output_json", is_flag=True, help="Output raw JSON with metadata"
 )
@@ -180,19 +202,27 @@ async def problem():
     "--llm-trace", "llm_trace", is_flag=True, help="Include LLM generation trace"
 )
 @click.pass_context
-async def problem_random(
+async def problem_random_grammar(
     ctx,
+    focus: tuple,
+    tenses: tuple,
     output_json: bool,
     llm_trace: bool,
 ):
-    """Get a random problem from the database."""
+    """Get a random grammar problem from the database."""
     try:
         # Get flags from root context
         root_ctx = ctx.find_root()
         detailed = root_ctx.params.get("detailed", False)
         service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
 
-        await get_random_problem(
+        # Convert tuples to lists
+        focus_list = list(focus) if focus else None
+        tenses_list = list(tenses) if tenses else None
+
+        await get_random_grammar_problem(
+            grammatical_focus=focus_list,
+            tenses_used=tenses_list,
             display=not output_json,
             detailed=detailed,
             service_url=service_url,
@@ -201,7 +231,7 @@ async def problem_random(
         )
 
     except Exception as ex:
-        click.echo(f"❌ Error fetching random problem: {ex}")
+        click.echo(f"❌ Error fetching random grammar problem: {ex}")
 
 
 @problem.command("generate")
@@ -210,8 +240,8 @@ async def problem_random(
 @click.option(
     "--focus",
     type=click.Choice(["conjugation", "pronouns"]),
-    default="conjugation",
-    help="Grammar focus area: conjugation (verb errors) or pronouns (object pronoun errors)",
+    default=None,
+    help="Grammar focus area: conjugation or pronouns. If not specified, randomly selected.",
 )
 @click.option("--include-cod", is_flag=True, help="Force inclusion of direct objects")
 @click.option("--include-coi", is_flag=True, help="Force inclusion of indirect objects")
@@ -230,7 +260,7 @@ async def problem_generate(
     ctx,
     count: int,
     statements: int,
-    focus: str,
+    focus: str | None,
     include_cod: bool,
     include_coi: bool,
     include_negation: bool,
@@ -245,8 +275,8 @@ async def problem_generate(
         detailed = root_ctx.params.get("detailed", False)
         service_url = root_ctx.obj.get("service_url") if root_ctx.obj else None
 
-        # Convert focus string to enum
-        grammar_focus = GrammarFocus(focus)
+        # Convert focus string to enum (None means random selection)
+        grammar_focus = GrammarFocus(focus) if focus else None
 
         # Build constraints from CLI options
         constraints = None
@@ -411,6 +441,7 @@ async def api_keys():
 # Add API key commands to the group
 api_keys.add_command(api_keys_create, name="create")
 api_keys.add_command(api_keys_list, name="list")
+api_keys.add_command(api_keys_update, name="update")
 api_keys.add_command(api_keys_revoke, name="revoke")
 
 

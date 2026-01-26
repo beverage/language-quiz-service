@@ -162,51 +162,82 @@ from .core.exceptions import (  # noqa: E402
 
 settings = get_settings()
 
-# Configure rate limiter
+# Configure rate limiter with Redis or in-memory storage
+_rate_limit_storage = settings.redis_url or "memory://"
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[f"{settings.rate_limit_requests}/minute"],
-    storage_uri="memory://",
+    storage_uri=_rate_limit_storage,
 )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    logger.info("🚀 Starting Language Quiz Service...")
-    logger.info(f"📊 Rate limiting: {settings.rate_limit_requests} requests/minute")
-    logger.info(f"🌐 Environment: {settings.environment}")
+    import asyncio
 
-    # Initialize in-memory caches
-    from src.cache import api_key_cache, conjugation_cache, verb_cache
-    from src.clients.supabase import get_supabase_client
+    import redis.asyncio as aioredis
+
+    from src.cache.api_key_cache import ApiKeyCache
+    from src.cache.conjugation_cache import ConjugationCache
+    from src.cache.verb_cache import VerbCache
+    from src.clients.supabase import (
+        close_supabase_client,
+        create_supabase_client,
+        set_supabase_client,
+    )
     from src.repositories.api_keys_repository import ApiKeyRepository
     from src.repositories.verb_repository import VerbRepository
 
+    logger.info("🚀 Starting Language Quiz Service...")
+    rate_limit_storage = "Redis" if settings.redis_url else "in-memory"
+    logger.info(
+        f"📊 Rate limiting: {settings.rate_limit_requests} requests/minute ({rate_limit_storage})"
+    )
+    logger.info(f"🌐 Environment: {settings.environment}")
+
+    # Initialize Supabase client (singleton for reuse across requests)
+    logger.info("🔗 Connecting to Supabase...")
+    db_client = await create_supabase_client()
+    set_supabase_client(db_client)
+    app.state.supabase = db_client
+    logger.info("✅ Supabase connected")
+
+    # Initialize Redis client
+    if settings.redis_url:
+        logger.info("🔗 Connecting to Redis...")
+        redis_client = aioredis.from_url(settings.redis_url, decode_responses=True)
+        app.state.redis = redis_client
+        logger.info("✅ Redis connected")
+    else:
+        logger.warning("⚠️  Redis not configured - caches will not be available")
+        app.state.redis = None
+
     try:
-        logger.info("💾 Loading in-memory caches...")
+        if app.state.redis:
+            logger.info("💾 Loading Redis caches...")
 
-        # Get database client
-        client = await get_supabase_client()
+            # Create repositories using the singleton Supabase client
+            verb_repo = VerbRepository(app.state.supabase)
+            api_key_repo = ApiKeyRepository(app.state.supabase)
 
-        # Create repositories
-        verb_repo = VerbRepository(client)
-        api_key_repo = ApiKeyRepository(client)
+            # Create cache instances with Redis client
+            verb_cache = VerbCache(app.state.redis)
+            conjugation_cache = ConjugationCache(app.state.redis)
+            api_key_cache = ApiKeyCache(app.state.redis)
 
-        # Load all caches in parallel
-        import asyncio
+            # Load all caches in parallel
+            await asyncio.gather(
+                verb_cache.load(verb_repo),
+                conjugation_cache.load(verb_repo),
+                api_key_cache.load(api_key_repo),
+            )
 
-        await asyncio.gather(
-            verb_cache.load(verb_repo),
-            conjugation_cache.load(verb_repo),
-            api_key_cache.load(api_key_repo),
-        )
-
-        # Log cache statistics
-        logger.info(f"📊 Verb cache: {verb_cache.get_stats()}")
-        logger.info(f"📊 Conjugation cache: {conjugation_cache.get_stats()}")
-        logger.info(f"📊 API key cache: {api_key_cache.get_stats()}")
-        logger.info("✅ All caches loaded successfully")
+            # Log cache statistics
+            logger.info(f"📊 Verb cache: {verb_cache.get_stats()}")
+            logger.info(f"📊 Conjugation cache: {conjugation_cache.get_stats()}")
+            logger.info(f"📊 API key cache: {api_key_cache.get_stats()}")
+            logger.info("✅ All caches loaded successfully")
 
         # Expire stale pending generation requests
         from src.core.factories import create_generation_request_repository
@@ -251,6 +282,23 @@ async def lifespan(app: FastAPI):
 
     # Cleanup
     logger.info("🔄 Shutting down Language Quiz Service...")
+
+    # Close Supabase connection
+    try:
+        logger.info("🔗 Closing Supabase connection...")
+        await close_supabase_client()
+        logger.info("✅ Supabase connection closed")
+    except Exception as e:
+        logger.error(f"⚠️  Error closing Supabase connection: {e}", exc_info=True)
+
+    # Close Redis connection
+    if app.state.redis:
+        try:
+            logger.info("🔗 Closing Redis connection...")
+            await app.state.redis.aclose()
+            logger.info("✅ Redis connection closed")
+        except Exception as e:
+            logger.error(f"⚠️  Error closing Redis connection: {e}", exc_info=True)
 
     # Stop background workers if running
     if worker_config.WORKER_COUNT > 0:

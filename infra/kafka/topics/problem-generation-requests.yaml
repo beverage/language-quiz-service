@@ -7,7 +7,7 @@
 #   - Partitions: 10 (allows up to 10 parallel workers)
 #   - Replication: 1 (single-node setup)
 #   - Retention: 7 days (messages older than this are deleted)
-#   - Compression: lz4 (efficient compression for JSON payloads)
+#   - Compression: producer (inherit from producer, none by default)
 
 name: problem-generation-requests
 partitions: 10
@@ -16,9 +16,6 @@ replication_factor: 1
 config:
   # Message retention: 7 days in milliseconds
   retention.ms: "604800000"
-  
-  # Compression type for messages
-  compression.type: "lz4"
   
   # Cleanup policy: delete old messages (vs compaction)
   cleanup.policy: "delete"

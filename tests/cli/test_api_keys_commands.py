@@ -1,71 +1,23 @@
+"""Tests for API keys CLI commands."""
+
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import asyncclick as click
 import httpx
 import pytest
 from asyncclick.testing import CliRunner
 
-from src.cli.api_keys.commands import (
-    create,
-    get_api_base_url,
-    get_api_key_from_env_or_flag,
-    list_keys,
-    make_api_request,
-    revoke,
-)
-
-
-class TestAPIKeyHelpers:
-    """Test helper functions for API key management."""
-
-    def test_get_api_key_from_env_or_flag_env_priority(self):
-        """Test that environment variable takes priority over flag."""
-        with patch.dict("os.environ", {"SERVICE_API_KEY": "env_key"}):
-            result = get_api_key_from_env_or_flag("flag_key")
-            assert result == "env_key"
-
-    def test_get_api_key_from_env_or_flag_flag_fallback(self):
-        """Test that flag is used when env var is not set."""
-        with patch.dict("os.environ", {}, clear=True):
-            result = get_api_key_from_env_or_flag("flag_key")
-            assert result == "flag_key"
-
-    def test_get_api_key_from_env_or_flag_no_key_raises_exception(self):
-        """Test that ClickException is raised when no key is provided."""
-        with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(click.ClickException) as excinfo:
-                get_api_key_from_env_or_flag(None)
-            assert "No API key provided" in str(excinfo.value)
-
-    def test_get_api_base_url_from_env(self):
-        """Test getting base URL from environment variable."""
-        with patch.dict("os.environ", {"SERVICE_URL": "https://api.example.com"}):
-            result = get_api_base_url()
-            assert result == "https://api.example.com"
-
-    def test_get_api_base_url_default(self):
-        """Test default base URL when env var is not set."""
-        with patch.dict("os.environ", {}, clear=True):
-            result = get_api_base_url()
-            assert result == "http://localhost:8000"
-
-    def test_get_api_base_url_fallback_on_exception(self):
-        """Test fallback URL when settings raise exception."""
-        with patch.dict("os.environ", {}, clear=True):
-            result = get_api_base_url()
-            assert result == "http://localhost:8000"
+from src.cli.api_keys.commands import create, list_keys, revoke, update
+from src.cli.utils.http_client import make_api_request
 
 
 class TestMakeAPIRequest:
     """Test the make_api_request function."""
 
-    @patch("src.cli.api_keys.commands.get_api_base_url")
     @patch("httpx.AsyncClient")
-    async def test_make_api_request_success(self, mock_client_class, mock_get_base_url):
+    async def test_make_api_request_success(self, mock_client_class):
         """Test successful API request."""
-        mock_get_base_url.return_value = "http://localhost:8000"
-
         # Mock the response
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -80,6 +32,7 @@ class TestMakeAPIRequest:
         result = await make_api_request(
             method="GET",
             endpoint="/test",
+            base_url="http://localhost:8000",
             api_key="test_key",
             json_data={"test": "data"},
             params={"param": "value"},
@@ -90,7 +43,7 @@ class TestMakeAPIRequest:
             method="GET",
             url="http://localhost:8000/test",
             headers={
-                "X-API-Key": "test_key",
+                "Authorization": "Bearer test_key",
                 "Content-Type": "application/json",
             },
             json={"test": "data"},
@@ -100,14 +53,9 @@ class TestMakeAPIRequest:
 
         assert result == mock_response
 
-    @patch("src.cli.api_keys.commands.get_api_base_url")
     @patch("httpx.AsyncClient")
-    async def test_make_api_request_http_error(
-        self, mock_client_class, mock_get_base_url
-    ):
+    async def test_make_api_request_http_error(self, mock_client_class):
         """Test API request with HTTP error."""
-        mock_get_base_url.return_value = "http://localhost:8000"
-
         # Mock error response
         mock_response = MagicMock()
         mock_response.status_code = 400
@@ -118,53 +66,59 @@ class TestMakeAPIRequest:
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
         with pytest.raises(click.ClickException) as excinfo:
-            await make_api_request("GET", "/test", "test_key")
+            await make_api_request("GET", "/test", "http://localhost:8000", "test_key")
 
         assert "API request failed: Bad request" in str(excinfo.value)
 
-    @patch("src.cli.api_keys.commands.get_api_base_url")
     @patch("httpx.AsyncClient")
-    async def test_make_api_request_network_error(
-        self, mock_client_class, mock_get_base_url
-    ):
+    async def test_make_api_request_network_error(self, mock_client_class):
         """Test API request with network error."""
-        mock_get_base_url.return_value = "http://localhost:8000"
-
         mock_client = MagicMock()
         mock_client.request = AsyncMock(side_effect=httpx.RequestError("Network error"))
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
         with pytest.raises(click.ClickException) as excinfo:
-            await make_api_request("GET", "/test", "test_key")
+            await make_api_request("GET", "/test", "http://localhost:8000", "test_key")
 
         assert (
             "Network error connecting to http://localhost:8000/test: Network error"
             in str(excinfo.value)
         )
 
-    @patch("src.cli.api_keys.commands.get_api_base_url")
     @patch("httpx.AsyncClient")
-    async def test_make_api_request_timeout(self, mock_client_class, mock_get_base_url):
+    async def test_make_api_request_timeout(self, mock_client_class):
         """Test API request with timeout."""
-        mock_get_base_url.return_value = "http://localhost:8000"
-
         mock_client = MagicMock()
         mock_client.request = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
         with pytest.raises(click.ClickException) as excinfo:
-            await make_api_request("GET", "/test", "test_key")
+            await make_api_request("GET", "/test", "http://localhost:8000", "test_key")
 
         assert "Network error connecting to http://localhost:8000/test: Timeout" in str(
             excinfo.value
         )
 
 
+def make_context_runner():
+    """Create a CLI runner with proper context setup for api-keys commands."""
+
+    @click.group()
+    @click.pass_context
+    async def test_cli(ctx):
+        """Test CLI group that sets up context like the real CLI."""
+        ctx.ensure_object(dict)
+        ctx.obj["service_url"] = "http://localhost:8000"
+        ctx.obj["remote"] = False
+
+    return test_cli
+
+
 class TestCreateCommand:
     """Test the create API key command."""
 
     @patch("src.cli.api_keys.commands.make_api_request")
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
+    @patch("src.cli.api_keys.commands.get_api_key")
     @pytest.mark.asyncio
     async def test_create_success(self, mock_get_api_key, mock_make_request):
         """Test successful API key creation."""
@@ -182,10 +136,15 @@ class TestCreateCommand:
         }
         mock_make_request.return_value = mock_response
 
+        # Create test CLI with context
+        test_cli = make_context_runner()
+        test_cli.add_command(create)
+
         runner = CliRunner()
         result = await runner.invoke(
-            create,
+            test_cli,
             [
+                "create",
                 "--name",
                 "test-key",
                 "--description",
@@ -205,7 +164,8 @@ class TestCreateCommand:
         # Verify API request was made correctly
         mock_make_request.assert_called_once_with(
             method="POST",
-            endpoint="/api-keys/",
+            endpoint="/api/v1/api-keys/",
+            base_url="http://localhost:8000",
             api_key="auth_key",
             json_data={
                 "name": "test-key",
@@ -216,7 +176,7 @@ class TestCreateCommand:
         )
 
     @patch("src.cli.api_keys.commands.make_api_request")
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
+    @patch("src.cli.api_keys.commands.get_api_key")
     @pytest.mark.asyncio
     async def test_create_with_optional_params(
         self, mock_get_api_key, mock_make_request
@@ -235,10 +195,14 @@ class TestCreateCommand:
         }
         mock_make_request.return_value = mock_response
 
+        test_cli = make_context_runner()
+        test_cli.add_command(create)
+
         runner = CliRunner()
         result = await runner.invoke(
-            create,
+            test_cli,
             [
+                "create",
                 "--name",
                 "test-key",
                 "--client-name",
@@ -255,7 +219,8 @@ class TestCreateCommand:
         # Verify API request includes optional parameters
         mock_make_request.assert_called_once_with(
             method="POST",
-            endpoint="/api-keys/",
+            endpoint="/api/v1/api-keys/",
+            base_url="http://localhost:8000",
             api_key="auth_key",
             json_data={
                 "name": "test-key",
@@ -266,24 +231,29 @@ class TestCreateCommand:
             },
         )
 
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
+    @patch("src.cli.api_keys.commands.get_api_key")
     @pytest.mark.asyncio
     async def test_create_no_auth_key_error(self, mock_get_api_key):
         """Test create command fails when no auth key is provided."""
-        mock_get_api_key.side_effect = click.ClickException("No API key provided")
+        mock_get_api_key.side_effect = click.ClickException(
+            "No API key found. Set SERVICE_API_KEY environment variable."
+        )
+
+        test_cli = make_context_runner()
+        test_cli.add_command(create)
 
         runner = CliRunner()
-        result = await runner.invoke(create, ["--name", "test-key"])
+        result = await runner.invoke(test_cli, ["create", "--name", "test-key"])
 
         assert result.exit_code != 0
-        assert "No API key provided" in result.output
+        assert "No API key found" in result.output
 
 
 class TestListKeysCommand:
     """Test the list_keys command."""
 
     @patch("src.cli.api_keys.commands.make_api_request")
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
+    @patch("src.cli.api_keys.commands.get_api_key")
     @pytest.mark.asyncio
     async def test_list_keys_json_output(self, mock_get_api_key, mock_make_request):
         """Test listing keys with JSON output."""
@@ -304,8 +274,11 @@ class TestListKeysCommand:
         ]
         mock_make_request.return_value = mock_response
 
+        test_cli = make_context_runner()
+        test_cli.add_command(list_keys, name="list")
+
         runner = CliRunner()
-        result = await runner.invoke(list_keys, ["--json"])
+        result = await runner.invoke(test_cli, ["list", "--json"])
 
         assert result.exit_code == 0
 
@@ -315,11 +288,14 @@ class TestListKeysCommand:
         assert output_data[0]["name"] == "test-key"
 
         mock_make_request.assert_called_once_with(
-            method="GET", endpoint="/api-keys/", api_key="auth_key"
+            method="GET",
+            endpoint="/api/v1/api-keys/",
+            base_url="http://localhost:8000",
+            api_key="auth_key",
         )
 
     @patch("src.cli.api_keys.commands.make_api_request")
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
+    @patch("src.cli.api_keys.commands.get_api_key")
     @patch("src.cli.api_keys.commands.Console")
     @pytest.mark.asyncio
     async def test_list_keys_table_output(
@@ -346,14 +322,17 @@ class TestListKeysCommand:
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
 
+        test_cli = make_context_runner()
+        test_cli.add_command(list_keys, name="list")
+
         runner = CliRunner()
-        result = await runner.invoke(list_keys)
+        result = await runner.invoke(test_cli, ["list"])
 
         assert result.exit_code == 0
         mock_console.print.assert_called_once()
 
     @patch("src.cli.api_keys.commands.make_api_request")
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
+    @patch("src.cli.api_keys.commands.get_api_key")
     @pytest.mark.asyncio
     async def test_list_keys_empty_response(self, mock_get_api_key, mock_make_request):
         """Test listing keys when no keys exist."""
@@ -363,18 +342,182 @@ class TestListKeysCommand:
         mock_response.json.return_value = []
         mock_make_request.return_value = mock_response
 
+        test_cli = make_context_runner()
+        test_cli.add_command(list_keys, name="list")
+
         runner = CliRunner()
-        result = await runner.invoke(list_keys)
+        result = await runner.invoke(test_cli, ["list"])
 
         assert result.exit_code == 0
         assert "No API keys found" in result.output
+
+
+class TestUpdateCommand:
+    """Test the update API key command."""
+
+    @patch("src.cli.api_keys.commands.make_api_request")
+    @patch("src.cli.api_keys.commands.get_api_key")
+    @pytest.mark.asyncio
+    async def test_update_success(self, mock_get_api_key, mock_make_request):
+        """Test successful API key update."""
+        mock_get_api_key.return_value = "auth_key"
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "key_prefix": "sk_live_1234",
+            "name": "Updated Key Name",
+            "is_active": True,
+            "permissions_scope": ["read", "write"],
+            "rate_limit_rpm": 500,
+            "allowed_ips": None,
+        }
+        mock_make_request.return_value = mock_response
+
+        key_id = "123e4567-e89b-12d3-a456-426614174000"
+
+        test_cli = make_context_runner()
+        test_cli.add_command(update)
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            test_cli,
+            ["update", key_id, "--name", "Updated Key Name", "--rate-limit", "500"],
+        )
+
+        assert result.exit_code == 0
+        assert "API key updated successfully!" in result.output
+        assert "Updated Key Name" in result.output
+
+        mock_make_request.assert_called_once_with(
+            method="PUT",
+            endpoint=f"/api/v1/api-keys/{key_id}",
+            base_url="http://localhost:8000",
+            api_key="auth_key",
+            json_data={
+                "name": "Updated Key Name",
+                "rate_limit_rpm": 500,
+            },
+        )
+
+    @patch("src.cli.api_keys.commands.make_api_request")
+    @patch("src.cli.api_keys.commands.get_api_key")
+    @pytest.mark.asyncio
+    async def test_update_permissions(self, mock_get_api_key, mock_make_request):
+        """Test updating API key permissions."""
+        mock_get_api_key.return_value = "auth_key"
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "key_prefix": "sk_live_1234",
+            "name": "Test Key",
+            "is_active": True,
+            "permissions_scope": ["read", "write", "admin"],
+            "rate_limit_rpm": 100,
+            "allowed_ips": None,
+        }
+        mock_make_request.return_value = mock_response
+
+        key_id = "123e4567-e89b-12d3-a456-426614174000"
+
+        test_cli = make_context_runner()
+        test_cli.add_command(update)
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            test_cli,
+            ["update", key_id, "--permissions", "read,write,admin"],
+        )
+
+        assert result.exit_code == 0
+        mock_make_request.assert_called_once_with(
+            method="PUT",
+            endpoint=f"/api/v1/api-keys/{key_id}",
+            base_url="http://localhost:8000",
+            api_key="auth_key",
+            json_data={
+                "permissions_scope": ["read", "write", "admin"],
+            },
+        )
+
+    @patch("src.cli.api_keys.commands.make_api_request")
+    @patch("src.cli.api_keys.commands.get_api_key")
+    @pytest.mark.asyncio
+    async def test_update_deactivate(self, mock_get_api_key, mock_make_request):
+        """Test deactivating an API key."""
+        mock_get_api_key.return_value = "auth_key"
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "123e4567-e89b-12d3-a456-426614174000",
+            "key_prefix": "sk_live_1234",
+            "name": "Test Key",
+            "is_active": False,
+            "permissions_scope": ["read"],
+            "rate_limit_rpm": 100,
+            "allowed_ips": None,
+        }
+        mock_make_request.return_value = mock_response
+
+        key_id = "123e4567-e89b-12d3-a456-426614174000"
+
+        test_cli = make_context_runner()
+        test_cli.add_command(update)
+
+        runner = CliRunner()
+        result = await runner.invoke(test_cli, ["update", key_id, "--deactivate"])
+
+        assert result.exit_code == 0
+        assert "Active: No" in result.output
+        mock_make_request.assert_called_once_with(
+            method="PUT",
+            endpoint=f"/api/v1/api-keys/{key_id}",
+            base_url="http://localhost:8000",
+            api_key="auth_key",
+            json_data={"is_active": False},
+        )
+
+    @patch("src.cli.api_keys.commands.get_api_key")
+    @pytest.mark.asyncio
+    async def test_update_no_options_error(self, mock_get_api_key):
+        """Test update command fails when no options are provided."""
+        mock_get_api_key.return_value = "auth_key"
+
+        key_id = "123e4567-e89b-12d3-a456-426614174000"
+
+        test_cli = make_context_runner()
+        test_cli.add_command(update)
+
+        runner = CliRunner()
+        result = await runner.invoke(test_cli, ["update", key_id])
+
+        assert result.exit_code != 0
+        assert "No update options provided" in result.output
+
+    @patch("src.cli.api_keys.commands.get_api_key")
+    @pytest.mark.asyncio
+    async def test_update_invalid_uuid(self, mock_get_api_key):
+        """Test update command with invalid UUID."""
+        mock_get_api_key.return_value = "auth_key"
+
+        test_cli = make_context_runner()
+        test_cli.add_command(update)
+
+        runner = CliRunner()
+        result = await runner.invoke(
+            test_cli, ["update", "invalid-uuid", "--name", "Test"]
+        )
+
+        assert result.exit_code != 0
+        assert "Invalid UUID format" in result.output
 
 
 class TestRevokeCommand:
     """Test the revoke API key command."""
 
     @patch("src.cli.api_keys.commands.make_api_request")
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
+    @patch("src.cli.api_keys.commands.get_api_key")
     @pytest.mark.asyncio
     async def test_revoke_success(self, mock_get_api_key, mock_make_request):
         """Test successful API key revocation."""
@@ -385,88 +528,62 @@ class TestRevokeCommand:
 
         key_id = "123e4567-e89b-12d3-a456-426614174000"
 
+        test_cli = make_context_runner()
+        test_cli.add_command(revoke)
+
         runner = CliRunner()
-        result = await runner.invoke(revoke, [key_id])
+        result = await runner.invoke(test_cli, ["revoke", key_id])
 
         assert result.exit_code == 0
         assert f"API key {key_id} revoked successfully!" in result.output
 
         mock_make_request.assert_called_once_with(
-            method="POST", endpoint=f"/api-keys/{key_id}/revoke", api_key="auth_key"
+            method="DELETE",
+            endpoint=f"/api/v1/api-keys/{key_id}",
+            base_url="http://localhost:8000",
+            api_key="auth_key",
         )
 
+    @patch("src.cli.api_keys.commands.get_api_key")
     @pytest.mark.asyncio
-    async def test_revoke_invalid_uuid(self):
+    async def test_revoke_invalid_uuid(self, mock_get_api_key):
         """Test revoke command with invalid UUID."""
+        mock_get_api_key.return_value = "auth_key"
+
+        test_cli = make_context_runner()
+        test_cli.add_command(revoke)
+
         runner = CliRunner()
-        result = await runner.invoke(revoke, ["invalid-uuid", "--api-key", "test-key"])
+        result = await runner.invoke(test_cli, ["revoke", "invalid-uuid"])
 
         assert result.exit_code != 0
         assert "Invalid UUID format" in result.output
 
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
+    @patch("src.cli.api_keys.commands.get_api_key")
     @pytest.mark.asyncio
     async def test_revoke_no_auth_key_error(self, mock_get_api_key):
         """Test revoke command fails when no auth key is provided."""
-        mock_get_api_key.side_effect = click.ClickException("No API key provided")
+        mock_get_api_key.side_effect = click.ClickException(
+            "No API key found. Set SERVICE_API_KEY environment variable."
+        )
 
         key_id = "123e4567-e89b-12d3-a456-426614174000"
 
+        test_cli = make_context_runner()
+        test_cli.add_command(revoke)
+
         runner = CliRunner()
-        result = await runner.invoke(revoke, [key_id])
+        result = await runner.invoke(test_cli, ["revoke", key_id])
 
         assert result.exit_code != 0
-        assert "No API key provided" in result.output
+        assert "No API key found" in result.output
 
 
 class TestIntegrationScenarios:
     """Test integration scenarios and edge cases."""
 
     @patch("src.cli.api_keys.commands.make_api_request")
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
-    @pytest.mark.asyncio
-    async def test_create_with_api_key_flag(self, mock_get_api_key, mock_make_request):
-        """Test create command using --api-key flag."""
-        mock_get_api_key.return_value = "flag_key"
-
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "api_key": "test_key_cli_rotate_12345",
-            "key_info": {
-                "name": "test-key",
-                "key_prefix": "test_key_cli_rotate_12345",
-                "permissions_scope": ["read"],
-            },
-        }
-        mock_make_request.return_value = mock_response
-
-        runner = CliRunner()
-        result = await runner.invoke(
-            create, ["--name", "test-key", "--api-key", "flag_key"]
-        )
-
-        assert result.exit_code == 0
-        mock_get_api_key.assert_called_once_with("flag_key")
-
-    @patch("src.cli.api_keys.commands.make_api_request")
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
-    @pytest.mark.asyncio
-    async def test_list_with_api_key_flag(self, mock_get_api_key, mock_make_request):
-        """Test list command using --api-key flag."""
-        mock_get_api_key.return_value = "flag_key"
-
-        mock_response = MagicMock()
-        mock_response.json.return_value = []
-        mock_make_request.return_value = mock_response
-
-        runner = CliRunner()
-        result = await runner.invoke(list_keys, ["--api-key", "flag_key"])
-
-        assert result.exit_code == 0
-        mock_get_api_key.assert_called_once_with("flag_key")
-
-    @patch("src.cli.api_keys.commands.make_api_request")
-    @patch("src.cli.api_keys.commands.get_api_key_from_env_or_flag")
+    @patch("src.cli.api_keys.commands.get_api_key")
     @pytest.mark.asyncio
     async def test_commands_handle_api_errors(
         self, mock_get_api_key, mock_make_request
@@ -475,20 +592,61 @@ class TestIntegrationScenarios:
         mock_get_api_key.return_value = "auth_key"
         mock_make_request.side_effect = click.ClickException("API Error")
 
+        test_cli = make_context_runner()
+        test_cli.add_command(create)
+        test_cli.add_command(list_keys, name="list")
+        test_cli.add_command(revoke)
+
         runner = CliRunner()
 
         # Test create command error handling
-        result = await runner.invoke(create, ["--name", "test-key"])
+        result = await runner.invoke(test_cli, ["create", "--name", "test-key"])
         assert result.exit_code != 0
         assert "API Error" in result.output
 
         # Test list command error handling
-        result = await runner.invoke(list_keys)
+        result = await runner.invoke(test_cli, ["list"])
         assert result.exit_code != 0
         assert "API Error" in result.output
 
         # Test revoke command error handling
         key_id = "123e4567-e89b-12d3-a456-426614174000"
-        result = await runner.invoke(revoke, [key_id])
+        result = await runner.invoke(test_cli, ["revoke", key_id])
         assert result.exit_code != 0
         assert "API Error" in result.output
+
+    @patch("src.cli.api_keys.commands.make_api_request")
+    @patch("src.cli.api_keys.commands.get_api_key")
+    @pytest.mark.asyncio
+    async def test_commands_use_service_url_from_context(
+        self, mock_get_api_key, mock_make_request
+    ):
+        """Test that commands get service_url from context."""
+        mock_get_api_key.return_value = "auth_key"
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = []
+        mock_make_request.return_value = mock_response
+
+        # Create CLI with custom service URL
+        @click.group()
+        @click.pass_context
+        async def custom_cli(ctx):
+            ctx.ensure_object(dict)
+            ctx.obj["service_url"] = "https://custom.example.com"
+            ctx.obj["remote"] = True
+
+        custom_cli.add_command(list_keys, name="list")
+
+        runner = CliRunner()
+        result = await runner.invoke(custom_cli, ["list"])
+
+        assert result.exit_code == 0
+
+        # Verify the custom service URL was used
+        mock_make_request.assert_called_once_with(
+            method="GET",
+            endpoint="/api/v1/api-keys/",
+            base_url="https://custom.example.com",
+            api_key="auth_key",
+        )

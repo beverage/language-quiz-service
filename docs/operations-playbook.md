@@ -16,6 +16,32 @@ This playbook documents common operational tasks for the Language Quiz Service u
 
 ## Problem Retrieval
 
+### Random Problem Fetch
+
+Get a random grammar problem from the pool with optional filtering:
+
+```bash
+# Get any random grammar problem
+lqs problem random grammar
+
+# Filter by grammatical focus
+lqs problem random grammar --focus conjugation
+lqs problem random grammar --focus pronouns
+lqs problem random grammar --focus conjugation --focus pronouns  # Multiple focuses (OR logic)
+
+# Filter by tenses used
+lqs problem random grammar --tenses futur_simple
+lqs problem random grammar --tenses futur_simple --tenses imparfait  # Multiple tenses (OR logic)
+
+# Combine filters
+lqs problem random grammar --focus conjugation --tenses present
+lqs problem random grammar --focus pronouns --tenses futur_simple --tenses imparfait
+
+# JSON output for piping
+lqs problem random grammar --json
+lqs problem random grammar --focus conjugation --tenses present --json
+```
+
 ### Single Problem Fetch
 
 ```bash
@@ -241,6 +267,10 @@ lqs generation clean --older-than 1d --topic test_data --force
 
 | Task | Command |
 |------|---------|
+| Get random grammar problem | `lqs problem random grammar` |
+| Get random with focus filter | `lqs problem random grammar --focus conjugation` |
+| Get random with tense filter | `lqs problem random grammar --tenses futur_simple` |
+| Get random with combined filters | `lqs problem random grammar --focus conjugation --tenses present` |
 | Get problem by ID | `lqs problem get <uuid>` |
 | Get generation request | `lqs generation get <uuid>` |
 | Get with verbose details | `lqs problem get <uuid> -v` |

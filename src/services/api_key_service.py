@@ -3,7 +3,7 @@
 import logging
 from uuid import UUID
 
-from src.cache import api_key_cache
+from src.cache.api_key_cache import ApiKeyCache
 from src.core.exceptions import NotFoundError, RepositoryError, ServiceError
 from src.repositories.api_keys_repository import ApiKeyRepository
 from src.schemas.api_keys import (
@@ -24,13 +24,19 @@ logger = logging.getLogger(__name__)
 class ApiKeyService:
     """Service for API key business logic and orchestration."""
 
-    def __init__(self, api_key_repository: ApiKeyRepository | None = None):
+    def __init__(
+        self,
+        api_key_repository: ApiKeyRepository | None = None,
+        api_key_cache: ApiKeyCache | None = None,
+    ):
         """Initialize the API key service with injectable dependencies.
 
         Args:
             api_key_repository: Optional repository (can be set later for lazy init).
+            api_key_cache: Optional ApiKeyCache for caching API keys.
         """
         self.api_key_repository = api_key_repository
+        self.api_key_cache = api_key_cache
 
     def set_repository(self, api_key_repository: ApiKeyRepository) -> None:
         """Set the API key repository (for cases requiring lazy initialization)."""
@@ -56,7 +62,8 @@ class ApiKeyService:
         api_key = await repo.create_api_key(api_key_data, key_hash, key_prefix)
 
         # Refresh cache with new key
-        await api_key_cache.refresh_key(api_key)
+        if self.api_key_cache:
+            await self.api_key_cache.refresh_key(api_key)
 
         # Return the response with the plain text key (only time it's shown)
         return ApiKeyWithPlainText(
@@ -93,7 +100,8 @@ class ApiKeyService:
             raise NotFoundError(f"API key with ID {api_key_id} not found")
 
         # Refresh cache with updated key
-        await api_key_cache.refresh_key(api_key)
+        if self.api_key_cache:
+            await self.api_key_cache.refresh_key(api_key)
 
         return ApiKeyResponse.model_validate(api_key.model_dump())
 
@@ -104,7 +112,8 @@ class ApiKeyService:
 
         if success:
             # Invalidate cache
-            await api_key_cache.invalidate_key(api_key_id)
+            if self.api_key_cache:
+                await self.api_key_cache.invalidate_key(api_key_id)
 
         return success
 
@@ -136,15 +145,17 @@ class ApiKeyService:
             key_prefix = api_key_plain[:12]  # sk_live_ + first 4 chars
 
             # Try cache first (hot path optimization)
-            api_key = await api_key_cache.get_by_prefix(key_prefix)
+            api_key = None
+            if self.api_key_cache:
+                api_key = await self.api_key_cache.get_by_prefix(key_prefix)
 
             # Cache miss - look up in database
             if not api_key:
                 api_key = await repo.get_api_key_by_prefix(key_prefix)
 
                 # Warm cache for next time
-                if api_key and api_key.is_active:
-                    await api_key_cache.refresh_key(api_key)
+                if api_key and api_key.is_active and self.api_key_cache:
+                    await self.api_key_cache.refresh_key(api_key)
 
             if not api_key or not api_key.is_active:
                 logger.warning(

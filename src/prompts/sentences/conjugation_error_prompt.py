@@ -4,6 +4,7 @@ from src.prompts.sentences.helpers import get_conjugation_pair
 from src.prompts.sentences.templates import (
     COMPOUND_TENSES,
     build_base_template,
+    build_explanation_section,
     format_optional_dimension,
 )
 from src.schemas.sentences import SentenceBase
@@ -59,6 +60,22 @@ OPTIONAL GUIDANCE (use if natural, ignore if problematic):
 - Indirect object: {indirect_object_display}
 """
 
+    # Get the correct form for explanation
+    _, correct_conjugation, _ = get_conjugation_pair(
+        pronoun=sentence.pronoun,
+        tense=sentence.tense,
+        verb=verb,
+        conjugations=conjugations,
+        correct=True,
+    )
+    if sentence.tense in COMPOUND_TENSES:
+        correct_verb_display = f"{correct_conjugation} {verb.past_participle}"
+    else:
+        correct_verb_display = correct_conjugation
+
+    explanation = build_explanation_section(
+        f"The verb should be '{correct_verb_display}' for '{pronoun_display}', not '{wrong_verb_display}'."
+    )
     instructions = f"""
 [TASK]
 Generate a French sentence with the WRONG conjugation "{wrong_verb_display}" for "{pronoun_display}".
@@ -71,10 +88,6 @@ GUIDANCE:
 - Other grammar can be correct OR have minor issues - focus on the conjugation error
 - If the optional parameters create conflicts, ignore them and write a natural sentence
 - Keep it simple - one clause is fine
-
-EXPLANATION:
-Write a brief explanation stating ONLY the conjugation error.
-Format: "The verb should be '[correct form]' for '{pronoun_display}', not '{wrong_verb_display}'."
-"""
+{explanation}"""
 
     return base + required_params + instructions

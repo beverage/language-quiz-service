@@ -41,8 +41,15 @@ def generate_random_problem_data(
     title: str = None,
     instructions: str = None,
     metadata: dict[str, Any] = None,
+    focus: str = None,
 ) -> dict[str, Any]:
-    """Generate random problem data for testing."""
+    """Generate random problem data for testing.
+
+    Args:
+        focus: Grammar focus value ("conjugation" or "pronouns"). If provided,
+               sets metadata.grammatical_focus. For grammar problems, defaults
+               to random choice if not specified.
+    """
     if problem_type is None:
         # Only use GRAMMAR type since FUNCTIONAL and VOCABULARY are not implemented yet
         problem_type = ProblemType.GRAMMAR.value
@@ -65,6 +72,19 @@ def generate_random_problem_data(
     if "test_data" not in topic_tags:
         topic_tags = ["test_data"] + topic_tags
 
+    # Build metadata with grammatical_focus for grammar problems
+    if metadata is None:
+        metadata = {}
+
+    if (
+        problem_type == ProblemType.GRAMMAR.value
+        and "grammatical_focus" not in metadata
+    ):
+        # Use provided focus or random choice
+        if focus is None:
+            focus = choice(["conjugation", "pronouns"])
+        metadata["grammatical_focus"] = [focus]
+
     return {
         "problem_type": problem_type,
         "title": title or fake.sentence(nb_words=4),
@@ -74,7 +94,7 @@ def generate_random_problem_data(
         "statements": statements,
         "topic_tags": topic_tags,
         "source_statement_ids": [],
-        "metadata": metadata or {},
+        "metadata": metadata,
     }
 
 

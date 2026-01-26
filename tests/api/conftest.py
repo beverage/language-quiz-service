@@ -226,6 +226,28 @@ class MockProblemService:
             return None
         return list(self.problems.values())[0]
 
+    async def get_random_grammar_problem(
+        self,
+        grammatical_focus=None,
+        tenses_used=None,
+        topic_tags=None,
+        target_language_code=None,
+    ):
+        """Mock get random grammar problem for /grammar/random endpoint."""
+        if self.return_none or not self.problems:
+            return None
+        # Simple mock: return first problem if it matches filters (basic check)
+        problem = list(self.problems.values())[0]
+        if grammatical_focus and problem.metadata:
+            problem_focus = problem.metadata.get("grammatical_focus", [])
+            if not any(f in problem_focus for f in grammatical_focus):
+                return None
+        if tenses_used and problem.metadata:
+            problem_tenses = problem.metadata.get("tenses_used", [])
+            if not any(t in problem_tenses for t in tenses_used):
+                return None
+        return problem
+
     async def get_problem_by_id(self, problem_id):
         """Mock get problem by ID.
 

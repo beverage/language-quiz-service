@@ -20,9 +20,9 @@ API_KEY_PREFIX = f"{ROUTER_PREFIX}{API_PREFIX}"
 
 
 @pytest.fixture
-def client():
-    """Create a test client for the FastAPI app."""
-    return TestClient(app)
+def client(test_client_with_lifespan):
+    """Provide a test client for the FastAPI app with lifespan run."""
+    return test_client_with_lifespan
 
 
 # Note: admin_headers, write_headers, read_headers, and inactive_headers
@@ -65,7 +65,7 @@ class TestApiKeysAPIAuthentication:
 
     def test_invalid_api_key_rejected(self, client: TestClient):
         """Test that invalid API keys are rejected."""
-        invalid_headers = {"X-API-Key": "invalid_key"}
+        invalid_headers = {"Authorization": "Bearer invalid_key"}
 
         response = client.get(f"{API_KEY_PREFIX}/", headers=invalid_headers)
         assert response.status_code == 401
@@ -306,12 +306,51 @@ class TestApiKeysAPIIntegration:
 
     def test_update_api_key_no_data_provided(self, client: TestClient, admin_headers):
         """Test updating an API key with no data should result in a 400."""
-        # Find a valid key to update
-        response = client.get(f"{API_KEY_PREFIX}/", headers=admin_headers)
-        key_id = response.json()[0]["id"]
+        # Create a new key to update (avoid self-modification protection)
+        key_name = f"Test-Update-Empty-{uuid4()}"
+        create_data = {"name": key_name, "permissions_scope": ["read"]}
+        response = client.post(
+            f"{API_KEY_PREFIX}/", json=create_data, headers=admin_headers
+        )
+        assert response.status_code == 200
+        key_id = response.json()["key_info"]["id"]
 
+        # Try to update with no data
         response = client.put(
             f"{API_KEY_PREFIX}/{key_id}", json={}, headers=admin_headers
         )
         assert response.status_code == 400
         assert "no update data provided" in response.json()["message"].lower()
+
+        # Cleanup: revoke the key
+        client.delete(f"{API_KEY_PREFIX}/{key_id}", headers=admin_headers)
+
+    def test_self_modification_blocked(self, client: TestClient, admin_headers):
+        """Test that API keys cannot modify themselves."""
+        # Get the current key's ID
+        response = client.get(f"{API_KEY_PREFIX}/current", headers=admin_headers)
+        assert response.status_code == 200
+        current_key_id = response.json()["id"]
+
+        # Try to update the current key
+        response = client.put(
+            f"{API_KEY_PREFIX}/{current_key_id}",
+            json={"name": "Self Modified"},
+            headers=admin_headers,
+        )
+        assert response.status_code == 403
+        assert "cannot modify themselves" in response.json()["message"].lower()
+
+    def test_self_revocation_blocked(self, client: TestClient, admin_headers):
+        """Test that API keys cannot revoke themselves."""
+        # Get the current key's ID
+        response = client.get(f"{API_KEY_PREFIX}/current", headers=admin_headers)
+        assert response.status_code == 200
+        current_key_id = response.json()["id"]
+
+        # Try to revoke the current key
+        response = client.delete(
+            f"{API_KEY_PREFIX}/{current_key_id}", headers=admin_headers
+        )
+        assert response.status_code == 403
+        assert "cannot revoke themselves" in response.json()["message"].lower()

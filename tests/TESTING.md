@@ -312,7 +312,7 @@ def test_download_verb_with_mocked_llm(client, write_headers):
 ```python
 def test_invalid_api_key_returns_401(client):
     """Test authentication with invalid API key."""
-    headers = {"X-API-Key": "test_key_invalid_fake"}
+    headers = {"Authorization": "Bearer test_key_invalid_fake"}
     response = client.get("/api/v1/verbs/random", headers=headers)
     assert response.status_code == 401
     assert "invalid api key" in response.json()["message"].lower()

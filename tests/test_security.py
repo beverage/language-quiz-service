@@ -11,9 +11,9 @@ from src.main import app
 
 
 @pytest.fixture
-def client():
-    """Create a test client for security tests."""
-    return TestClient(app)
+def client(test_client_with_lifespan):
+    """Provide a test client for security tests with lifespan run."""
+    return test_client_with_lifespan
 
 
 @pytest.fixture

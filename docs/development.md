@@ -230,13 +230,30 @@ lqs problem generate --include-negation  # Force negation
 lqs problem generate --tense present     # Specific tense
 ```
 
-### `lqs problem random`
+### `lqs problem random grammar`
 
-Get a random problem from the database:
+Get a random grammar problem from the database with optional filtering:
 
 ```bash
-lqs problem random
-lqs problem random --json  # JSON output
+# Get any grammar problem
+lqs problem random grammar
+
+# Filter by grammatical focus (can specify multiple)
+lqs problem random grammar --focus conjugation
+lqs problem random grammar --focus pronouns
+lqs problem random grammar --focus conjugation --focus pronouns
+
+# Filter by tenses used (can specify multiple)
+lqs problem random grammar --tenses futur_simple
+lqs problem random grammar --tenses futur_simple --tenses imparfait
+
+# Combine filters
+lqs problem random grammar --focus conjugation --tenses present
+lqs problem random grammar --focus pronouns --tenses futur_simple --tenses imparfait
+
+# JSON output
+lqs problem random grammar --json
+lqs problem random grammar --focus conjugation --json
 ```
 
 ### `lqs problem list`

@@ -521,6 +521,133 @@ class TestBuilderWithFocus:
             )
             assert ErrorType.WRONG_ORDER not in error_types
 
+    def test_select_error_types_excludes_wrong_gender_for_compound_tenses(
+        self, builder, avoir_verb
+    ):
+        """Verify WRONG_GENDER is excluded for compound tenses (elision with auxiliary)."""
+        sentence = SentenceBase(
+            content="",
+            translation="",
+            verb_id=uuid.uuid4(),
+            pronoun=Pronoun.FIRST_PERSON,
+            tense=Tense.PASSE_COMPOSE,  # Compound tense
+            direct_object=DirectObject.MASCULINE,
+            indirect_object=IndirectObject.NONE,
+            negation=Negation.NONE,
+            is_correct=False,
+            target_language_code="eng",
+        )
+
+        # Check multiple times - WRONG_GENDER should never appear
+        for _ in range(10):
+            error_types = builder.select_error_types(
+                sentence, avoir_verb, focus=GrammarFocus.PRONOUNS, count=5
+            )
+            assert ErrorType.WRONG_GENDER not in error_types
+
+    def test_select_error_types_excludes_wrong_gender_for_vowel_starting_conjugation(
+        self, builder, avoir_verb
+    ):
+        """Verify WRONG_GENDER is excluded when conjugation starts with vowel (elision)."""
+        sentence = SentenceBase(
+            content="",
+            translation="",
+            verb_id=uuid.uuid4(),
+            pronoun=Pronoun.THIRD_PERSON_PLURAL,  # Will use 3rd plural form
+            tense=Tense.SUBJONCTIF,  # Subjunctive
+            direct_object=DirectObject.MASCULINE,
+            indirect_object=IndirectObject.NONE,
+            negation=Negation.NONE,
+            is_correct=False,
+            target_language_code="eng",
+        )
+
+        # Create conjugations where 3rd plural starts with vowel (like 'aient')
+        vowel_conjugation = MagicMock()
+        vowel_conjugation.tense = Tense.SUBJONCTIF
+        vowel_conjugation.third_person_plural = "aient"  # Starts with vowel
+        conjugations = [vowel_conjugation]
+
+        # Check multiple times - WRONG_GENDER should never appear
+        for _ in range(10):
+            error_types = builder.select_error_types(
+                sentence,
+                avoir_verb,
+                focus=GrammarFocus.PRONOUNS,
+                count=5,
+                conjugations=conjugations,
+            )
+            assert ErrorType.WRONG_GENDER not in error_types
+
+    def test_select_error_types_allows_wrong_gender_for_consonant_starting_conjugation(
+        self, builder, avoir_verb
+    ):
+        """Verify WRONG_GENDER is allowed when conjugation starts with consonant."""
+        sentence = SentenceBase(
+            content="",
+            translation="",
+            verb_id=uuid.uuid4(),
+            pronoun=Pronoun.FIRST_PERSON,
+            tense=Tense.PRESENT,  # Simple tense
+            direct_object=DirectObject.MASCULINE,
+            indirect_object=IndirectObject.NONE,
+            negation=Negation.NONE,
+            is_correct=False,
+            target_language_code="eng",
+        )
+
+        # Create conjugations where 1st singular starts with consonant
+        consonant_conjugation = MagicMock()
+        consonant_conjugation.tense = Tense.PRESENT
+        consonant_conjugation.first_person_singular = "donne"  # Starts with consonant
+        conjugations = [consonant_conjugation]
+
+        # Run multiple times to see if WRONG_GENDER appears (it should be available)
+        all_error_types = set()
+        for _ in range(20):
+            error_types = builder.select_error_types(
+                sentence,
+                avoir_verb,
+                focus=GrammarFocus.PRONOUNS,
+                count=5,
+                conjugations=conjugations,
+            )
+            all_error_types.update(error_types)
+
+        assert ErrorType.WRONG_GENDER in all_error_types
+
+    def test_select_error_types_handles_missing_conjugations_for_wrong_gender(
+        self, builder, avoir_verb
+    ):
+        """Verify WRONG_GENDER is still available when conjugations not provided."""
+        sentence = SentenceBase(
+            content="",
+            translation="",
+            verb_id=uuid.uuid4(),
+            pronoun=Pronoun.FIRST_PERSON,
+            tense=Tense.PRESENT,  # Simple tense (not compound)
+            direct_object=DirectObject.MASCULINE,
+            indirect_object=IndirectObject.NONE,
+            negation=Negation.NONE,
+            is_correct=False,
+            target_language_code="eng",
+        )
+
+        # No conjugations provided - WRONG_GENDER should still be available
+        # (can't check for vowel, so defaults to allowing it)
+        all_error_types = set()
+        for _ in range(20):
+            error_types = builder.select_error_types(
+                sentence,
+                avoir_verb,
+                focus=GrammarFocus.PRONOUNS,
+                count=5,
+                conjugations=None,  # No conjugations
+            )
+            all_error_types.update(error_types)
+
+        assert ErrorType.WRONG_GENDER in all_error_types
+
     def test_build_prompt_uses_pronoun_prompt_for_correct_with_pronoun_focus(
         self, builder, cod_sentence, avoir_verb, present_conjugations
     ):

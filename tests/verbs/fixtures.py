@@ -25,12 +25,29 @@ fake = Faker()
 
 
 @pytest.fixture
-async def verb_service(test_supabase_client, mock_llm_client):
-    """Create a VerbService with real repository connection and mock LLM client."""
+async def verb_service(test_supabase_client, mock_llm_client, redis_client):
+    """Create a VerbService with real repository connection, caches, and mock LLM client."""
+    from src.cache.conjugation_cache import ConjugationCache
+    from src.cache.verb_cache import VerbCache
+
     verb_repository = VerbRepository(client=test_supabase_client)
+
+    # Get the unique namespace for this test
+    namespace = redis_client._test_namespace
+
+    # Create caches with Redis client and namespace for isolation
+    verb_cache = VerbCache(redis_client, namespace=namespace)
+    conjugation_cache = ConjugationCache(redis_client, namespace=namespace)
+
+    # Load caches from database
+    await verb_cache.load(verb_repository)
+    await conjugation_cache.load(verb_repository)
+
     return VerbService(
         llm_client=mock_llm_client,
         verb_repository=verb_repository,
+        verb_cache=verb_cache,
+        conjugation_cache=conjugation_cache,
     )
 
 

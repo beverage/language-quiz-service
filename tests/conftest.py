@@ -1,11 +1,14 @@
 # tests/conftest.py
-"""Shared fixtures for the test suite using local Supabase."""
+"""Shared fixtures for the test suite using local Supabase and Redis testcontainers."""
 
 import json
 import os
 import subprocess
 
+import filelock
 import pytest
+import redis.asyncio as aioredis
+from testcontainers.redis import RedisContainer
 
 # Force reset of Settings after environment override
 # This is crucial for the FastAPI app to load with the correct test settings
@@ -92,6 +95,7 @@ def _setup_test_environment():
         )
 
     # Set test environment variables immediately
+    # Note: Redis is provided by testcontainers, not environment variables
     test_env_vars = {
         "SUPABASE_URL": "http://127.0.0.1:54321",
         "SUPABASE_SERVICE_ROLE_KEY": service_role_key,
@@ -110,6 +114,22 @@ _setup_test_environment()
 reset_settings()
 
 
+@pytest.fixture(autouse=True)
+def reset_supabase_singleton():
+    """Reset the Supabase singleton before each test.
+
+    This prevents 'Event loop is closed' errors when tests use the module-level
+    singleton which may be bound to a closed event loop from a previous test.
+    """
+    import src.clients.supabase as supabase_module
+
+    # Clear the singleton before each test
+    supabase_module._supabase_client = None
+    yield
+    # Clear again after test to ensure clean state
+    supabase_module._supabase_client = None
+
+
 @pytest.fixture
 async def test_supabase_client() -> Client:
     """Fixture to provide a Supabase client for the local test instance."""
@@ -122,6 +142,37 @@ async def test_supabase_client() -> Client:
         )
 
     return await create_test_supabase_client(supabase_url, service_role_key)
+
+
+@pytest.fixture
+def app_with_state():
+    """Provide app with TestClient that runs lifespan handlers.
+
+    By using TestClient as a context manager, the lifespan handlers
+    are properly executed, setting up app.state.supabase and app.state.redis.
+    """
+    from fastapi.testclient import TestClient
+
+    from src.main import app
+
+    # Use TestClient as context manager to run lifespan handlers
+    with TestClient(app):
+        # The lifespan handler has now run and set up app.state
+        yield app
+
+
+@pytest.fixture
+def test_client_with_lifespan():
+    """Provide a TestClient that runs lifespan handlers.
+
+    Use this when you need the actual TestClient, not just the app.
+    """
+    from fastapi.testclient import TestClient
+
+    from src.main import app
+
+    with TestClient(app) as client:
+        yield client
 
 
 @pytest.fixture(scope="session")
@@ -209,22 +260,136 @@ async def test_keys():
 @pytest.fixture
 def admin_headers(test_keys):
     """HTTP headers with admin API key for authenticated requests."""
-    return {"X-API-Key": test_keys["admin"]}
+    return {"Authorization": f"Bearer {test_keys['admin']}"}
 
 
 @pytest.fixture
 def write_headers(test_keys):
     """HTTP headers with write API key for authenticated requests."""
-    return {"X-API-Key": test_keys["write"]}
+    return {"Authorization": f"Bearer {test_keys['write']}"}
 
 
 @pytest.fixture
 def read_headers(test_keys):
     """HTTP headers with read-only API key for authenticated requests."""
-    return {"X-API-Key": test_keys["read"]}
+    return {"Authorization": f"Bearer {test_keys['read']}"}
 
 
 @pytest.fixture
 def inactive_headers(test_keys):
     """HTTP headers with inactive API key for testing auth failures."""
-    return {"X-API-Key": test_keys["inactive"]}
+    return {"Authorization": f"Bearer {test_keys['inactive']}"}
+
+
+# =============================================================================
+# Redis Testcontainers Fixtures
+# =============================================================================
+
+
+def _get_redis_url(container: RedisContainer) -> str:
+    """Build Redis URL from container host and port."""
+    host = container.get_container_host_ip()
+    port = container.get_exposed_port(container.port)
+    return f"redis://{host}:{port}"
+
+
+@pytest.fixture(scope="session")
+def redis_container(tmp_path_factory, worker_id):
+    """Start a Redis container for the test session.
+
+    Uses testcontainers to spin up Redis automatically.
+    Handles pytest-xdist parallel workers by sharing a single container
+    across all workers using file-based coordination.
+    """
+    if worker_id == "master":
+        # Not running with xdist, start container normally
+        container = RedisContainer()
+        container.start()
+
+        # Create wrapper that provides get_connection_url()
+        class ContainerWrapper:
+            def __init__(self, c):
+                self._container = c
+
+            def get_connection_url(self):
+                return _get_redis_url(self._container)
+
+        yield ContainerWrapper(container)
+        container.stop()
+    else:
+        # Running with xdist, use shared container across workers
+        root_tmp_dir = tmp_path_factory.getbasetemp().parent
+        lock_file = root_tmp_dir / "redis_container.lock"
+        url_file = root_tmp_dir / "redis_url.txt"
+
+        with filelock.FileLock(lock_file):
+            if not url_file.exists():
+                # First worker starts the container
+                container = RedisContainer()
+                container.start()
+                # Write connection URL for other workers
+                redis_url = _get_redis_url(container)
+                url_file.write_text(redis_url)
+                # Store container reference to prevent garbage collection
+                # The container will be stopped when the process exits
+
+        # Create a simple object that provides get_connection_url()
+        class SharedContainer:
+            def get_connection_url(self):
+                return url_file.read_text()
+
+        yield SharedContainer()
+
+
+@pytest.fixture
+async def redis_client(redis_container):
+    """Fixture to provide a Redis client with isolated namespace for cache tests.
+
+    Uses testcontainers Redis (started automatically).
+    Each test gets a unique namespace to prevent interference when running in parallel.
+    Cleans up only this test's keys before and after.
+    """
+    import uuid
+
+    # Get connection URL from testcontainer
+    redis_url = redis_container.get_connection_url()
+    client = aioredis.from_url(redis_url, decode_responses=True)
+
+    # Generate unique namespace for this test
+    test_id = uuid.uuid4().hex[:8]
+    namespace = f"test_{test_id}:"
+
+    # Store namespace on client for access by other fixtures
+    client._test_namespace = namespace
+
+    # Clean up any leftover keys from this namespace (shouldn't exist, but just in case)
+    for base_prefix in ["verb", "conj", "apikey"]:
+        prefix = f"{namespace}{base_prefix}:*"
+        cursor = 0
+        while True:
+            cursor, keys = await client.scan(cursor, match=prefix, count=100)
+            if keys:
+                await client.delete(*keys)
+            if cursor == 0:
+                break
+
+    yield client
+
+    # Clean up this test's keys after test
+    for base_prefix in ["verb", "conj", "apikey"]:
+        prefix = f"{namespace}{base_prefix}:*"
+        cursor = 0
+        while True:
+            cursor, keys = await client.scan(cursor, match=prefix, count=100)
+            if keys:
+                await client.delete(*keys)
+            if cursor == 0:
+                break
+
+    await client.aclose()
+
+
+@pytest.fixture
+def redis_namespace(redis_client) -> str:
+    """Get the unique namespace for this test's Redis keys."""
+    return redis_client._test_namespace

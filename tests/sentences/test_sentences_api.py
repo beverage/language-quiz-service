@@ -30,6 +30,7 @@ def client(monkeypatch):
     """Create a test client with auth disabled and services mocked."""
     from src.core.config import reset_settings
     from src.core.dependencies import get_sentence_service
+    from src.main import app
     from tests.api.conftest import MockSentenceService
 
     # Disable auth for contract testing
@@ -40,19 +41,21 @@ def client(monkeypatch):
     mock_service = MockSentenceService()
     app.dependency_overrides[get_sentence_service] = lambda: mock_service
 
-    yield TestClient(app)
+    # Use context manager to run lifespan
+    with TestClient(app) as test_client:
+        yield test_client
 
     app.dependency_overrides.clear()
     reset_settings()
 
 
 @pytest.fixture
-def auth_client():
-    """Create a test client with real auth enabled for auth tests.
+def auth_client(test_client_with_lifespan):
+    """Provide a test client with real auth enabled for auth tests.
 
     Uses real API key validation but mocked services.
     """
-    return TestClient(app)
+    return test_client_with_lifespan
 
 
 # =============================================================================
@@ -89,7 +92,7 @@ class TestSentencesAPIAuthentication:
 
     def test_invalid_api_key_rejected(self, auth_client: TestClient):
         """Test that invalid API keys are rejected."""
-        headers = {"X-API-Key": "invalid-key-12345"}
+        headers = {"Authorization": "Bearer invalid-key-12345"}
         response = auth_client.get(f"{SENTENCES_PREFIX}/random", headers=headers)
 
         assert response.status_code == 401

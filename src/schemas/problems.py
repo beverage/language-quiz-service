@@ -205,6 +205,7 @@ class ProblemSummary(BaseModel):
     instructions: str
     correct_answer_index: int
     topic_tags: list[str]
+    focus: GrammarFocus | None = None  # Extracted from metadata.grammatical_focus
     created_at: datetime
 
     # Derived fields
@@ -315,6 +316,12 @@ class ProblemFilters(BaseModel):
     """Filters for problem queries."""
 
     problem_type: ProblemType | None = None
+    grammatical_focus: list[str] | None = (
+        None  # Filter by grammar focus areas (e.g., ["conjugation", "pronouns"])
+    )
+    tenses_used: list[str] | None = (
+        None  # Filter by tenses used (e.g., ["future_simple", "imparfait"])
+    )
     topic_tags: list[str] | None = None
     target_language_code: str | None = None
     created_after: datetime | None = None
